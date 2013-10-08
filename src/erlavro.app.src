@@ -1,0 +1,11 @@
+{application, erlavro,
+ [
+  {description, "Implemenation of Apache Avro support for Erlang"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
