@@ -9,7 +9,7 @@
 %%% not relevant for parsing).
 %%% @end
 %%%-------------------------------------------------------------------
--module(avro_mochijson3_writer).
+-module(avro_json_encoder).
 
 %% API
 -export([encode_type/1]).
