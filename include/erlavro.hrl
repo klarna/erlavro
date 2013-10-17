@@ -87,10 +87,13 @@
 
 -type avro_value() :: #avro_value{}.
 
+-define(AVRO_VALUE(Type,Data), #avro_value{type = Type, data = Data}).
 -define(AVRO_VALUE_TYPE(Value), Value#avro_value.type).
 -define(AVRO_VALUE_DATA(Value), Value#avro_value.data).
 
-%% Type checks
+-define(AVRO_UPDATE_VALUE(Value,Data), Value#avro_value{data = Data}).
+
+        %% Type checks
 
 -define(AVRO_IS_PRIMITIVE_TYPE(Type), is_record(Type, avro_primitive_type)).
 

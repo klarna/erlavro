@@ -10,6 +10,7 @@
 -export([type/4]).
 -export([field/3]).
 -export([field/4]).
+-export([get_field_type/2]).
 
 -export([new/1]).
 -export([get/2]).
@@ -43,18 +44,23 @@ field(Name, Type, Doc, Default) ->
     , default = Default
     }.
 
+get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
+    case get_field_def(FieldName, Type) of
+        {ok, #avro_field{type = FieldType}} -> FieldType;
+        false  -> raise_unknown_field(FieldName, Type)
+    end.
+
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 -spec new(#avro_record_type{}) -> avro_value().
 
-new(#avro_record_type{} = Type) ->
+new(Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     #avro_value
     { type = Type
     , data = dict:new()
     }.
-
 
 -spec get(string(), #avro_value{}) -> avro_value().
 
@@ -80,7 +86,7 @@ set(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
             {ok, _FieldDef} ->
                 dict:store(FieldName, Value, ?AVRO_VALUE_DATA(Record));
             false ->
-                erlang:error({error, unknown_field})
+                raise_unknown_field(FieldName, ?AVRO_VALUE_TYPE(Record))
         end,
     Record#avro_value{data = NewData}.
 
@@ -100,6 +106,9 @@ check(_Record) ->
 %%% Internal functions
 %%%===================================================================
 
+raise_unknown_field(FieldName, Type) ->
+    erlang:error({error, {unknown_field, FieldName, Type}}).
+
 get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
     get_field_def(FieldName, Fields);
 get_field_def(_FieldName, []) ->
@@ -108,7 +117,6 @@ get_field_def(FieldName, [#avro_field{name = FieldName} = FieldDef | _]) ->
     {ok, FieldDef};
 get_field_def(FieldName, [_ | Rest]) ->
     get_field_def(FieldName, Rest).
-
 
 append_field_value(#avro_field{name = FieldName, default = Default},
                    Record,

@@ -71,9 +71,13 @@ long(Value) when Value >= -9223372036854775808 andalso
                  Value =<  9223372036854775807 ->
     #avro_value{ type = long_type(), data = Value }.
 
+float(Value) when erlang:is_integer(Value) ->
+    #avro_value{ type = float_type(), data = erlang:float(Value) };
 float(Value) when erlang:is_float(Value) ->
     #avro_value{ type = float_type(), data = Value }.
 
+double(Value) when erlang:is_integer(Value) ->
+    #avro_value{ type = double_type(), data = erlang:float(Value) };
 double(Value) when erlang:is_float(Value) ->
     #avro_value{ type = double_type(), data = Value }.
 
@@ -86,3 +90,9 @@ string(Value) when is_list(Value) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%%_* Emacs ============================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

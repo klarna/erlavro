@@ -80,64 +80,64 @@ do_encode_type(#avro_enum_type{} = T) ->
   };
 
 do_encode_type(#avro_array_type{type = Type}) ->
-    { struct
-    , [ {type,  encode_string("array")}
-      , {items, do_encode_type(Type)}
-      ]
-    };
+  { struct
+  , [ {type,  encode_string("array")}
+    , {items, do_encode_type(Type)}
+    ]
+  };
 
 do_encode_type(#avro_map_type{type = Type}) ->
-    { struct
-    , [ {type,   encode_string("map")}
-      , {values, do_encode_type(Type)}
-      ]
-    };
+  { struct
+  , [ {type,   encode_string("map")}
+    , {values, do_encode_type(Type)}
+    ]
+  };
 
 do_encode_type(#avro_union_type{types = Types}) ->
-    lists:map(fun do_encode_type/1, Types);
+  lists:map(fun do_encode_type/1, Types);
 
 do_encode_type(#avro_fixed_type{} = T) ->
-    #avro_fixed_type{ name = Name
-                    , namespace = Namespace
-                    , aliases = Aliases
-                    , size = Size} = T,
-    { struct
-    , [ {type, encode_string("fixed")}
-      , {name, encode_string(Name)}
-      , {size, encode_integer(Size)}
-      ]
-      ++ optional_field(namespace, Namespace, "", fun encode_string/1)
-      ++ optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
-    }.
+  #avro_fixed_type{ name = Name
+                  , namespace = Namespace
+                  , aliases = Aliases
+                  , size = Size} = T,
+  { struct
+  , [ {type, encode_string("fixed")}
+    , {name, encode_string(Name)}
+    , {size, encode_integer(Size)}
+    ]
+    ++ optional_field(namespace, Namespace, "", fun encode_string/1)
+    ++ optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
+  }.
 
 encode_field(Field) ->
-    #avro_field{ name    = Name
-               , doc     = Doc
-               , type    = Type
-               , default = Default
-               , order   = Order
-               , aliases = Aliases} = Field,
-    { struct
-    , [ {name, encode_string(Name)}
-      , {type, do_encode_type(Type)}
-      ]
-      ++ optional_field(default, Default, undefined, fun encode_value/1)
-      ++ optional_field(doc,     Doc,     "",        fun encode_string/1)
-      ++ optional_field(order,   Order,   ascending, fun encode_order/1)
-      ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1)
-    }.
+  #avro_field{ name    = Name
+             , doc     = Doc
+             , type    = Type
+             , default = Default
+             , order   = Order
+             , aliases = Aliases} = Field,
+  { struct
+  , [ {name, encode_string(Name)}
+    , {type, do_encode_type(Type)}
+    ]
+    ++ optional_field(default, Default, undefined, fun encode_value/1)
+    ++ optional_field(doc,     Doc,     "",        fun encode_string/1)
+    ++ optional_field(order,   Order,   ascending, fun encode_order/1)
+    ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1)
+  }.
 
 encode_string(String) ->
-    erlang:list_to_binary(String).
+  erlang:list_to_binary(String).
 
 encode_utf8_string(String) ->
-    encode_string(xmerl_ucs:to_utf8(String)).
+  encode_string(xmerl_ucs:to_utf8(String)).
 
 encode_integer(Int) when is_integer(Int) ->
-    Int.
+  Int.
 
 encode_aliases(Aliases) ->
-    lists:map(fun encode_string/1, Aliases).
+  lists:map(fun encode_string/1, Aliases).
 
 encode_order(ascending)  -> <<"ascending">>;
 encode_order(descending) -> <<"descending">>;
@@ -145,75 +145,78 @@ encode_order(ignore)     -> <<"ignore">>.
 
 
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
-    null;
+  null;
 
 do_encode_value(Value) when ?AVRO_IS_INT_VALUE(Value) ->
-    ?AVRO_VALUE_DATA(Value);
+  ?AVRO_VALUE_DATA(Value);
 
 do_encode_value(Value) when ?AVRO_IS_BOOLEAN_VALUE(Value) ->
-    ?AVRO_VALUE_DATA(Value);
+  ?AVRO_VALUE_DATA(Value);
 
 do_encode_value(Value) when ?AVRO_IS_INT_VALUE(Value) ->
-    ?AVRO_VALUE_DATA(Value);
+  ?AVRO_VALUE_DATA(Value);
 
 do_encode_value(Value) when ?AVRO_IS_LONG_VALUE(Value) ->
-    %% mochijson3 encodes more than 4-bytes integers as floats
-    {json, integer_to_list(?AVRO_VALUE_DATA(Value))};
+  %% mochijson3 encodes more than 4-bytes integers as floats
+  {json, integer_to_list(?AVRO_VALUE_DATA(Value))};
 
 do_encode_value(Value) when ?AVRO_IS_FLOAT_VALUE(Value) ->
-    ?AVRO_VALUE_DATA(Value);
+  ?AVRO_VALUE_DATA(Value);
 
 do_encode_value(Value) when ?AVRO_IS_DOUBLE_VALUE(Value) ->
-    ?AVRO_VALUE_DATA(Value);
+  ?AVRO_VALUE_DATA(Value);
 
 do_encode_value(Value) when ?AVRO_IS_BYTES_VALUE(Value) ->
-    %% mochijson3 doesn't support Avro style of encoding binaries
-    {json, encode_binary(?AVRO_VALUE_DATA(Value))};
+  %% mochijson3 doesn't support Avro style of encoding binaries
+  {json, encode_binary(?AVRO_VALUE_DATA(Value))};
 
 do_encode_value(Value) when ?AVRO_IS_STRING_VALUE(Value) ->
-    encode_utf8_string(?AVRO_VALUE_DATA(Value));
+  encode_utf8_string(?AVRO_VALUE_DATA(Value));
 
 do_encode_value(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
-    FieldsAndValues = avro_record:to_list(Record),
-    { struct
-    , lists:map(fun encode_record_field_with_value/1, FieldsAndValues)
-    };
+  FieldsAndValues = avro_record:to_list(Record),
+  { struct
+  , lists:map(fun encode_record_field_with_value/1, FieldsAndValues)
+  };
 
 do_encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
-    %% I suppose that enum symbols can contain any characters,
-    %% since the specification doesn't say anything about this.
-    encode_utf8_string(?AVRO_VALUE_DATA(Enum));
+  %% I suppose that enum symbols can contain any characters,
+  %% since the specification doesn't say anything about this.
+  encode_utf8_string(?AVRO_VALUE_DATA(Enum));
 
-%% TODO: array
+do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
+  lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
+
 %% TODO: map
 
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
-    Data = ?AVRO_VALUE_DATA(Union),
-    { struct
-    , [{avro:get_fullname(?AVRO_VALUE_TYPE(Data), ""), %% TODO: enclosing ns
-        do_encode_value(?AVRO_VALUE_DATA(Data))}]
-    };
+  Data = ?AVRO_VALUE_DATA(Union),
+  { struct
+  , [{avro:get_fullname(?AVRO_VALUE_TYPE(Data), ""), %% TODO: enclosing ns
+      do_encode_value(?AVRO_VALUE_DATA(Data))}]
+  };
 
 do_encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
-    {json, encode_binary(?AVRO_VALUE_DATA(Fixed))}.
+  %% mochijson3 doesn't support Avro style of encoding binaries
+  {json, encode_binary(?AVRO_VALUE_DATA(Fixed))}.
 
 
 
 encode_record_field_with_value({FieldName, Value}) ->
-    {encode_string(FieldName), do_encode_value(Value)}.
+  {encode_string(FieldName), do_encode_value(Value)}.
 
 encode_binary(Bin) ->
-    [$", encode_binary_body(Bin), $"].
+  [$", encode_binary_body(Bin), $"].
 
 encode_binary_body(<<>>) ->
-    "";
+  "";
 encode_binary_body(<<H1:4, H2:4, Rest/binary>>) ->
-    [$\\, $u, $0, $0, to_hex(H1), to_hex(H2) |encode_binary_body(Rest)].
+  [$\\, $u, $0, $0, to_hex(H1), to_hex(H2) |encode_binary_body(Rest)].
 
 to_hex(D) when D >= 0 andalso D =< 9 ->
-    D + $0;
+  D + $0;
 to_hex(D) when D >= 10 andalso D =< 15 ->
-    D - 10 + $a.
+  D - 10 + $a.
 
 %%%===================================================================
 %%% Tests
@@ -224,7 +227,7 @@ to_hex(D) when D >= 10 andalso D =< 15 ->
 -ifdef(EUNIT).
 
 to_string(Json) ->
-    binary_to_list(iolist_to_binary(Json)).
+  binary_to_list(iolist_to_binary(Json)).
 
 sample_record_type() ->
     avro_record:type(
