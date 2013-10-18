@@ -8,6 +8,7 @@
 
 %% API
 -export([type/1]).
+-export([get_items_type/1]).
 
 -export([new/1]).
 -export([new/2]).
@@ -23,6 +24,9 @@
 
 type(SubType) ->
     #avro_array_type{ type = SubType }.
+
+get_items_type(ArrayType) when ?AVRO_IS_ARRAY_TYPE(ArrayType) ->
+    ArrayType#avro_array_type.type.
 
 new(Type) ->
     new(Type, []).

@@ -17,6 +17,8 @@
 
 -include_lib("erlavro/include/erlavro.hrl").
 
+-define(IS_INTEGER_FLOAT(X), round(X) == X).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -147,9 +149,6 @@ encode_order(ignore)     -> <<"ignore">>.
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
   null;
 
-do_encode_value(Value) when ?AVRO_IS_INT_VALUE(Value) ->
-  ?AVRO_VALUE_DATA(Value);
-
 do_encode_value(Value) when ?AVRO_IS_BOOLEAN_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value);
 
@@ -161,10 +160,23 @@ do_encode_value(Value) when ?AVRO_IS_LONG_VALUE(Value) ->
   {json, integer_to_list(?AVRO_VALUE_DATA(Value))};
 
 do_encode_value(Value) when ?AVRO_IS_FLOAT_VALUE(Value) ->
-  ?AVRO_VALUE_DATA(Value);
+  %% if float is actually an integer then we encode it
+  %% separately otherwise it might be converted to
+  %% floating point format by mochijson.
+  Data = ?AVRO_VALUE_DATA(Value),
+  case ?IS_INTEGER_FLOAT(Data) of
+    true  -> {json, integer_to_list(round(Data))};
+    false -> Data
+  end;
 
 do_encode_value(Value) when ?AVRO_IS_DOUBLE_VALUE(Value) ->
-  ?AVRO_VALUE_DATA(Value);
+  %% Same as for floats: don't allow integers to be represented
+  %% as floating point floats.
+  Data = ?AVRO_VALUE_DATA(Value),
+  case ?IS_INTEGER_FLOAT(Data) of
+    true  -> {json, integer_to_list(round(Data))};
+    false -> Data
+  end;
 
 do_encode_value(Value) when ?AVRO_IS_BYTES_VALUE(Value) ->
   %% mochijson3 doesn't support Avro style of encoding binaries
@@ -190,16 +202,15 @@ do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
 %% TODO: map
 
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
-  Data = ?AVRO_VALUE_DATA(Union),
+  Data = avro_union:get_value(Union),
   { struct
   , [{avro:get_fullname(?AVRO_VALUE_TYPE(Data), ""), %% TODO: enclosing ns
-      do_encode_value(?AVRO_VALUE_DATA(Data))}]
+      do_encode_value(Data)}]
   };
 
 do_encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
   %% mochijson3 doesn't support Avro style of encoding binaries
   {json, encode_binary(?AVRO_VALUE_DATA(Fixed))}.
-
 
 
 encode_record_field_with_value({FieldName, Value}) ->
