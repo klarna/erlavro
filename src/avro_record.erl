@@ -126,3 +126,28 @@ append_field_value(#avro_field{name = FieldName, default = Default},
                 error   -> Default
             end,
     [{FieldName, Value}|Result].
+
+%%%===================================================================
+%%% Tests
+%%%===================================================================
+
+-ifdef(EUNIT).
+
+-include_lib("eunit/include/eunit.hrl").
+
+record_creation_test() ->
+    Schema = #avro_record_type
+             { name = "Test"
+             , fields = [#avro_field{name = "invno", type = avro_schema:long()}]
+             },
+    Record = avro_record:new(Schema),
+    avro_record:set("invno", avro_primitive:long(1)),
+    ok.
+
+-endif.
+
+%%%_* Emacs ============================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

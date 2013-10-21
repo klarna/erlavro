@@ -1,8 +1,8 @@
 %%%-------------------------------------------------------------------
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
 %%% @doc
-%%% Writes Avro schemas and values to files using JSON format and
-%%% mochijson3 as a writer.
+%%% Encodes Avro schemas and values to JSON format using mochijson3
+%%% as an encoder.
 %%%
 %%% Schema is written following parsing canonical form recommendations
 %%% but keeps all information (attributes are kept even if they are
@@ -17,7 +17,7 @@
 
 -include_lib("erlavro/include/erlavro.hrl").
 
--define(IS_INTEGER_FLOAT(X), round(X) == X).
+-define(IS_INTEGER_FLOAT(X), round(X) == X). %% quite enough for our purposes
 
 %%%===================================================================
 %%% API
@@ -204,7 +204,7 @@ do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   Data = avro_union:get_value(Union),
   { struct
-  , [{avro:get_fullname(?AVRO_VALUE_TYPE(Data), ""), %% TODO: enclosing ns
+  , [{avro:get_fullname(?AVRO_VALUE_TYPE(Data), ""),
       do_encode_value(Data)}]
   };
 

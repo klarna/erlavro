@@ -110,13 +110,10 @@ error_if_false(false, Err) -> erlang:error(Err).
 
 -include_lib("eunit/include/eunit.hrl").
 
-record_creation_test() ->
-    Schema = #avro_record_type
-             { name = "Test"
-             , fields = [#avro_field{name = "invno", type = avro_schema:long()}]
-             },
-    Record = avro_record:new(Schema),
-    avro_record:set("invno", avro_primitive:long(1)),
-    ok.
-
 -endif.
+
+%%%_* Emacs ============================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

@@ -1,15 +1,23 @@
 %%%-------------------------------------------------------------------
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
-%%% @doc
+%%% @doc Implements unions support for Avro.
 %%%
+%%% Unions may not contain more than one schema with the same type, except
+%%% for the named types record, fixed and enum. For example, unions containing
+%%% two array types or two map types are not permitted, but two types with
+%%% different names are permitted. (Names permit efficient resolution when
+%%% reading and writing unions.)
+%%%
+%%% Unions may not immediately contain other unions.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(avro_union).
 
 %% API
 -export([type/1]).
--export([new/1]).
--export([is_compatible_with/2]).
+-export([new/2]).
+-export([get_value/1]).
+-export([set_value/2]).
 
 -include_lib("erlavro/include/erlavro.hrl").
 
@@ -20,36 +28,30 @@
 type(SubTypes) ->
     #avro_union_type{types = SubTypes}.
 
-new(_Value) ->
-    ok.
+new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
+    ?AVRO_VALUE(Type, Value).
 
-is_compatible_with(_Type, _Value) ->
-    todo.
+%% Get current value of a union type variable
+get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+    ?AVRO_VALUE_DATA(Union).
+
+%% Sets new value to a union type variable
+set_value(Union, Value) when ?AVRO_IS_UNION_VALUE(Union) ->
+    ?AVRO_UPDATE_VALUE(Union, Value).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
-
-%% From the specification:
-%%
-%% Unions may not contain more than one schema with the same type, except
-%% for the named types record, fixed and enum. For example, unions containing
-%% two array types or two map types are not permitted, but two types with
-%% different names are permitted. (Names permit efficient resolution when
-%% reading and writing unions.)
-%%
-%% Unions may not immediately contain other unions.
-%% check_subtypes(SubTypes) ->
-%%     ok.
-
+-include_lib("eunit/include/eunit.hrl").
 
 -ifdef(EUNIT).
 
--include_lib("eunit/include/eunit.hrl").
-
-create_test() ->
-    Type = type([avro_schema:null(), avro_schema:string()]),
-    ?assertFalse(is_compatible_with(Type, avro_primitive:int(1))).
 
 -endif.
+
+%%%_* Emacs ============================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:
