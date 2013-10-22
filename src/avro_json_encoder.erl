@@ -271,9 +271,17 @@ sample_record() ->
       ],
       Rec).
 
+encode_null_type_test() ->
+    Json = encode_type(avro_primitive:null_type()),
+    ?assertEqual("\"null\"", to_string(Json)).
+
 encode_null_test() ->
     Json = encode_value(avro_primitive:null()),
     ?assertEqual("null", to_string(Json)).
+
+encode_boolean_type_test() ->
+    Json = encode_type(avro_primitive:boolean_type()),
+    ?assertEqual("\"boolean\"", to_string(Json)).
 
 encode_boolean_test() ->
     JsonTrue = encode_value(avro_primitive:boolean(true)),
@@ -281,21 +289,49 @@ encode_boolean_test() ->
     ?assertEqual("true", to_string(JsonTrue)),
     ?assertEqual("false", to_string(JsonFalse)).
 
+encode_int_type_test() ->
+    Json = encode_type(avro_primitive:int_type()),
+    ?assertEqual("\"int\"", to_string(Json)).
+
 encode_int_test() ->
     Json = encode_value(avro_primitive:int(1)),
     ?assertEqual("1", to_string(Json)).
+
+encode_long_type_test() ->
+    Json = encode_type(avro_primitive:long_type()),
+    ?assertEqual("\"long\"", to_string(Json)).
 
 encode_long_test() ->
     Json = encode_value(avro_primitive:long(12345678901)),
     ?assertEqual("12345678901", to_string(Json)).
 
+encode_float_type_test() ->
+    Json = encode_type(avro_primitive:float_type()),
+    ?assertEqual("\"float\"", to_string(Json)).
+
 encode_float_test() ->
     Json = encode_value(avro_primitive:float(3.14159265358)),
     ?assertEqual("3.14159265358", to_string(Json)).
 
+encode_integer_float_test() ->
+    Json = encode_value(avro_primitive:float(314159265358.0)),
+    ?assertEqual("314159265358", to_string(Json)).
+
+encode_double_type_test() ->
+    Json = encode_type(avro_primitive:double_type()),
+    ?assertEqual("\"double\"", to_string(Json)).
+
 encode_double_test() ->
     Json = encode_value(avro_primitive:double(3.14159265358)),
     ?assertEqual("3.14159265358", to_string(Json)).
+
+encode_integer_double_test() ->
+    Json = encode_value(avro_primitive:double(314159265358.0)),
+    ?assertEqual("314159265358", to_string(Json)).
+
+encode_bytes_type_test() ->
+    Json = encode_type(avro_primitive:bytes_type()),
+    ?assertEqual("\"bytes\"", to_string(Json)).
 
 encode_empty_bytes_test() ->
     Json = encode_value(avro_primitive:bytes(<<>>)),
@@ -304,6 +340,10 @@ encode_empty_bytes_test() ->
 encode_bytes_test() ->
     Json = encode_value(avro_primitive:bytes(<<0,1,100,255>>)),
     ?assertEqual("\"\\u0000\\u0001\\u0064\\u00ff\"", to_string(Json)).
+
+encode_string_type_test() ->
+    Json = encode_type(avro_primitive:string_type()),
+    ?assertEqual("\"string\"", to_string(Json)).
 
 encode_string_test() ->
     Json = encode_value(avro_primitive:string("Hello, Avro!")),
@@ -314,9 +354,39 @@ encode_string_with_quoting_test() ->
     ?assertEqual("\"\\\"\\\\\"", to_string(Json)).
 
 encode_utf8_string_test() ->
-    S = "Avro är popular",
+    S = "Avro är populär",
     Json = encode_value(avro_primitive:string(S)),
-    ?assertEqual("\"Avro \\u00e4r popular\"", to_string(Json)).
+    ?assertEqual("\"Avro \\u00e4r popul\\u00e4r\"", to_string(Json)).
+
+encode_record_type_test() ->
+    Json = encode_type(sample_record_type()),
+    ?assertEqual("{\"type\":\"record\","
+                  "\"name\":\"SampleRecord\","
+                  "\"fields\":["
+                    "{\"name\":\"bool\","
+                    "\"type\":\"boolean\","
+                    "\"doc\":\"bool f\"},"
+                    "{\"name\":\"int\","
+                    "\"type\":\"int\","
+                    "\"doc\":\"int f\"},"
+                    "{\"name\":\"long\","
+                    "\"type\":\"long\","
+                    "\"doc\":\"long f\"},"
+                    "{\"name\":\"float\","
+                    "\"type\":\"float\","
+                    "\"doc\":\"float f\"},"
+                    "{\"name\":\"double\","
+                    "\"type\":\"double\","
+                    "\"doc\":\"double f\"},"
+                    "{\"name\":\"bytes\","
+                    "\"type\":\"bytes\","
+                    "\"doc\":\"bytes f\"},"
+                    "{\"name\":\"string\","
+                    "\"type\":\"string\","
+                    "\"doc\":\"string f\"}],"
+                  "\"namespace\":\"com.klarna.test.bix\","
+                  "\"doc\":\"Record documentation\"}",
+                 to_string(Json)).
 
 encode_record_test() ->
     Json = encode_value(sample_record()),
@@ -331,6 +401,48 @@ encode_record_test() ->
                "\"string\":\"string value\""
                "}",
     ?assertEqual(Expected, to_string(Json)).
+
+encode_enum_test() ->
+  EnumType = #avro_enum_type
+             { name = "Enum"
+             , namespace = "com.klarna.test.bix"
+             , symbols = ["A", "B", "C"]
+             },
+  EnumValue = ?AVRO_VALUE(EnumType, "B"),
+  EnumTypeJson = encode_type(EnumType),
+  ?assertEqual("{\"type\":\"enum\","
+               "\"name\":\"Enum\","
+               "\"symbols\":[\"A\",\"B\",\"C\"],"
+               "\"namespace\":\"com.klarna.test.bix\"}",
+               to_string(EnumTypeJson)),
+  EnumValueJson = encode_value(EnumValue),
+  ?assertEqual("\"B\"", to_string(EnumValueJson)).
+
+encode_union_type_test() ->
+  UnionType = avro_union:type([ avro_primitive:string_type()
+                              , avro_primitive:int_type()]),
+  Json = encode_type(UnionType),
+  ?assertEqual("[\"string\",\"int\"]", to_string(Json)).
+
+encode_union_test() ->
+  UnionType = avro_union:type([ avro_primitive:string_type()
+                              , avro_primitive:int_type()]),
+  Value = avro_union:new(UnionType, avro_primitive:int(10)),
+  Json = encode_value(Value),
+  ?assertEqual("{\"int\":10}", to_string(Json)).
+
+encode_array_type_test() ->
+  Type = avro_array:type(avro_primitive:string_type()),
+  Json = encode_type(Type),
+  ?assertEqual("{\"type\":\"array\",\"items\":\"string\"}", to_string(Json)).
+
+encode_array_test() ->
+  Type = avro_array:type(avro_primitive:string_type()),
+  Value = avro_array:new(Type,
+                         [ avro_primitive:string("a")
+                         , avro_primitive:string("b")]),
+  Json = encode_value(Value),
+  ?assertEqual("[\"a\",\"b\"]", to_string(Json)).
 
 -endif.
 

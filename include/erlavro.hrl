@@ -16,6 +16,12 @@
 -define(AVRO_MAP,     "map").
 -define(AVRO_UNION,   "union").
 
+-define(INT4_MIN, -2147483648).
+-define(INT4_MAX,  2147483647).
+
+-define(INT8_MIN, -9223372036854775808).
+-define(INT8_MAX,  9223372036854775807).
+
 -define(REQUIRED, =erlang:error("Required field isn't initialized during "
                                 "record instantiation in "
                                 ++ ?MODULE_STRING ++ ":" ++ ?LINE)).
@@ -93,7 +99,7 @@
 
 -define(AVRO_UPDATE_VALUE(Value,Data), Value#avro_value{data = Data}).
 
-        %% Type checks
+%% Type checks
 
 -define(AVRO_IS_PRIMITIVE_TYPE(Type), is_record(Type, avro_primitive_type)).
 

@@ -7,8 +7,6 @@
 -module(avro_primitive).
 
 %% API
--export([is_primitive_type/1]).
-
 -export([null_type/0]).
 -export([boolean_type/0]).
 -export([int_type/0]).
@@ -33,9 +31,6 @@
 %%%===================================================================
 %%% API: Types
 %%%===================================================================
-
-is_primitive_type(#avro_primitive_type{}) -> true;
-is_primitive_type(_)                      -> false.
 
 null_type()    -> #avro_primitive_type{name = ?AVRO_NULL}.
 
@@ -63,12 +58,12 @@ null() ->
 boolean(Value) when erlang:is_boolean(Value) ->
     #avro_value{ type = boolean_type(), data = Value }.
 
-int(Value) when Value >= -2147483648 andalso
-                Value =<  2147483647 ->
+int(Value) when Value >= ?INT4_MIN andalso
+                Value =< ?INT4_MAX ->
     #avro_value{ type = int_type(), data = Value }.
 
-long(Value) when Value >= -9223372036854775808 andalso
-                 Value =<  9223372036854775807 ->
+long(Value) when Value >= ?INT8_MIN andalso
+                 Value =< ?INT8_MAX ->
     #avro_value{ type = long_type(), data = Value }.
 
 float(Value) when erlang:is_integer(Value) ->
