@@ -183,7 +183,7 @@ do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   Data = avro_union:get_value(Union),
   { struct
-  , [{avro:get_fullname(?AVRO_VALUE_TYPE(Data), ""),
+  , [{avro:get_type_fullname(?AVRO_VALUE_TYPE(Data), ""),
       do_encode_value(Data)}]
   };
 
