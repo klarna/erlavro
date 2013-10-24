@@ -32,7 +32,7 @@ encode_value(Value) ->
 %%%===================================================================
 
 get_encoder() ->
-  mochijson3:encoder([{utf8, false}]).
+  mochijson3:encoder([{utf8, true}]).
 
 to_json(Data) ->
   (get_encoder())(Data).
@@ -130,9 +130,6 @@ encode_field(Field) ->
 encode_string(String) ->
   erlang:list_to_binary(String).
 
-encode_utf8_string(String) ->
-  encode_string(xmerl_ucs:to_utf8(String)).
-
 encode_integer(Int) when is_integer(Int) ->
   Int.
 
@@ -142,7 +139,6 @@ encode_aliases(Aliases) ->
 encode_order(ascending)  -> <<"ascending">>;
 encode_order(descending) -> <<"descending">>;
 encode_order(ignore)     -> <<"ignore">>.
-
 
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
   null;
@@ -168,7 +164,7 @@ do_encode_value(Value) when ?AVRO_IS_BYTES_VALUE(Value) ->
   {json, encode_binary(?AVRO_VALUE_DATA(Value))};
 
 do_encode_value(Value) when ?AVRO_IS_STRING_VALUE(Value) ->
-  encode_utf8_string(?AVRO_VALUE_DATA(Value));
+  encode_string(?AVRO_VALUE_DATA(Value));
 
 do_encode_value(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   FieldsAndValues = avro_record:to_list(Record),
@@ -177,9 +173,7 @@ do_encode_value(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   };
 
 do_encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
-  %% I suppose that enum symbols can contain any characters,
-  %% since the specification doesn't say anything about this.
-  encode_utf8_string(?AVRO_VALUE_DATA(Enum));
+  encode_string(?AVRO_VALUE_DATA(Enum));
 
 do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
@@ -341,9 +335,10 @@ encode_string_with_quoting_test() ->
     ?assertEqual("\"\\\"\\\\\"", to_string(Json)).
 
 encode_utf8_string_test() ->
-    S = "Avro är populär",
+    S = xmerl_ucs:to_utf8("Avro är populär"),
     Json = encode_value(avro_primitive:string(S)),
-    ?assertEqual("\"Avro \\u00e4r popul\\u00e4r\"", to_string(Json)).
+    ?assertEqual("\"Avro " ++ [195,164] ++ "r popul"++ [195,164] ++ "r\"",
+                 to_string(Json)).
 
 encode_record_type_test() ->
     Json = encode_type(sample_record_type()),

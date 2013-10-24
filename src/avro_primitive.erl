@@ -79,6 +79,7 @@ double(Value) when erlang:is_float(Value) ->
 bytes(Value) when is_binary(Value) ->
     #avro_value{ type = bytes_type(), data = Value }.
 
+%% It is assumed that source string is UTF-8 encoded
 string(Value) when is_list(Value) ->
     #avro_value{ type = string_type(), data = Value }.
 
