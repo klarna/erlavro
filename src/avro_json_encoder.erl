@@ -17,8 +17,6 @@
 
 -include_lib("erlavro/include/erlavro.hrl").
 
--define(IS_INTEGER_FLOAT(X), round(X) == X). %% quite enough for our purposes
-
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -160,23 +158,10 @@ do_encode_value(Value) when ?AVRO_IS_LONG_VALUE(Value) ->
   {json, integer_to_list(?AVRO_VALUE_DATA(Value))};
 
 do_encode_value(Value) when ?AVRO_IS_FLOAT_VALUE(Value) ->
-  %% if float is actually an integer then we encode it
-  %% separately otherwise it might be converted to
-  %% floating point format by mochijson.
-  Data = ?AVRO_VALUE_DATA(Value),
-  case ?IS_INTEGER_FLOAT(Data) of
-    true  -> {json, integer_to_list(round(Data))};
-    false -> Data
-  end;
+  ?AVRO_VALUE_DATA(Value);
 
 do_encode_value(Value) when ?AVRO_IS_DOUBLE_VALUE(Value) ->
-  %% Same as for floats: don't allow integers to be represented
-  %% as floating point floats.
-  Data = ?AVRO_VALUE_DATA(Value),
-  case ?IS_INTEGER_FLOAT(Data) of
-    true  -> {json, integer_to_list(round(Data))};
-    false -> Data
-  end;
+  ?AVRO_VALUE_DATA(Value);
 
 do_encode_value(Value) when ?AVRO_IS_BYTES_VALUE(Value) ->
   %% mochijson3 doesn't support Avro style of encoding binaries
@@ -252,10 +237,6 @@ sample_record_type() ->
       , avro_record:field("double", avro_primitive:double_type(),  "double f")
       , avro_record:field("bytes",  avro_primitive:bytes_type(),   "bytes f")
       , avro_record:field("string", avro_primitive:string_type(),  "string f")
-      %% , avro_record:field("record", avro_primitive:int_type(), "record f")
-      %% , avro_record:field("enum", avro_primitive:int_type(),   "i f")
-      %% , avro_record:field("union", avro_primitive:int_type(), "union f")
-      %% , avro_record:field("fixed", avro_primitive:int_type(), "fixed f")
       ]).
 
 sample_record() ->
@@ -313,9 +294,15 @@ encode_float_test() ->
     Json = encode_value(avro_primitive:float(3.14159265358)),
     ?assertEqual("3.14159265358", to_string(Json)).
 
+encode_float_precision_lost_test() ->
+    %% Warning: implementation of doubles in erlang loses
+    %% precision on such numbers.
+    Json = encode_value(avro_primitive:float(10000000000000001)),
+    ?assertEqual("1.0e+16", to_string(Json)).
+
 encode_integer_float_test() ->
-    Json = encode_value(avro_primitive:float(314159265358.0)),
-    ?assertEqual("314159265358", to_string(Json)).
+    Json = encode_value(avro_primitive:float(314159265358)),
+    ?assertEqual("314159265358.0", to_string(Json)).
 
 encode_double_type_test() ->
     Json = encode_type(avro_primitive:double_type()),
@@ -326,8 +313,8 @@ encode_double_test() ->
     ?assertEqual("3.14159265358", to_string(Json)).
 
 encode_integer_double_test() ->
-    Json = encode_value(avro_primitive:double(314159265358.0)),
-    ?assertEqual("314159265358", to_string(Json)).
+    Json = encode_value(avro_primitive:double(314159265358)),
+    ?assertEqual("314159265358.0", to_string(Json)).
 
 encode_bytes_type_test() ->
     Json = encode_type(avro_primitive:bytes_type()),
