@@ -37,7 +37,7 @@ field(Name, Type, Doc) ->
     field(Name, Type, Doc, undefined).
 
 field(Name, Type, Doc, Default) ->
-    #avro_field
+    #avro_record_field
     { name    = Name
     , type    = Type
     , doc     = Doc
@@ -46,7 +46,7 @@ field(Name, Type, Doc, Default) ->
 
 get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     case get_field_def(FieldName, Type) of
-        {ok, #avro_field{type = FieldType}} -> FieldType;
+        {ok, #avro_record_field{type = FieldType}} -> FieldType;
         false  -> raise_unknown_field(FieldName, Type)
     end.
 
@@ -107,18 +107,18 @@ check(_Record) ->
 %%%===================================================================
 
 raise_unknown_field(FieldName, Type) ->
-    erlang:error({error, {unknown_field, FieldName, Type}}).
+    erlang:error({unknown_field, FieldName, Type}).
 
 get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
     get_field_def(FieldName, Fields);
 get_field_def(_FieldName, []) ->
     false;
-get_field_def(FieldName, [#avro_field{name = FieldName} = FieldDef | _]) ->
+get_field_def(FieldName, [#avro_record_field{name = FieldName} = FieldDef|_]) ->
     {ok, FieldDef};
 get_field_def(FieldName, [_ | Rest]) ->
     get_field_def(FieldName, Rest).
 
-append_field_value(#avro_field{name = FieldName, default = Default},
+append_field_value(#avro_record_field{name = FieldName, default = Default},
                    Record,
                    Result) ->
     Value = case dict:find(FieldName, Record#avro_value.data) of

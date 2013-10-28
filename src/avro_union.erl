@@ -15,6 +15,8 @@
 
 %% API
 -export([type/1]).
+-export([get_types/1]).
+
 -export([new/2]).
 -export([get_value/1]).
 -export([set_value/2]).
@@ -25,8 +27,10 @@
 %%% API
 %%%===================================================================
 
-type(SubTypes) ->
-    #avro_union_type{types = SubTypes}.
+type(Types) ->
+    #avro_union_type{types = Types}.
+
+get_types(#avro_union_type{types = Types}) -> Types.
 
 new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
     ?AVRO_VALUE(Type, Value).

@@ -111,12 +111,12 @@ do_encode_type(#avro_fixed_type{} = T) ->
   }.
 
 encode_field(Field) ->
-  #avro_field{ name    = Name
-             , doc     = Doc
-             , type    = Type
-             , default = Default
-             , order   = Order
-             , aliases = Aliases} = Field,
+  #avro_record_field{ name    = Name
+                    , doc     = Doc
+                    , type    = Type
+                    , default = Default
+                    , order   = Order
+                    , aliases = Aliases} = Field,
   { struct
   , [ {name, encode_string(Name)}
     , {type, do_encode_type(Type)}
@@ -182,10 +182,14 @@ do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
 
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   Data = avro_union:get_value(Union),
-  { struct
-  , [{avro:get_type_fullname(?AVRO_VALUE_TYPE(Data), ""),
-      do_encode_value(Data)}]
-  };
+  case ?AVRO_IS_NULL_VALUE(Data) of
+    true  -> null; %% Nulls don't need type to be specified
+    false ->
+      { struct
+      , [{avro:get_type_fullname(?AVRO_VALUE_TYPE(Data), ""),
+          do_encode_value(Data)}]
+      }
+  end;
 
 do_encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
   %% mochijson3 doesn't support Avro style of encoding binaries
@@ -412,6 +416,13 @@ encode_union_test() ->
   Value = avro_union:new(UnionType, avro_primitive:int(10)),
   Json = encode_value(Value),
   ?assertEqual("{\"int\":10}", to_string(Json)).
+
+encode_union_with_null_test() ->
+  UnionType = avro_union:type([ avro_primitive:string_type()
+                              , avro_primitive:null_type()]),
+  Value = avro_union:new(UnionType, avro_primitive:null()),
+  Json = encode_value(Value),
+  ?assertEqual("null", to_string(Json)).
 
 encode_array_type_test() ->
   Type = avro_array:type(avro_primitive:string_type()),

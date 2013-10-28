@@ -28,7 +28,7 @@
 
 -type avro_ordering() :: ascending | descending | ignore.
 
--record(avro_field,
+-record(avro_record_field,
         { name      ?REQUIRED :: string()
         , doc       = ""      :: string()
         , type      ?REQUIRED :: avro_type_or_name()
@@ -46,7 +46,7 @@
         , namespace = ""      :: string()
         , doc       = ""      :: string()
         , aliases   = []      :: [string()]
-        , fields    ?REQUIRED :: [#avro_field{}]
+        , fields    ?REQUIRED :: [#avro_record_field{}]
         }).
 
 -record(avro_enum_type,
