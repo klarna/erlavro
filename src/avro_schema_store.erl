@@ -3,9 +3,9 @@
 %%% @doc Stores all types in the schema.
 %%%
 %%% The module allows to access all types in uniform way by using
-%%% using their full names. After a type was successfully placed
-%%% into the store all its name parts are resolved so that no
-%%% further actions to work with names are needed.
+%%% their full names. After a type was successfully placed into
+%%% the store all its name parts are resolved so that no further
+%%% actions to work with names are needed.
 %%%
 %%% When type is added to the store all its children named types are
 %%% extracted and stored as separate types as well. Their placeholders
@@ -274,7 +274,9 @@ extract_from_extractable_type_test() ->
                                            ])),
                                        "")
                      %% named type without namespace
-                   , avro_record:field("field3", "com.klarna.test.bix.SomeType", "")
+                   , avro_record:field("field3",
+                                       "com.klarna.test.bix.SomeType",
+                                       "")
                    ])
                  , avro_record:type(
                      "com.klarna.test.bix.TestSubRecord",
