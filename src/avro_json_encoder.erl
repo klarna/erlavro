@@ -15,7 +15,7 @@
 -export([encode_type/1]).
 -export([encode_value/1]).
 
--include_lib("erlavro/include/erlavro.hrl").
+-include("erlavro.hrl").
 
 %%%===================================================================
 %%% API
@@ -183,10 +183,10 @@ do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   Data = avro_union:get_value(Union),
   case ?AVRO_IS_NULL_VALUE(Data) of
-    true  -> null; %% Nulls don't need type to be specified
+    true  -> null; %% Nulls don't need a type to be specified
     false ->
       { struct
-      , [{avro:get_type_fullname(?AVRO_VALUE_TYPE(Data), ""),
+      , [{avro:get_type_fullname(?AVRO_VALUE_TYPE(Data)),
           do_encode_value(Data)}]
       }
   end;

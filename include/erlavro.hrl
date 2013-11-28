@@ -28,6 +28,10 @@
 
 -type avro_ordering() :: ascending | descending | ignore.
 
+%% Information about service fields:
+%% 'fullname' contains qualified full name of the type.
+%% Should always present, a type without fullname can't be considered as valid.
+
 -record(avro_record_field,
         { name      ?REQUIRED :: string()
         , doc       = ""      :: string()
@@ -37,6 +41,7 @@
         , aliases   = []      :: [string()]
         }).
 
+%% fullname of a primitive types is always equal to its name
 -record(avro_primitive_type,
         { name      ?REQUIRED :: string()
         }).
@@ -47,6 +52,8 @@
         , doc       = ""      :: string()
         , aliases   = []      :: [string()]
         , fields    ?REQUIRED :: [#avro_record_field{}]
+        %% -- service fields --
+        , fullname  ?REQUIRED :: string()
         }).
 
 -record(avro_enum_type,
@@ -55,6 +62,8 @@
         , aliases   = []      :: [string()]
         , doc       = ""      :: string()
         , symbols   ?REQUIRED :: [string()]
+        %% -- service fields --
+        , fullname  ?REQUIRED :: string()
         }).
 
 -record(avro_array_type,
@@ -74,6 +83,8 @@
         , namespace = ""      :: string()
         , aliases   = []      :: [string()]
         , size      ?REQUIRED :: integer()
+        %% -- service fields --
+        , fullname  ?REQUIRED :: string()
         }).
 
 -record(avro_value,
@@ -93,6 +104,7 @@
 
 -type avro_value() :: #avro_value{}.
 
+-define(IS_AVRO_VALUE(Value), is_record(Value, avro_value)).
 -define(AVRO_VALUE(Type,Data), #avro_value{type = Type, data = Data}).
 -define(AVRO_VALUE_TYPE(Value), Value#avro_value.type).
 -define(AVRO_VALUE_DATA(Value), Value#avro_value.data).

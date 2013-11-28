@@ -19,19 +19,22 @@
 -export([to_list/1]).
 -export([check/1]).
 
--include_lib("erlavro/include/erlavro.hrl").
+-include("erlavro.hrl").
 
 %%%===================================================================
 %%% API: Type
 %%%===================================================================
 
 type(Name, Namespace, Doc, Fields) ->
-    #avro_record_type
-    { name      = Name
-    , namespace = Namespace
-    , doc       = Doc
-    , fields    = Fields
-    }.
+  Type = #avro_record_type
+         { name      = Name
+         , namespace = Namespace
+         , doc       = Doc
+         , fields    = Fields
+         , fullname  = avro:build_type_fullname(Name, Namespace, "")
+         },
+  avro:verify_type(Type),
+  Type.
 
 field(Name, Type, Doc) ->
     field(Name, Type, Doc, undefined).
@@ -107,7 +110,7 @@ check(_Record) ->
 %%%===================================================================
 
 raise_unknown_field(FieldName, Type) ->
-    erlang:error({unknown_field, FieldName, Type}).
+    erlang:error({avro_error, {unknown_field, FieldName, Type}}).
 
 get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
     get_field_def(FieldName, Fields);

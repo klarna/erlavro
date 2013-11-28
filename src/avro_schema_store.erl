@@ -26,14 +26,9 @@
 -export([lookup_type/2]).
 -export([fold/3]).
 
--include_lib("erlavro/include/erlavro.hrl").
+-include("erlavro.hrl").
 
--record(store,
-        { root_namespace :: string()
-        , store          :: ets:tid()
-        }).
-
--opaque store() :: #store{}.
+-opaque store() :: ets:tid().
 
 -define(ETS_TABLE_NAME, ?MODULE).
 
@@ -50,19 +45,13 @@ new() ->
 %%   {access, public|protected|private} - has same meaning as access
 %%     mode in ets:new and defines what processes can have access to
 %%     the store. Default value is private.
-%%   {root_namespace, string()} (Optional) - defines namespace
-%%     for those objects which don't have their own namespace defined
-%%%    and the namespace can't be taken from context.
-%%     Empty string by default.
 %% IDEA: {storage, ets|plain} - choose where to store the schema,
 %%     in an ets table or directly in the store. Currently only ets is
 %%     supported.
 
 new(Options) ->
   Access = proplists:get_value(access, Options, private),
-  RootNs = proplists:get_value(root_namespace, Options, ""),
-  #store{ root_namespace = RootNs
-        , store          = init_ets_store(Access)}.
+  init_ets_store(Access).
 
 -spec add_type(avro_type(), store()) -> store().
 
@@ -70,7 +59,7 @@ add_type(Type, Store) ->
   case avro:is_named_type(Type) of
     true  ->
       {ConvertedType, ExtractedTypes} =
-        extract_children_types(Type, Store#store.root_namespace),
+        extract_children_types(Type),
       lists:foldl(
         fun do_add_type/2,
         do_add_type(ConvertedType, Store),
@@ -82,7 +71,7 @@ add_type(Type, Store) ->
 -spec lookup_type(string(), store()) -> {ok, avro_type()} | false.
 
 lookup_type(FullName, Store) ->
-  get_type_from_store(FullName, Store#store.store).
+  get_type_from_store(FullName, Store).
 
 fold(F, Acc0, Store) ->
   ets:foldl(
@@ -90,90 +79,89 @@ fold(F, Acc0, Store) ->
         F(FullName, Type, Acc)
     end,
     Acc0,
-    Store#store.store).
+    Store).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
 do_add_type(Type, Store) ->
-  FullName = avro:get_type_fullname(Type, Store#store.root_namespace),
-  case get_type_from_store(FullName, Store#store.store) of
+  FullName = avro:get_type_fullname(Type),
+  case get_type_from_store(FullName, Store) of
     {ok, _} ->
       erlang:error({avro_error, "Two types with same name in the store"});
     false   ->
-      Store#store{store = put_type_to_store(FullName, Type, Store#store.store)}
+      put_type_to_store(FullName, Type, Store)
   end.
 
 %% Extract all children types from the type if possible, replace extracted
 %% types with their names. Types specified by names are replaced with their
 %% full names. Type names are canonicalized: name is replaced by full name,
 %% namespace is cleared.
--spec extract_children_types(avro_type(), string())
+-spec extract_children_types(avro_type())
                             -> {avro_type(), [avro_type()]}.
 
-extract_children_types(Primitive, _EnclosingNs)
+extract_children_types(Primitive)
   when ?AVRO_IS_PRIMITIVE_TYPE(Primitive) ->
   %% Primitive types can't have children type definitions
   {Primitive, []};
-extract_children_types(Record0, EnclosingNs)
-  when ?AVRO_IS_RECORD_TYPE(Record0) ->
-  %% Inside the record we will use either EnclosingNs
-  %% or the record's own namespace if it is present.
-  Record = avro:set_type_fullname(Record0, EnclosingNs),
-  {_, RecordNs} = avro:split_type_name(Record, EnclosingNs),
+extract_children_types(Record) when ?AVRO_IS_RECORD_TYPE(Record) ->
   {NewFields, ExtractedTypes} =
     lists:foldr(
       fun(Field, {FieldsAcc, ExtractedAcc}) ->
           {NewType, Extracted} =
-            convert_type(Field#avro_record_field.type, RecordNs),
+            convert_type(Field#avro_record_field.type),
           {[Field#avro_record_field{type = NewType}|FieldsAcc],
            Extracted ++ ExtractedAcc}
       end,
       {[], []},
       Record#avro_record_type.fields),
   {Record#avro_record_type{ fields = NewFields }, ExtractedTypes};
-extract_children_types(Enum, EnclosingNs) when ?AVRO_IS_ENUM_TYPE(Enum) ->
+extract_children_types(Enum) when ?AVRO_IS_ENUM_TYPE(Enum) ->
   %% Enums don't have children types
-  {avro:set_type_fullname(Enum, EnclosingNs), []};
-extract_children_types(Array, EnclosingNs) when ?AVRO_IS_ARRAY_TYPE(Array) ->
+  {Enum, []};
+extract_children_types(Array) when ?AVRO_IS_ARRAY_TYPE(Array) ->
   ChildType = avro_array:get_items_type(Array),
-  {NewChildType, Extracted} = convert_type(ChildType, EnclosingNs),
+  {NewChildType, Extracted} = convert_type(ChildType),
   {avro_array:type(NewChildType), Extracted};
-extract_children_types(Map, EnclosingNs) when ?AVRO_IS_MAP_TYPE(Map) ->
+extract_children_types(Map) when ?AVRO_IS_MAP_TYPE(Map) ->
   ChildType = Map#avro_map_type.type,
-  {NewChildType, Extracted} = convert_type(ChildType, EnclosingNs),
+  {NewChildType, Extracted} = convert_type(ChildType),
   {Map#avro_map_type{type = NewChildType}, Extracted};
-extract_children_types(Union, EnclosingNs) when ?AVRO_IS_UNION_TYPE(Union) ->
+extract_children_types(Union) when ?AVRO_IS_UNION_TYPE(Union) ->
   ChildrenTypes = avro_union:get_types(Union),
   {NewChildren, ExtractedTypes} =
     lists:foldr(
       fun(ChildType, {ConvertedAcc, ExtractedAcc}) ->
-          {ChildType1, Extracted} = convert_type(ChildType, EnclosingNs),
+          {ChildType1, Extracted} = convert_type(ChildType),
           {[ChildType1|ConvertedAcc], Extracted ++ ExtractedAcc}
       end,
       {[], []},
       ChildrenTypes),
   {avro_union:type(NewChildren), ExtractedTypes};
-extract_children_types(Fixed, EnclosingNs) when ?AVRO_IS_FIXED_TYPE(Fixed) ->
+extract_children_types(Fixed) when ?AVRO_IS_FIXED_TYPE(Fixed) ->
   %% Fixed types don't have children types.
-  {avro:set_type_fullname(Fixed, EnclosingNs), []}.
+  {Fixed, []}.
 
-convert_type(TypeName, EnclosingNs) when is_list(TypeName) ->
-  {avro:get_type_fullname(TypeName, EnclosingNs), []};
-convert_type(Type, EnclosingNs) ->
-  {NewType, Extracted} = extract_children_types(Type, EnclosingNs),
-  case replace_type_with_name(NewType, EnclosingNs) of
+%% Convert a type using following rules:
+%% - if the type is represented by its name then the name is used.
+%% - if the type is specified as a schema then the is replaced by
+%%   its full name and the type itself is added to resulting list.
+%%   Children types of the replaced type is also extracted.
+convert_type(TypeName) when is_list(TypeName) ->
+  {TypeName, []};
+convert_type(Type) ->
+  {NewType, Extracted} = extract_children_types(Type),
+  case replace_type_with_name(NewType) of
     {ok, Name} -> {Name, [NewType|Extracted]};
     false      -> {NewType, Extracted}
   end.
 
-replace_type_with_name(Type, EnclosingNs) ->
+replace_type_with_name(Type) ->
   case avro:is_named_type(Type) of
     true  ->
       %% Named type should be replaced by its name.
-      FullName = avro:get_type_fullname(Type, EnclosingNs),
-      {ok, FullName};
+      {ok, avro:get_type_fullname(Type)};
     false ->
       %% Unnamed types are always kept on their places
       false
@@ -245,15 +233,15 @@ test_record() ->
 
 extract_from_primitive_type_test() ->
   Type = avro_primitive:int_type(),
-  ?assertEqual({Type, []}, extract_children_types(Type, "name.space")).
+  ?assertEqual({Type, []}, extract_children_types(Type)).
 
 extract_from_nested_primitive_type_test() ->
   Type = avro_array:type(avro_primitive:int_type()),
-  ?assertEqual({Type, []}, extract_children_types(Type, "name.space")).
+  ?assertEqual({Type, []}, extract_children_types(Type)).
 
 extract_from_named_type_test() ->
   Type = avro_array:type("com.klarna.test.bix.SomeType"),
-  ?assertEqual({Type, []}, extract_children_types(Type, "name.space")).
+  ?assertEqual({Type, []}, extract_children_types(Type)).
 
 extract_from_extractable_type_test() ->
   Type = avro_array:type(test_record()),
@@ -297,7 +285,7 @@ extract_from_extractable_type_test() ->
                                  , size = 16}
                ]
              },
-  ?assertEqual(Expected, extract_children_types(Type, "name.space")).
+  ?assertEqual(Expected, extract_children_types(Type)).
 
 -endif.
 
