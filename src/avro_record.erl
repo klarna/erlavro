@@ -8,6 +8,8 @@
 
 %% API
 -export([type/4]).
+-export([name/1]).
+-export([namespace/1]).
 -export([field/3]).
 -export([field/4]).
 -export([get_field_type/2]).
@@ -46,6 +48,12 @@ field(Name, Type, Doc, Default) ->
     , doc     = Doc
     , default = Default
     }.
+
+name(Record) when ?AVRO_IS_RECORD_TYPE(Record) ->
+  Record#avro_record_type.name.
+
+namespace(Record) when ?AVRO_IS_RECORD_TYPE(Record) ->
+  Record#avro_record_type.namespace.
 
 get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     case get_field_def(FieldName, Type) of
