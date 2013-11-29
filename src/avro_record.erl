@@ -59,18 +59,19 @@ get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
 
 -spec new(#avro_record_type{}) -> avro_value().
 
+%% TODO: initialize fields with default values
 new(Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     #avro_value
     { type = Type
-    , data = dict:new()
+    , data = []
     }.
 
 -spec get(string(), #avro_value{}) -> avro_value().
 
 get(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
-    case dict:find(FieldName, ?AVRO_VALUE_DATA(Record)) of
-        {ok, _} = R -> R;
-        error       -> false
+    case lists:keyfind(FieldName, 1, ?AVRO_VALUE_DATA(Record)) of
+        {_, V} -> {ok, V};
+        false  -> false
     end.
 
 set(Values, Record) ->
@@ -84,22 +85,19 @@ set(Values, Record) ->
 -spec set(string(), avro_value(), avro_value()) -> avro_value().
 
 set(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
-    NewData =
-        case get_field_def(FieldName, ?AVRO_VALUE_TYPE(Record)) of
-            {ok, _FieldDef} ->
-                dict:store(FieldName, Value, ?AVRO_VALUE_DATA(Record));
-            false ->
-                raise_unknown_field(FieldName, ?AVRO_VALUE_TYPE(Record))
-        end,
-    Record#avro_value{data = NewData}.
+  NewData =
+    case get_field_def(FieldName, ?AVRO_VALUE_TYPE(Record)) of
+      {ok, _FieldDef} ->
+        lists:keystore(FieldName, 1, ?AVRO_VALUE_DATA(Record),
+                       {FieldName, Value});
+      false ->
+        raise_unknown_field(FieldName, ?AVRO_VALUE_TYPE(Record))
+    end,
+  Record#avro_value{data = NewData}.
 
 %% Extract fields and their values from the record.
 to_list(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
-    #avro_record_type{fields = Fields} = ?AVRO_VALUE_TYPE(Record),
-    lists:foldr(fun(Field, Result) ->
-                        append_field_value(Field, Record, Result)
-                end,
-                [], Fields).
+  ?AVRO_VALUE_DATA(Record).
 
 check(_Record) ->
     %% TODO: complete
@@ -113,39 +111,48 @@ raise_unknown_field(FieldName, Type) ->
     erlang:error({avro_error, {unknown_field, FieldName, Type}}).
 
 get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
-    get_field_def(FieldName, Fields);
-get_field_def(_FieldName, []) ->
-    false;
-get_field_def(FieldName, [#avro_record_field{name = FieldName} = FieldDef|_]) ->
-    {ok, FieldDef};
-get_field_def(FieldName, [_ | Rest]) ->
-    get_field_def(FieldName, Rest).
-
-append_field_value(#avro_record_field{name = FieldName, default = Default},
-                   Record,
-                   Result) ->
-    Value = case dict:find(FieldName, Record#avro_value.data) of
-                {ok, V} -> V;
-                error   -> Default
-            end,
-    [{FieldName, Value}|Result].
+  case lists:keyfind(FieldName, #avro_record_field.name, Fields) of
+    false -> false;
+    Def -> {ok, Def}
+  end.
 
 %%%===================================================================
 %%% Tests
 %%%===================================================================
 
--ifdef(EUNIT).
-
 -include_lib("eunit/include/eunit.hrl").
 
-record_creation_test() ->
-    Schema = #avro_record_type
-             { name = "Test"
-             , fields = [#avro_field{name = "invno", type = avro_schema:long()}]
-             },
-    Record = avro_record:new(Schema),
-    avro_record:set("invno", avro_primitive:long(1)),
-    ok.
+-ifdef(EUNIT).
+
+type_test() ->
+  Field = field("invno", avro_primitive:long_type(), ""),
+  Schema = type("Test", "name.space", "", [Field]),
+  ?assertEqual("name.space.Test", avro:get_type_fullname(Schema)),
+  ?assertEqual({ok, Field}, get_field_def("invno", Schema)).
+
+get_set_test() ->
+  Schema = type("Test", "name.space", "",
+                [field("invno", avro_primitive:long_type(), "")]),
+  Rec0 = avro_record:new(Schema),
+  Rec1 = set("invno", avro_primitive:long(1), Rec0),
+  ?assertEqual({ok, avro_primitive:long(1)}, get("invno", Rec1)).
+
+to_list_test() ->
+  Schema = type("Test", "name.space", "",
+                [ field("invno", avro_primitive:long_type(), "")
+                , field("name", avro_primitive:string_type(), "")
+                ]),
+  Rec0 = avro_record:new(Schema),
+  Rec1 = set([ {"invno", avro_primitive:long(1)}
+             , {"name", avro_primitive:string("some name")}
+             ],
+             Rec0),
+  L = to_list(Rec1),
+  ?assertEqual(2, length(L)),
+  ?assertEqual({"invno", avro_primitive:long(1)},
+               lists:keyfind("invno", 1, L)),
+  ?assertEqual({"name", avro_primitive:string("some name")},
+               lists:keyfind("name", 1, L)).
 
 -endif.
 
