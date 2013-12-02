@@ -138,6 +138,11 @@ type_test() ->
   ?assertEqual("name.space.Test", avro:get_type_fullname(Schema)),
   ?assertEqual({ok, Field}, get_field_def("invno", Schema)).
 
+get_field_type_test() ->
+  Field = field("invno", avro_primitive:long_type(), ""),
+  Schema = type("Test", "name.space", "", [Field]),
+  ?assertEqual(avro_primitive:long_type(), get_field_type("invno", Schema)).
+
 get_set_test() ->
   Schema = type("Test", "name.space", "",
                 [field("invno", avro_primitive:long_type(), "")]),
