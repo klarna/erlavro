@@ -6,20 +6,21 @@
 -module(avro).
 
 -export([is_named_type/1]).
+-export([get_type_name/1]).
+-export([get_type_namespace/1]).
+-export([get_type_fullname/1]).
+
 -export([split_type_name/2]).
 -export([split_type_name/3]).
 -export([build_type_fullname/2]).
 -export([build_type_fullname/3]).
--export([get_type_fullname/1]).
--export([verify_type/1]).
 
--export([]).
+-export([verify_type/1]).
 
 -include("erlavro.hrl").
 
-
 %%%===================================================================
-%%% API
+%%% API: Accessing types' properties
 %%%===================================================================
 
 %% Returns true if the type can have its own name defined in schema.
@@ -30,9 +31,48 @@ is_named_type(#avro_enum_type{})   -> true;
 is_named_type(#avro_fixed_type{})  -> true;
 is_named_type(_)                   -> false.
 
+%% Returns the type's name. If the type is named then content of
+%% its name field is returned which can be short name or full name,
+%% depending on how the type was specified. If the type is unnamed
+%% then Avro name of the type is returned.
+-spec get_type_name(avro_type()) -> string().
+
+get_type_name(#avro_primitive_type{name = Name}) -> Name;
+get_type_name(#avro_record_type{name = Name})    -> Name;
+get_type_name(#avro_enum_type{name = Name})      -> Name;
+get_type_name(#avro_array_type{})                -> ?AVRO_ARRAY;
+get_type_name(#avro_map_type{})                  -> ?AVRO_MAP;
+get_type_name(#avro_union_type{})                -> ?AVRO_UNION;
+get_type_name(#avro_fixed_type{name = Name})     -> Name.
+
+%% Returns the type's namespace exactly as it is set in the type.
+%% Depending on how the type was specified it could the namespace
+%% or just an empty string if the name contains namespace in it.
+%% If the type can't have namespace then empty string is returned.
+-spec get_type_namespace(avro_type()) -> string().
+
+get_type_namespace(#avro_primitive_type{})            -> "";
+get_type_namespace(#avro_record_type{namespace = Ns}) -> Ns;
+get_type_namespace(#avro_enum_type{namespace = Ns})   -> Ns;
+get_type_namespace(#avro_array_type{})                -> "";
+get_type_namespace(#avro_map_type{})                  -> "";
+get_type_namespace(#avro_union_type{})                -> "";
+get_type_namespace(#avro_fixed_type{namespace = Ns})  -> Ns.
+
+%% Returns fullname stored inside the type. For unnamed types
+%% their Avro name is returned.
+-spec get_type_fullname(avro_type()) -> string().
+
+get_type_fullname(#avro_primitive_type{name = Name})  -> Name;
+get_type_fullname(#avro_record_type{fullname = Name}) -> Name;
+get_type_fullname(#avro_enum_type{fullname = Name})   -> Name;
+get_type_fullname(#avro_array_type{})                 -> ?AVRO_ARRAY;
+get_type_fullname(#avro_map_type{})                   -> ?AVRO_MAP;
+get_type_fullname(#avro_union_type{})                 -> ?AVRO_UNION;
+get_type_fullname(#avro_fixed_type{fullname = Name})  -> Name.
+
 %%%===================================================================
-%%% Getting canonical fullname or short name and namespace from
-%%% a type definition.
+%%% API: Calculating of canonical short and full names of types
 %%%===================================================================
 
 %% Splits type's name parts to its canonical short name and namespace.
@@ -51,6 +91,7 @@ split_type_name(TypeName, Namespace, EnclosingNamespace) ->
       {TypeName, ProperNs}
   end.
 
+%% Same thing as before, but uses name and namespace from the specified type.
 -spec split_type_name(avro_type(), string()) -> {string(), string()}.
 
 split_type_name(Type, EnclosingNamespace) ->
@@ -66,6 +107,7 @@ build_type_fullname(TypeName, Namespace, EnclosingNamespace) ->
     split_type_name(TypeName, Namespace, EnclosingNamespace),
   make_fullname(ShortName, ProperNs).
 
+%% Same thing as before but uses name and namespace from the specified type.
 -spec build_type_fullname(avro_type(), string()) -> string().
 
 build_type_fullname(Type, EnclosingNamespace) ->
@@ -73,17 +115,8 @@ build_type_fullname(Type, EnclosingNamespace) ->
                       get_type_namespace(Type),
                       EnclosingNamespace).
 
-%% Returns fullname stored inside the type
--spec get_type_fullname(avro_type()) -> string() | undefined.
-
-get_type_fullname(#avro_primitive_type{name = Name})  -> Name;
-get_type_fullname(#avro_record_type{fullname = Name}) -> Name;
-get_type_fullname(#avro_enum_type{fullname = Name})   -> Name;
-get_type_fullname(#avro_fixed_type{fullname = Name})  -> Name;
-get_type_fullname(_)                                  -> undefined.
-
 %%%===================================================================
-%%%
+%%% API: Checking correctness of names and types specifications
 %%%===================================================================
 
 %% Check correctness of the name portion of type names, record field names and
@@ -145,28 +178,6 @@ reserved_type_names() ->
     [?AVRO_NULL, ?AVRO_BOOLEAN, ?AVRO_INT, ?AVRO_LONG, ?AVRO_FLOAT,
      ?AVRO_DOUBLE, ?AVRO_BYTES, ?AVRO_STRING, ?AVRO_ARRAY, ?AVRO_MAP,
      ?AVRO_UNION].
-
-%% Returns type name field as it is set in the type
--spec get_type_name(avro_type()) -> string().
-
-get_type_name(#avro_primitive_type{name = Name}) -> Name;
-get_type_name(#avro_record_type{name = Name})    -> Name;
-get_type_name(#avro_enum_type{name = Name})      -> Name;
-get_type_name(#avro_array_type{})                -> ?AVRO_ARRAY;
-get_type_name(#avro_map_type{})                  -> ?AVRO_MAP;
-get_type_name(#avro_union_type{})                -> ?AVRO_UNION;
-get_type_name(#avro_fixed_type{name = Name})     -> Name.
-
-%% Returns type namespace field as it is set in the type
--spec get_type_namespace(avro_type()) -> string().
-
-get_type_namespace(#avro_primitive_type{})            -> "";
-get_type_namespace(#avro_record_type{namespace = Ns}) -> Ns;
-get_type_namespace(#avro_enum_type{namespace = Ns})   -> Ns;
-get_type_namespace(#avro_array_type{})                -> "";
-get_type_namespace(#avro_map_type{})                  -> "";
-get_type_namespace(#avro_union_type{})                -> "";
-get_type_namespace(#avro_fixed_type{namespace = Ns})  -> Ns.
 
 is_correct_first_symbol(S) -> (S >= $A andalso S =< $Z) orelse
                               (S >= $a andalso S =< $z) orelse
