@@ -16,6 +16,8 @@
 -export([bytes_type/0]).
 -export([string_type/0]).
 
+-export([cast/2]).
+
 -export([null/0]).
 -export([boolean/1]).
 -export([int/1]).
@@ -49,43 +51,109 @@ bytes_type()   -> #avro_primitive_type{name = ?AVRO_BYTES}.
 string_type()  -> #avro_primitive_type{name = ?AVRO_STRING}.
 
 %%%===================================================================
-%%% API
+%%% API: Casting
 %%%===================================================================
 
-null() ->
-    #avro_value{ type = null_type(), data = null }.
+cast(Type, Value)
+  when ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+       ?IS_AVRO_VALUE(Value) andalso
+       ?AVRO_VALUE_TYPE(Value) =:= Type ->
+  %% Any primitive Avro value can be casted to the same type
+  {ok, Value};
 
-boolean(Value) when erlang:is_boolean(Value) ->
-    #avro_value{ type = boolean_type(), data = Value }.
+%% Casts from erlang values
 
-int(Value) when Value >= ?INT4_MIN andalso
-                Value =< ?INT4_MAX ->
-    #avro_value{ type = int_type(), data = Value }.
+cast(Type, null) when ?AVRO_IS_NULL_TYPE(Type) ->
+  {ok, ?AVRO_VALUE(Type, null)};
 
-long(Value) when Value >= ?INT8_MIN andalso
-                 Value =< ?INT8_MAX ->
-    #avro_value{ type = long_type(), data = Value }.
+cast(Type, Value) when ?AVRO_IS_BOOLEAN_TYPE(Type) andalso
+                       is_boolean(Value) ->
+  {ok, ?AVRO_VALUE(Type, Value)};
 
-float(Value) when erlang:is_integer(Value) ->
-    #avro_value{ type = float_type(), data = erlang:float(Value) };
-float(Value) when erlang:is_float(Value) ->
-    #avro_value{ type = float_type(), data = Value }.
+cast(Type, Value) when ?AVRO_IS_INT_TYPE(Type) andalso
+                       Value >= ?INT4_MIN andalso
+                       Value =< ?INT4_MAX ->
+  {ok, ?AVRO_VALUE(Type, Value)};
 
-double(Value) when erlang:is_integer(Value) ->
-    #avro_value{ type = double_type(), data = erlang:float(Value) };
-double(Value) when erlang:is_float(Value) ->
-    #avro_value{ type = double_type(), data = Value }.
+cast(Type, Value) when ?AVRO_IS_LONG_TYPE(Type) andalso
+                       Value >= ?INT8_MIN andalso
+                       Value =< ?INT8_MAX ->
+  {ok, ?AVRO_VALUE(Type, Value)};
 
-bytes(Value) when is_binary(Value) ->
-    #avro_value{ type = bytes_type(), data = Value }.
+cast(Type, Value) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
+                       is_integer(Value) ->
+  {ok, ?AVRO_VALUE(Type, erlang:float(Value))};
 
-%% It is assumed that source string is UTF-8 encoded
-string(Value) when is_list(Value) ->
-    #avro_value{ type = string_type(), data = Value }.
+cast(Type, Value) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
+                       is_float(Value) ->
+  {ok, ?AVRO_VALUE(Type, Value)};
+
+cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
+                       is_integer(Value) ->
+  {ok, ?AVRO_VALUE(Type, erlang:float(Value))};
+
+cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
+                       is_float(Value) ->
+  {ok, ?AVRO_VALUE(Type, Value)};
+
+cast(Type, Value) when ?AVRO_IS_BYTES_TYPE(Type) andalso
+                       is_binary(Value) ->
+  {ok, ?AVRO_VALUE(Type, Value)};
+
+cast(Type, Value) when ?AVRO_IS_STRING_TYPE(Type) andalso
+                       is_list(Value) ->
+  {ok, ?AVRO_VALUE(Type, Value)};
+
+%% Casts from other primitive Avro types so that we don't lose data
+
+%% int -> long
+cast(Type, Value) when ?AVRO_IS_LONG_TYPE(Type) andalso
+                       ?AVRO_IS_INT_VALUE(Value) ->
+  {ok, ?AVRO_VALUE(Type, ?AVRO_VALUE_DATA(Value))};
+
+%% float -> double
+cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
+                       ?AVRO_IS_FLOAT_VALUE(Value) ->
+  {ok, ?AVRO_VALUE(Type, ?AVRO_VALUE_DATA(Value))};
+
+cast(_, _) -> false.
+
+%%%===================================================================
+%%% API: Helpers
+%%%===================================================================
+
+null() -> from_cast(cast(null_type(), null)).
+
+boolean(Value) -> from_cast(cast(boolean_type(), Value)).
+
+int(Value) -> from_cast(cast(int_type(), Value)).
+
+long(Value) -> from_cast(cast(long_type(), Value)).
+
+float(Value) -> from_cast(cast(float_type(), Value)).
+
+double(Value) -> from_cast(cast(double_type(), Value)).
+
+bytes(Value) -> from_cast(cast(bytes_type(), Value)).
+
+string(Value) -> from_cast(cast(string_type(), Value)).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+from_cast({ok, Value}) -> Value;
+from_cast(false)       -> erlang:error({avro_error, wrong_cast}).
+
+%%%===================================================================
+%%% Tests
+%%%===================================================================
+
+-include_lib("eunit/include/eunit.hrl").
+
+-ifdef(EUNIT).
+
+-endif.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

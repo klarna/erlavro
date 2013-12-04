@@ -201,9 +201,11 @@ sub_record() ->
    "com.klarna.test.bix",
    "Some doc",
    [ avro_record:field("sub_field1", avro_primitive:boolean_type(), "")
-   , avro_record:field("sub_field2", #avro_enum_type{ name = "MyEnum"
-                                                    , namespace = "another.name"
-                                                    , symbols = ["A"]},
+   , avro_record:field("sub_field2",
+                       #avro_enum_type{ name = "MyEnum"
+                                      , namespace = "another.name"
+                                      , symbols = ["A"]
+                                      , fullname = "another.name.MyEnum"},
                        "")
    ]).
 
@@ -223,11 +225,14 @@ test_record() ->
                             , #avro_fixed_type{ name = "MyFixed"
                                               , namespace =
                                                   "com.klarna.test.bix"
-                                              , size = 16}
+                                              , size = 16
+                                              , fullname =
+                                                  "com.klarna.test.bix.MyFixed"
+                                              }
                             ])),
                         "")
       %% named type without namespace
-    , avro_record:field("field3", "SomeType", "")
+    , avro_record:field("field3", "com.klarna.test.bix.SomeType", "")
     ]
    ).
 
@@ -247,8 +252,8 @@ extract_from_extractable_type_test() ->
   Type = avro_array:type(test_record()),
   Expected = { avro_array:type("com.klarna.test.bix.TestRecord")
              , [ avro_record:type(
-                   "com.klarna.test.bix.TestRecord",
-                   "",
+                   "TestRecord",
+                   "com.klarna.test.bix",
                    "Some doc",
                    [ %% simple type
                      avro_record:field("field1", avro_primitive:int_type(), "")
@@ -267,8 +272,8 @@ extract_from_extractable_type_test() ->
                                        "")
                    ])
                  , avro_record:type(
-                     "com.klarna.test.bix.TestSubRecord",
-                     "",
+                     "TestSubRecord",
+                     "com.klarna.test.bix",
                      "Some doc",
                      [ avro_record:field("sub_field1",
                                          avro_primitive:boolean_type(),
@@ -277,12 +282,14 @@ extract_from_extractable_type_test() ->
                                          "another.name.MyEnum",
                                          "")
                      ])
-               , #avro_enum_type{ name = "another.name.MyEnum"
-                                , namespace = ""
-                                , symbols = ["A"]}
-               , #avro_fixed_type{ name = "com.klarna.test.bix.MyFixed"
-                                 , namespace = ""
-                                 , size = 16}
+               , #avro_enum_type{ name = "MyEnum"
+                                , namespace = "another.name"
+                                , symbols = ["A"]
+                                , fullname = "another.name.MyEnum"}
+               , #avro_fixed_type{ name = "MyFixed"
+                                 , namespace = "com.klarna.test.bix"
+                                 , size = 16
+                                 , fullname = "com.klarna.test.bix.MyFixed"}
                ]
              },
   ?assertEqual(Expected, extract_children_types(Type)).

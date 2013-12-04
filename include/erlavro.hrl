@@ -22,9 +22,7 @@
 -define(INT8_MIN, -9223372036854775808).
 -define(INT8_MAX,  9223372036854775807).
 
--define(REQUIRED, =erlang:error("Required field isn't initialized during "
-                                "record instantiation in "
-                                ++ ?MODULE_STRING ++ ":" ++ ?LINE)).
+-define(REQUIRED, =erlang:error({required_field_missed, ?MODULE, ?LINE})).
 
 -type avro_ordering() :: ascending | descending | ignore.
 

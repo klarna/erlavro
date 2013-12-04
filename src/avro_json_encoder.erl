@@ -238,17 +238,15 @@ sample_record_type() ->
       ]).
 
 sample_record() ->
-    Rec = avro_record:new(sample_record_type()),
-    avro_record:set(
-      [ {"string", avro_primitive:string("string value")}
-      , {"double", avro_primitive:double(3.14159265358)}
-      , {"long",   avro_primitive:long(123456789123456789)}
-      , {"bool",   avro_primitive:boolean(true)}
-      , {"int",    avro_primitive:int(100)}
-      , {"float",  avro_primitive:float(2.718281828)}
-      , {"bytes",  avro_primitive:bytes(<<"bytes value">>)}
-      ],
-      Rec).
+  avro_record:new(sample_record_type(),
+                  [ {"string", "string value"}
+                  , {"double", 3.14159265358}
+                  , {"long",   123456789123456789}
+                  , {"bool",   true}
+                  , {"int",    100}
+                  , {"float",  2.718281828}
+                  , {"bytes",  <<"bytes value">>}
+                  ]).
 
 encode_null_type_test() ->
     Json = encode_type(avro_primitive:null_type()),

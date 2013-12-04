@@ -12,7 +12,9 @@
 -export([field/4]).
 -export([get_field_type/2]).
 
--export([new/1]).
+-export([cast/2]).
+
+-export([new/2]).
 -export([get/2]).
 -export([set/2]).
 -export([set/3]).
@@ -54,17 +56,26 @@ get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     end.
 
 %%%===================================================================
+%%% API: casting
+%%%===================================================================
+
+%% Records can be casted from other records or from proplists.
+
+cast(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+  do_cast(Type, Value).
+
+%%%===================================================================
 %%% API
 %%%===================================================================
 
--spec new(#avro_record_type{}) -> avro_value().
+-spec new(#avro_record_type{}, term()) -> avro_value().
 
 %% TODO: initialize fields with default values
-new(Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
-    #avro_value
-    { type = Type
-    , data = []
-    }.
+new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+  case cast(Type, Value) of
+    {ok, Rec} -> Rec;
+    false     -> erlang:error({avro_error, wrong_cast})
+  end.
 
 -spec get(string(), #avro_value{}) -> avro_value().
 
@@ -86,12 +97,12 @@ set(Values, Record) ->
 
 set(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   NewData =
-    case get_field_def(FieldName, ?AVRO_VALUE_TYPE(Record)) of
-      {ok, _FieldDef} ->
+    case map_field_value(FieldName, Value, ?AVRO_VALUE_TYPE(Record)) of
+      {ok, CastedValue} ->
         lists:keystore(FieldName, 1, ?AVRO_VALUE_DATA(Record),
-                       {FieldName, Value});
-      false ->
-        raise_unknown_field(FieldName, ?AVRO_VALUE_TYPE(Record))
+                       {FieldName, CastedValue});
+      {error, Err} ->
+        erlang:error({avro_error, Err})
     end,
   Record#avro_value{data = NewData}.
 
@@ -107,6 +118,46 @@ check(_Record) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+do_cast(Type, Value) when ?AVRO_IS_RECORD_VALUE(Value) ->
+  %% When casting from other record only equality of full names
+  %% is checked.
+  TargetTypeFullName = Type#avro_record_type.fullname,
+  ValueType = ?AVRO_VALUE_TYPE(Value),
+  ValueTypeFullName = ValueType#avro_record_type.fullname,
+  if TargetTypeFullName =:= ValueTypeFullName -> {ok, Value};
+     true                                     -> false
+  end;
+do_cast(Type, Value) when is_list(Value) ->
+  %% Cast from a proplist
+  Data = lists:foldl(
+           fun(_, false) ->
+               false;
+              ({FieldName, FieldValue}, Acc) ->
+               case map_field_value(FieldName, FieldValue, Type) of
+                 {ok, CastedValue} -> [{FieldName, CastedValue}|Acc];
+                 {error, _Err}      -> false
+               end
+           end,
+           [],
+           Value),
+  if Data =:= false -> false;
+     true           -> {ok, ?AVRO_VALUE(Type, Data)}
+  end.
+
+-spec map_field_value(string(), term(), #avro_record_field{}) ->
+                         {string(), avro_value()} | {error, term()}.
+
+map_field_value(FieldName, Value, Type) ->
+  case get_field_def(FieldName, Type) of
+    {ok, FieldDef} ->
+      case avro:cast(FieldDef#avro_record_field.type, Value) of
+        {ok, CastedValue} -> {ok, CastedValue};
+        false             -> {error, {wrong_type, FieldName}}
+      end;
+    false ->
+      {error, {unknown_field, FieldName}}
+  end.
 
 raise_unknown_field(FieldName, Type) ->
     erlang:error({avro_error, {unknown_field, FieldName, Type}}).
@@ -139,7 +190,7 @@ get_field_type_test() ->
 get_set_test() ->
   Schema = type("Test", "name.space", "",
                 [field("invno", avro_primitive:long_type(), "")]),
-  Rec0 = avro_record:new(Schema),
+  Rec0 = avro_record:new(Schema, [{"invno", 0}]),
   Rec1 = set("invno", avro_primitive:long(1), Rec0),
   ?assertEqual({ok, avro_primitive:long(1)}, get("invno", Rec1)).
 
@@ -148,12 +199,10 @@ to_list_test() ->
                 [ field("invno", avro_primitive:long_type(), "")
                 , field("name", avro_primitive:string_type(), "")
                 ]),
-  Rec0 = avro_record:new(Schema),
-  Rec1 = set([ {"invno", avro_primitive:long(1)}
-             , {"name", avro_primitive:string("some name")}
-             ],
-             Rec0),
-  L = to_list(Rec1),
+  Rec = avro_record:new(Schema, [ {"invno", avro_primitive:long(1)}
+                                , {"name", avro_primitive:string("some name")}
+                                ]),
+  L = to_list(Rec),
   ?assertEqual(2, length(L)),
   ?assertEqual({"invno", avro_primitive:long(1)},
                lists:keyfind("invno", 1, L)),

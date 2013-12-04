@@ -15,6 +15,8 @@
 -export([build_type_fullname/2]).
 -export([build_type_fullname/3]).
 
+-export([cast/2]).
+
 -export([verify_type/1]).
 
 -include("erlavro.hrl").
@@ -149,26 +151,40 @@ verify_type(Type) ->
         false -> ok
     end.
 
-%% Assign the Value to a "variable" of type Type.
-%% Type can be a valid Avro type or name of a type.
-%% Value can be any Avro value or just erlang term,
-%% the function will try to convert the term to an Avro value
-%% in the last case.
+%% Tries to cast a value (which can be another Avro value or some erlang term)
+%% to the specified Avro type performing conversion if required.
+-spec cast(avro_type_or_name(), term()) -> {ok, avro_value()} | false.
 
-%% 1. name <- avro_value  : type_name(avro_value) =:= name
-%% 2. name <- erlang_term : impossible
-%% 3. type <- avro_value  : type_name(avro_value) =:= type_name(type)
-%% 4. type <- erlang_term : type_module:from_value(erlang_term)
-
-
-%% get_type_module(#avro_primitive_type{}) -> avro_primitive;
-%% get_type_module(#avro_record_type{})    -> avro_record;
-%% get_type_module(#avro_enum_type{})      -> avro_enum;
-%% get_type_module(#avro_array_type{})     -> avro_array;
-%% get_type_module(#avro_map_type{})       -> avro_map;
-%% get_type_module(#avro_union_type{})     -> avro_union;
-%% get_type_module(#avro_fixed_type{})     -> avro_fixed;
-%% get_type_module(_)                      -> undefined.
+cast(TypeName, Value) when is_list(TypeName) ->
+  case type_from_name(TypeName) of
+    undefined ->
+      %% If the type specified by its name then in most cases
+      %% we don't know which module should handle it. The only
+      %% thing which we can do here is to compare full name of
+      %% Type and typeof(Value) and return Value if they are equal.
+      %% This assumes also that plain erlang values can't be casted
+      %% to types specified only by their names.
+      case ?IS_AVRO_VALUE(Value) of
+        true ->
+          ValueType = ?AVRO_VALUE_TYPE(Value),
+          case has_fullname(ValueType, TypeName) of
+            true  -> {ok, Value};
+            false -> false
+          end;
+        false ->
+          %% Erlang terms can't be casted to names
+          false
+      end;
+    Type ->
+      %% The only exception are primitive types names because we know
+      %% corresponding types and can cast to them.
+      cast(Type, Value)
+  end;
+cast(Type, Value) ->
+  case get_type_module(Type) of
+    undefined -> erlang:error({avro_error, neither_type_nor_name});
+    Mod       -> Mod:cast(Type, Value)
+  end.
 
 %%%===================================================================
 %%% Internal functions
@@ -229,7 +245,33 @@ make_fullname(Name, Namespace) ->
   Namespace ++ "." ++ Name.
 
 error_if_false(true, _Err) -> ok;
-error_if_false(false, Err) -> erlang:error(Err).
+error_if_false(false, Err) -> erlang:error({avro_error, Err}).
+
+%%%===================================================================
+%%% Internal functions: casting
+%%%===================================================================
+
+%% Checks if the type has specified full name
+has_fullname(Type, FullName) ->
+  is_named_type(Type) andalso get_type_fullname(Type) =:= FullName.
+
+get_type_module(#avro_primitive_type{}) -> avro_primitive;
+get_type_module(#avro_record_type{})    -> avro_record;
+get_type_module(#avro_enum_type{})      -> avro_enum;
+get_type_module(#avro_array_type{})     -> avro_array;
+get_type_module(#avro_map_type{})       -> avro_map;
+get_type_module(#avro_union_type{})     -> avro_union;
+get_type_module(#avro_fixed_type{})     -> avro_fixed;
+get_type_module(_)                      -> undefined.
+
+type_from_name(?AVRO_NULL)   -> avro_primitive:null_type();
+type_from_name(?AVRO_INT)    -> avro_primitive:int_type();
+type_from_name(?AVRO_LONG)   -> avro_primitive:long_type();
+type_from_name(?AVRO_FLOAT)  -> avro_primitive:float_type();
+type_from_name(?AVRO_DOUBLE) -> avro_primitive:double_type();
+type_from_name(?AVRO_BYTES)  -> avro_primitive:bytes_type();
+type_from_name(?AVRO_STRING) -> avro_primitive:string_type();
+type_from_name(_)            -> undefined.
 
 %%%===================================================================
 %%% Tests
@@ -238,6 +280,10 @@ error_if_false(false, Err) -> erlang:error(Err).
 -include_lib("eunit/include/eunit.hrl").
 
 -ifdef(EUNIT).
+
+-define(PRIMITIVE_VALUE(Name, Value),
+        #avro_value{ type = #avro_primitive_type{name = Name}
+                   , data = Value}).
 
 get_test_type(Name, Namespace) ->
   #avro_fixed_type{name = Name,
@@ -260,8 +306,10 @@ is_correct_dotted_name_test() ->
 
 verify_type_test() ->
   ?assertEqual(ok, verify_type(get_test_type("tname", "name.space"))),
-  ?assertError({invalid_name, _}, verify_type(get_test_type("", ""))),
-  ?assertError({invalid_name, _}, verify_type(get_test_type("", "name.space"))),
+  ?assertError({avro_error, {invalid_name, _}},
+               verify_type(get_test_type("", ""))),
+  ?assertError({avro_error, {invalid_name, _}},
+               verify_type(get_test_type("", "name.space"))),
   ?assertEqual(ok, verify_type(get_test_type("tname", ""))).
 
 split_type_name_test() ->
@@ -279,6 +327,16 @@ get_type_fullname_test() ->
                get_type_fullname(get_test_type("tname", "name.space"))),
   ?assertEqual("int",
                get_type_fullname(avro_primitive:int_type())).
+
+cast_primitive_test() ->
+  ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_STRING, "abc")},
+               cast(avro_primitive:string_type(), "abc")),
+  ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_INT, 1)}, cast("int", 1)),
+  ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_LONG, 1)}, cast("long", 1)).
+
+cast_array_test() ->
+  ArrayType = avro_array:type(avro_primitive:int_type()),
+  _Array = cast(ArrayType, [1,2,3,4]).
 
 -endif.
 
