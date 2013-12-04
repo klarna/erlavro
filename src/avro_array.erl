@@ -15,7 +15,6 @@
 -export([cast/2]).
 
 -export([prepend/2]).
--export([append/2]).
 
 -include_lib("erlavro/include/erlavro.hrl").
 
@@ -41,10 +40,6 @@ new(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
 prepend(Items, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   new(?AVRO_VALUE_TYPE(Value), Items ++ ?AVRO_VALUE_DATA(Value)).
 
-append(Items, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
-  new(?AVRO_VALUE_TYPE(Value), ?AVRO_VALUE_DATA(Value) ++ Items).
-
-
 %% Only other Avro array type or erlang list can be casted to arrays
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | false.
 
@@ -64,21 +59,17 @@ do_cast(Type, Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   do_cast(Type, ?AVRO_VALUE_DATA(Array));
 do_cast(Type, Items) when is_list(Items) ->
   #avro_array_type{type = ItemType} = Type,
-  CastedItems =
-    lists:foldl(
-      fun(_Item, false) -> false;
-         (Item, Acc)    -> cast_item(ItemType, Item, Acc)
-      end,
-      [],
-      Items),
-  if CastedItems =:= false -> false;
-     true -> {ok, ?AVRO_VALUE(Type, lists:reverse(CastedItems))}
+  case cast_items(ItemType, Items, []) of
+    false -> false;
+    CastedItems -> {ok, ?AVRO_VALUE(Type, CastedItems)}
   end.
 
-cast_item(TargetType, Item, Acc) ->
+cast_items(_TargetType, [], Acc) ->
+  lists:reverse(Acc);
+cast_items(TargetType, [Item|H], Acc) ->
   case avro:cast(TargetType, Item) of
-    {ok, CastedItem} -> [CastedItem|Acc];
-    false            -> false
+    {ok, Value} -> cast_items(TargetType, H, [Value|Acc]);
+    false       -> false
   end.
 
 %%%===================================================================
@@ -91,8 +82,10 @@ cast_item(TargetType, Item, Acc) ->
 
 cast_test() ->
   ArrayType = type(avro_primitive:string_type()),
-  cast(ArrayType, ["a", "b"]),
-  ?assertEqual(true, true).
+  {ok, Array} = cast(ArrayType, ["a", "b"]),
+  ?assertEqual(ArrayType, ?AVRO_VALUE_TYPE(Array)),
+  ?assertEqual([avro_primitive:string("a"), avro_primitive:string("b")],
+              ?AVRO_VALUE_DATA(Array)).
 
 -endif.
 
