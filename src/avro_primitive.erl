@@ -27,6 +27,8 @@
 -export([bytes/1]).
 -export([string/1]).
 
+-export([value/1]).
+
 -include_lib("erlavro/include/erlavro.hrl").
 
 
@@ -54,11 +56,13 @@ string_type()  -> #avro_primitive_type{name = ?AVRO_STRING}.
 %%% API: Casting
 %%%===================================================================
 
+-spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
+
 cast(Type, Value)
   when ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
        ?IS_AVRO_VALUE(Value) andalso
        ?AVRO_VALUE_TYPE(Value) =:= Type ->
-  %% Any primitive Avro value can be casted to the same type
+  %% Any primitive Avro value can be casted to same type
   {ok, Value};
 
 %% Casts from erlang values
@@ -116,7 +120,7 @@ cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
                        ?AVRO_IS_FLOAT_VALUE(Value) ->
   {ok, ?AVRO_VALUE(Type, ?AVRO_VALUE_DATA(Value))};
 
-cast(_, _) -> false.
+cast(_, _) -> {error, type_mismatch}.
 
 %%%===================================================================
 %%% API: Helpers
@@ -138,12 +142,15 @@ bytes(Value) -> from_cast(cast(bytes_type(), Value)).
 
 string(Value) -> from_cast(cast(string_type(), Value)).
 
+value(Value) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
+  ?AVRO_VALUE_DATA(Value).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
-from_cast({ok, Value}) -> Value;
-from_cast(false)       -> erlang:error({avro_error, wrong_cast}).
+from_cast({ok, Value})  -> Value;
+from_cast({error, Err}) -> erlang:error(Err).
 
 %%%===================================================================
 %%% Tests

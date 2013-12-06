@@ -36,8 +36,8 @@ get_types(#avro_union_type{types = Types}) -> Types.
 
 new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
   case cast(Type, Value) of
-    {ok, Union} -> Union;
-    false       -> erlang:error({avro_error, wrong_cast})
+    {ok, Union}  -> Union;
+    {error, Err} -> erlang:error(Err)
   end.
 
 %% Get current value of a union type variable
@@ -57,7 +57,7 @@ set_value(Union, Value) when ?AVRO_IS_UNION_VALUE(Union) ->
 %% it is recommended to explicitly specify types for values, or not
 %% use such combinations of types at all.
 
--spec cast(avro_type(), term()) -> {ok, avro_value()} | false.
+-spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
 
 cast(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
   do_cast(Type, Value).
@@ -73,15 +73,17 @@ do_cast(Type, Value) when ?AVRO_IS_UNION_VALUE(Value) ->
 do_cast(Type, Value) ->
   case cast_over_types(Type#avro_union_type.types, Value) of
     {ok, V} -> {ok, ?AVRO_VALUE(Type, V)};
-    false   -> false
+    Err     -> Err
   end.
 
+-spec cast_over_types([], _Value) -> {ok, avro_value()} | {error, term()}.
+
 cast_over_types([], _Value) ->
-  false;
+  {error, type_mismatch};
 cast_over_types([T|H], Value) ->
   case avro:cast(T, Value) of
-    false -> cast_over_types(H, Value);
-    R     -> R %% appropriate type found
+    {error, _} -> cast_over_types(H, Value);
+    R          -> R %% appropriate type found
   end.
 
 %%%===================================================================

@@ -18,8 +18,8 @@
 -export([get/2]).
 -export([set/2]).
 -export([set/3]).
+-export([update/3]).
 -export([to_list/1]).
--export([check/1]).
 
 -include("erlavro.hrl").
 
@@ -52,7 +52,7 @@ field(Name, Type, Doc, Default) ->
 get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     case get_field_def(FieldName, Type) of
         {ok, #avro_record_field{type = FieldType}} -> FieldType;
-        false  -> raise_unknown_field(FieldName, Type)
+        false -> erlang:error({unknown_field, FieldName})
     end.
 
 %%%===================================================================
@@ -60,6 +60,8 @@ get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
 %%%===================================================================
 
 %% Records can be casted from other records or from proplists.
+
+-spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
 
 cast(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
   do_cast(Type, Value).
@@ -73,16 +75,16 @@ cast(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
 %% TODO: initialize fields with default values
 new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
   case cast(Type, Value) of
-    {ok, Rec} -> Rec;
-    false     -> erlang:error({avro_error, wrong_cast})
+    {ok, Rec}    -> Rec;
+    {error, Err} -> erlang:error(Err)
   end.
 
--spec get(string(), #avro_value{}) -> avro_value().
+-spec get(string(), avro_value()) -> avro_value().
 
 get(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
     case lists:keyfind(FieldName, 1, ?AVRO_VALUE_DATA(Record)) of
-        {_, V} -> {ok, V};
-        false  -> false
+        {_N, _T, V} -> V;
+        false       -> erlang:error({unknown_field, FieldName})
     end.
 
 set(Values, Record) ->
@@ -96,28 +98,56 @@ set(Values, Record) ->
 -spec set(string(), avro_value(), avro_value()) -> avro_value().
 
 set(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+  Data = ?AVRO_VALUE_DATA(Record),
   NewData =
-    case map_field_value(FieldName, Value, ?AVRO_VALUE_TYPE(Record)) of
-      {ok, CastedValue} ->
-        lists:keystore(FieldName, 1, ?AVRO_VALUE_DATA(Record),
-                       {FieldName, CastedValue});
-      {error, Err} ->
-        erlang:error({avro_error, Err})
+    case lists:keytake(FieldName, 1, Data) of
+      {value, {_,T,_}, Rest} ->
+        case avro:cast(T, Value) of
+          {ok, NewValue} -> [{FieldName, T, NewValue}|Rest];
+          Err            -> erlang:error(Err)
+        end;
+      false ->
+        erlang:error({unknown_field, FieldName})
+    end,
+  Record#avro_value{data = NewData}.
+
+%% Update the value of a field using provided function.
+%% update(FieldName, Fun, Record) is equivalent to
+%% set(FieldName, Fun(get(FieldName,Record)), Record),
+%% but faster.
+-spec update(string(), function(), avro_value()) -> avro_value().
+
+update(FieldName, Fun, Record) ->
+  Data = ?AVRO_VALUE_DATA(Record),
+  NewData =
+    case lists:keytake(FieldName, 1, Data) of
+      {value, {_,T,OldValue}, Rest} ->
+        case avro:cast(T, Fun(OldValue)) of
+          {ok, NewValue} -> [{FieldName, T, NewValue}|Rest];
+          Err            -> erlang:error(Err)
+        end;
+      false ->
+        erlang:error({unknown_field, FieldName})
     end,
   Record#avro_value{data = NewData}.
 
 %% Extract fields and their values from the record.
 to_list(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
-  ?AVRO_VALUE_DATA(Record).
-
-%% Check that all required fields have values
-check(_Record) ->
-    %% TODO: complete
-    true.
+  lists:map(
+    fun({N, _T, V}) ->
+        {N,V}
+    end,
+    ?AVRO_VALUE_DATA(Record)).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+cast_field_value(FieldName, FieldType, Value, Acc) ->
+  case avro:cast(FieldType, Value) of
+    {ok, CastedValue} -> [{FieldName, FieldType, CastedValue}|Acc];
+    Err               -> Err
+  end.
 
 do_cast(Type, Value) when ?AVRO_IS_RECORD_VALUE(Value) ->
   %% When casting from other record only equality of full names
@@ -126,41 +156,39 @@ do_cast(Type, Value) when ?AVRO_IS_RECORD_VALUE(Value) ->
   ValueType = ?AVRO_VALUE_TYPE(Value),
   ValueTypeFullName = ValueType#avro_record_type.fullname,
   if TargetTypeFullName =:= ValueTypeFullName -> {ok, Value};
-     true                                     -> false
+     true                                     -> {error, type_name_mismatch}
   end;
-do_cast(Type, Value) when is_list(Value) ->
-  %% Cast from a proplist
-  Data = lists:foldl(
-           fun(_, false) ->
-               false;
-              ({FieldName, FieldValue}, Acc) ->
-               case map_field_value(FieldName, FieldValue, Type) of
-                 {ok, CastedValue} -> [{FieldName, CastedValue}|Acc];
-                 {error, _Err}      -> false
-               end
-           end,
-           [],
-           Value),
-  if Data =:= false -> false;
-     true           -> {ok, ?AVRO_VALUE(Type, Data)}
+do_cast(Type, Proplist) when is_list(Proplist) ->
+  CastResult =
+    lists:foldl(
+      fun(_FieldDef, {error, _} = Acc) ->
+          %% Don't do anything after the first error
+          Acc;
+         (FieldDef, Acc) ->
+          #avro_record_field
+            { name = FieldName
+            , type = FieldType
+            , default = Default
+            } = FieldDef,
+          case lists:keyfind(FieldName, 1, Proplist) of
+            {_, Value} ->
+              %% Data has value for the current field, cast it
+              cast_field_value(FieldName, FieldType, Value, Acc);
+            false ->
+              %% There is no value for the current field in Data,
+              %% try to use default value if provided
+              case Default of
+                undefined -> {error, {required_field_missed, FieldName}};
+                _       -> cast_field_value(FieldName, FieldType, Default, Acc)
+              end
+          end
+      end,
+      [],
+      Type#avro_record_type.fields),
+  case CastResult of
+    {error, _} = Err -> Err;
+    Data             -> {ok, ?AVRO_VALUE(Type, Data)}
   end.
-
--spec map_field_value(string(), term(), #avro_record_field{}) ->
-                         {string(), avro_value()} | {error, term()}.
-
-map_field_value(FieldName, Value, Type) ->
-  case get_field_def(FieldName, Type) of
-    {ok, FieldDef} ->
-      case avro:cast(FieldDef#avro_record_field.type, Value) of
-        {ok, CastedValue} -> {ok, CastedValue};
-        false             -> {error, {wrong_type, FieldName}}
-      end;
-    false ->
-      {error, {unknown_field, FieldName}}
-  end.
-
-raise_unknown_field(FieldName, Type) ->
-    erlang:error({avro_error, {unknown_field, FieldName, Type}}).
 
 get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
   case lists:keyfind(FieldName, #avro_record_field.name, Fields) of
@@ -187,12 +215,32 @@ get_field_type_test() ->
   Schema = type("Test", "name.space", "", [Field]),
   ?assertEqual(avro_primitive:long_type(), get_field_type("invno", Schema)).
 
+default_fields_test() ->
+  Field = field("invno",
+                avro_primitive:long_type(),
+                "Invoice number",
+                avro_primitive:long(10)),
+  Schema = type("Test", "name.space", "", [Field]),
+  Rec = new(Schema, []),
+  ?assertEqual(avro_primitive:long(10), get("invno", Rec)).
+
 get_set_test() ->
   Schema = type("Test", "name.space", "",
                 [field("invno", avro_primitive:long_type(), "")]),
   Rec0 = avro_record:new(Schema, [{"invno", 0}]),
   Rec1 = set("invno", avro_primitive:long(1), Rec0),
-  ?assertEqual({ok, avro_primitive:long(1)}, get("invno", Rec1)).
+  ?assertEqual(avro_primitive:long(1), get("invno", Rec1)).
+
+update_test() ->
+  Schema = type("Test", "name.space", "",
+                [field("invno", avro_primitive:long_type(), "")]),
+  Rec0 = avro_record:new(Schema, [{"invno", 10}]),
+  Rec1 = update("invno",
+                fun(X) ->
+                    avro_primitive:long(avro_primitive:value(X)*2)
+                end,
+                Rec0),
+  ?assertEqual(avro_primitive:long(20), get("invno", Rec1)).
 
 to_list_test() ->
   Schema = type("Test", "name.space", "",
@@ -208,6 +256,16 @@ to_list_test() ->
                lists:keyfind("invno", 1, L)),
   ?assertEqual({"name", avro_primitive:string("some name")},
                lists:keyfind("name", 1, L)).
+
+cast_test() ->
+  RecordType = type("Record", "namespace", "",
+                    [ field("a", avro_primitive:string_type(), "")
+                    , field("b", avro_primitive:int_type(), "")
+                    ]),
+  {ok, Record} = cast(RecordType, [{"b", 1},
+                                   {"a", "foo"}]),
+  ?assertEqual(avro_primitive:string("foo"), avro_record:get("a", Record)),
+  ?assertEqual(avro_primitive:int(1), avro_record:get("b", Record)).
 
 -endif.
 

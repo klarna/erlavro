@@ -153,7 +153,7 @@ verify_type(Type) ->
 
 %% Tries to cast a value (which can be another Avro value or some erlang term)
 %% to the specified Avro type performing conversion if required.
--spec cast(avro_type_or_name(), term()) -> {ok, avro_value()} | false.
+-spec cast(avro_type_or_name(), term()) -> {ok, avro_value()} | {error, term()}.
 
 cast(TypeName, Value) when is_list(TypeName) ->
   case type_from_name(TypeName) of
@@ -169,11 +169,11 @@ cast(TypeName, Value) when is_list(TypeName) ->
           ValueType = ?AVRO_VALUE_TYPE(Value),
           case has_fullname(ValueType, TypeName) of
             true  -> {ok, Value};
-            false -> false
+            false -> {error, type_name_mismatch}
           end;
         false ->
           %% Erlang terms can't be casted to names
-          false
+          {error, cast_erlang_term_to_name}
       end;
     Type ->
       %% The only exception are primitive types names because we know
@@ -182,7 +182,7 @@ cast(TypeName, Value) when is_list(TypeName) ->
   end;
 cast(Type, Value) ->
   case get_type_module(Type) of
-    undefined -> erlang:error({avro_error, neither_type_nor_name});
+    undefined -> {error, {unknown_type, Type}};
     Mod       -> Mod:cast(Type, Value)
   end.
 
@@ -245,7 +245,7 @@ make_fullname(Name, Namespace) ->
   Namespace ++ "." ++ Name.
 
 error_if_false(true, _Err) -> ok;
-error_if_false(false, Err) -> erlang:error({avro_error, Err}).
+error_if_false(false, Err) -> erlang:error(Err).
 
 %%%===================================================================
 %%% Internal functions: casting
@@ -306,10 +306,8 @@ is_correct_dotted_name_test() ->
 
 verify_type_test() ->
   ?assertEqual(ok, verify_type(get_test_type("tname", "name.space"))),
-  ?assertError({avro_error, {invalid_name, _}},
-               verify_type(get_test_type("", ""))),
-  ?assertError({avro_error, {invalid_name, _}},
-               verify_type(get_test_type("", "name.space"))),
+  ?assertError({invalid_name, _}, verify_type(get_test_type("", ""))),
+  ?assertError({invalid_name, _}, verify_type(get_test_type("", "name.space"))),
   ?assertEqual(ok, verify_type(get_test_type("tname", ""))).
 
 split_type_name_test() ->

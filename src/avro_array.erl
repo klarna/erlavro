@@ -33,15 +33,15 @@ new(Type) ->
 
 new(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   case cast(Type, List) of
-    {ok, Value} -> Value;
-    false       -> erlang:error({avro_error, wrong_cast})
+    {ok, Value}  -> Value;
+    {error, Err} -> erlang:error(Err)
   end.
 
 prepend(Items, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   new(?AVRO_VALUE_TYPE(Value), Items ++ ?AVRO_VALUE_DATA(Value)).
 
 %% Only other Avro array type or erlang list can be casted to arrays
--spec cast(avro_type(), term()) -> {ok, avro_value()} | false.
+-spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
 
 cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   do_cast(Type, Value).
@@ -51,7 +51,7 @@ cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
 %%%===================================================================
 
 -spec do_cast(#avro_array_type{}, avro_value() | [term()])
-             -> {ok, avro_value()} | false.
+             -> {ok, avro_value()} | {error, term()}.
 
 do_cast(Type, Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   %% Since we can't compare array types we just cast all items one by one
@@ -60,8 +60,8 @@ do_cast(Type, Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
 do_cast(Type, Items) when is_list(Items) ->
   #avro_array_type{type = ItemType} = Type,
   case cast_items(ItemType, Items, []) of
-    false -> false;
-    CastedItems -> {ok, ?AVRO_VALUE(Type, CastedItems)}
+    ResArray when is_list(ResArray) -> {ok, ?AVRO_VALUE(Type, ResArray)};
+    Err                             -> Err
   end.
 
 cast_items(_TargetType, [], Acc) ->
@@ -69,7 +69,7 @@ cast_items(_TargetType, [], Acc) ->
 cast_items(TargetType, [Item|H], Acc) ->
   case avro:cast(TargetType, Item) of
     {ok, Value} -> cast_items(TargetType, H, [Value|Acc]);
-    false       -> false
+    Err         -> Err
   end.
 
 %%%===================================================================

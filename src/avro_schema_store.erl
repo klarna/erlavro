@@ -65,7 +65,7 @@ add_type(Type, Store) ->
         do_add_type(ConvertedType, Store),
         ExtractedTypes);
     false ->
-      erlang:error({avro_error, "Only named types can be added to a store"})
+      erlang:error(unnamed_type_cant_be_added)
   end.
 
 -spec lookup_type(string(), store()) -> {ok, avro_type()} | false.
@@ -89,7 +89,7 @@ do_add_type(Type, Store) ->
   FullName = avro:get_type_fullname(Type),
   case get_type_from_store(FullName, Store) of
     {ok, _} ->
-      erlang:error({avro_error, "Two types with same name in the store"});
+      erlang:error(type_with_same_name_already_exists_in_store);
     false   ->
       put_type_to_store(FullName, Type, Store)
   end.
