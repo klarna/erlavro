@@ -192,8 +192,8 @@ cast(Type, Value) ->
 
 reserved_type_names() ->
     [?AVRO_NULL, ?AVRO_BOOLEAN, ?AVRO_INT, ?AVRO_LONG, ?AVRO_FLOAT,
-     ?AVRO_DOUBLE, ?AVRO_BYTES, ?AVRO_STRING, ?AVRO_ARRAY, ?AVRO_MAP,
-     ?AVRO_UNION].
+     ?AVRO_DOUBLE, ?AVRO_BYTES, ?AVRO_STRING, ?AVRO_RECORD, ?AVRO_ENUM,
+     ?AVRO_ARRAY, ?AVRO_MAP, ?AVRO_UNION, ?AVRO_FIXED].
 
 is_correct_first_symbol(S) -> (S >= $A andalso S =< $Z) orelse
                               (S >= $a andalso S =< $z) orelse
@@ -226,7 +226,6 @@ verify_type_name(Type) ->
 
 %% Splits FullName to {Name, Namespace} or returns false
 %% if FullName is not a full name.
-%% The function can fail if it is called on badly formatted names.
 -spec split_fullname(string()) -> {string(), string()} | false.
 split_fullname(FullName) ->
     case string:rchr(FullName, $.) of

@@ -37,5 +37,5 @@ export data from BIX. What things should be done:
    with consistency checks, etc. (DONE without consistency checks).
 6. Better coverage of possible operations by modules, so ?AVRO_VALUE*
    macros are not exposed to external code.
-7. Support of automatic default values assignment for records.
-8. Automatic types inferring (t.ex. avro:value_from(X) instead of avro_primitive:Type(X)).
+7. Support of automatic default values assignment for records (DONE).
+8. Automatic types inferring (t.ex. avro:value_from(X) instead of avro_primitive:Type(X)). (DONE)

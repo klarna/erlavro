@@ -12,9 +12,12 @@
 -define(AVRO_STRING,  "string").
 
 %% Other reserved types names
+-define(AVRO_RECORD,  "record").
+-define(AVRO_ENUM,    "enum").
 -define(AVRO_ARRAY,   "array").
 -define(AVRO_MAP,     "map").
 -define(AVRO_UNION,   "union").
+-define(AVRO_FIXED,   "fixed").
 
 -define(INT4_MIN, -2147483648).
 -define(INT4_MAX,  2147483647).
