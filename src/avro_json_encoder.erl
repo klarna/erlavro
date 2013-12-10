@@ -186,7 +186,7 @@ do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
     true  -> null; %% Nulls don't need a type to be specified
     false ->
       { struct
-      , [{avro:get_type_fullname(?AVRO_VALUE_TYPE(Data)),
+      , [{encode_string(avro:get_type_fullname(?AVRO_VALUE_TYPE(Data))),
           do_encode_value(Data)}]
       }
   end;
