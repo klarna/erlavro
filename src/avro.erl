@@ -17,8 +17,6 @@
 
 -export([cast/2]).
 
--export([verify_type/1]).
-
 -include("erlavro.hrl").
 
 %%%===================================================================
@@ -121,36 +119,6 @@ build_type_fullname(Type, EnclosingNamespace) ->
 %%% API: Checking correctness of names and types specifications
 %%%===================================================================
 
-%% Check correctness of the name portion of type names, record field names and
-%% enums symbols (everything where dots should not present in).
--spec is_correct_name(string()) -> boolean().
-
-is_correct_name([])    -> false;
-is_correct_name([H])   -> is_correct_first_symbol(H);
-is_correct_name([H|T]) -> is_correct_first_symbol(H) andalso
-                          is_correct_name_tail(T).
-
-%% Check correctness of type name or namespace (where name parts can be splitted
-%% with dots).
--spec is_correct_dotted_name(string()) -> boolean().
-
-is_correct_dotted_name(Name) ->
-  case split_fullname(Name) of
-    false       -> is_correct_name(Name);
-    {SName, Ns} -> is_correct_name(SName) andalso
-                   is_correct_dotted_name(Ns)
-  end.
-
-%% Verify overall type definition for correctness. Error is thrown
-%% when issues are found.
--spec verify_type(avro_type()) -> ok.
-
-verify_type(Type) ->
-    case is_named_type(Type) of
-        true  -> verify_type_name(Type);
-        false -> ok
-    end.
-
 %% Tries to cast a value (which can be another Avro value or some erlang term)
 %% to the specified Avro type performing conversion if required.
 -spec cast(avro_type_or_name(), term()) -> {ok, avro_value()} | {error, term()}.
@@ -190,40 +158,6 @@ cast(Type, Value) ->
 %%% Internal functions
 %%%===================================================================
 
-reserved_type_names() ->
-    [?AVRO_NULL, ?AVRO_BOOLEAN, ?AVRO_INT, ?AVRO_LONG, ?AVRO_FLOAT,
-     ?AVRO_DOUBLE, ?AVRO_BYTES, ?AVRO_STRING, ?AVRO_RECORD, ?AVRO_ENUM,
-     ?AVRO_ARRAY, ?AVRO_MAP, ?AVRO_UNION, ?AVRO_FIXED].
-
-is_correct_first_symbol(S) -> (S >= $A andalso S =< $Z) orelse
-                              (S >= $a andalso S =< $z) orelse
-                              S =:= $_.
-
-is_correct_symbol(S) -> is_correct_first_symbol(S) orelse
-                        (S >= $0 andalso S =< $9).
-
-is_correct_name_tail([])    -> true;
-is_correct_name_tail([H|T]) -> is_correct_symbol(H) andalso
-                               is_correct_name_tail(T).
-
-verify_type_name(Type) ->
-    Name = get_type_name(Type),
-    Ns = get_type_namespace(Type),
-    Fullname = get_type_fullname(Type),
-    error_if_false(is_correct_dotted_name(Name),
-                   {invalid_name, Name}),
-    error_if_false(Ns =:= "" orelse is_correct_dotted_name(Ns),
-                   {invalid_name, Ns}),
-    error_if_false(is_correct_dotted_name(Fullname),
-                   {invalid_name, Fullname}),
-    %% It is important to call canonicalize_name after basic checks,
-    %% because it assumes that all names are correct.
-    %% We are not interested in the namespace here, so we can ignore
-    %% EnclosingExtension value.
-    {CanonicalName, _} = split_type_name(Name, Ns, ""),
-    error_if_false(not lists:member(CanonicalName, reserved_type_names()),
-                   reserved_name_is_used_for_type_name).
-
 %% Splits FullName to {Name, Namespace} or returns false
 %% if FullName is not a full name.
 -spec split_fullname(string()) -> {string(), string()} | false.
@@ -242,9 +176,6 @@ make_fullname(Name, "") ->
   Name;
 make_fullname(Name, Namespace) ->
   Namespace ++ "." ++ Name.
-
-error_if_false(true, _Err) -> ok;
-error_if_false(false, Err) -> erlang:error(Err).
 
 %%%===================================================================
 %%% Internal functions: casting
@@ -289,25 +220,6 @@ get_test_type(Name, Namespace) ->
                    namespace = Namespace,
                    size = 16,
                    fullname = build_type_fullname(Name, Namespace, "")}.
-
-is_correct_name_test() ->
-  CorrectNames = ["_", "a", "Aa1", "a_A"],
-  IncorrectNames = ["", "1", " a", "a ", " a ", ".", "a.b.c"],
-  [?assert(is_correct_name(Name)) || Name <- CorrectNames],
-  [?assertNot(is_correct_name(Name)) || Name <- IncorrectNames].
-
-is_correct_dotted_name_test() ->
-  CorrectNames = ["_", "a", "A._1", "a1.b2.c3"],
-  IncorrectNames = ["", "1", " a.b.c", "a.b.c ", " a.b.c ", "a..b", ".a.b",
-                    "a.1.b", "!", "-", "a. b.c"],
-  [?assert(is_correct_dotted_name(Name)) || Name <- CorrectNames],
-  [?assertNot(is_correct_dotted_name(Name)) || Name <- IncorrectNames].
-
-verify_type_test() ->
-  ?assertEqual(ok, verify_type(get_test_type("tname", "name.space"))),
-  ?assertError({invalid_name, _}, verify_type(get_test_type("", ""))),
-  ?assertError({invalid_name, _}, verify_type(get_test_type("", "name.space"))),
-  ?assertEqual(ok, verify_type(get_test_type("tname", ""))).
 
 split_type_name_test() ->
   ?assertEqual({"tname", ""},

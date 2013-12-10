@@ -31,12 +31,16 @@ parse_schema({struct, Attrs}, EnclosingNs) ->
 parse_schema(Array, EnclosingNs) when is_list(Array) ->
   %% Json array: this is an union definition
   parse_union_type(Array, EnclosingNs);
-parse_schema(Name, EnclosingNs) when is_binary(Name) ->
+parse_schema(NameBin, EnclosingNs) when is_binary(NameBin) ->
   %% Json string: this is a type name. If the name corresponds to one
   %% of primitive types then return it, otherwise make full name.
-  case type_from_name(Name) of
-    undefined -> avro:build_type_fullname(Name, EnclosingNs, EnclosingNs);
-    Type      -> Type
+  case type_from_name(NameBin) of
+    undefined ->
+      Name = binary_to_list(NameBin),
+      avro_check:verify_dotted_name(Name),
+      avro:build_type_fullname(Name, EnclosingNs, EnclosingNs);
+    Type ->
+      Type
   end;
 parse_schema(_, _EnclosingNs) ->
   %% Other Json value
@@ -62,22 +66,18 @@ parse_record_type(Attrs, EnclosingNs) ->
   Doc     = get_attr_value(<<"doc">>,       Attrs, <<"">>),
   Aliases = get_attr_value(<<"aliases">>,   Attrs, []),
   Fields  = get_attr_value(<<"fields">>,    Attrs),
-  Name = binary_to_list(NameBin),
-  Ns = binary_to_list(NsBin),
+  Name    = binary_to_list(NameBin),
+  Ns      = binary_to_list(NsBin),
   %% Based on the record's own namespace and the enclosing namespace
   %% new enclosing namespace for all types inside the record is
   %% calculated.
   {_, RecordNs} = avro:split_type_name(Name, Ns, EnclosingNs),
-  Type = #avro_record_type
-         { name      = Name
-         , namespace = Ns
-         , doc       = binary_to_list(Doc)
-         , aliases   = Aliases
-         , fields    = parse_record_fields(Fields, RecordNs)
-         , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
-         },
-  avro:verify_type(Type),
-  Type.
+  avro_record:type(Name,
+                   Ns,
+                   binary_to_list(Doc),
+                   parse_record_fields(Fields, RecordNs),
+                   Aliases,
+                   EnclosingNs).
 
 parse_record_fields(Fields, EnclosingNs) ->
   lists:map(fun(FieldSchema) ->
@@ -86,12 +86,12 @@ parse_record_fields(Fields, EnclosingNs) ->
             Fields).
 
 parse_record_field(FieldSchema, EnclosingNs) ->
-  Name    = get_attr_value(<<"name">>,    FieldSchema),
-  Doc     = get_attr_value(<<"doc">>,     FieldSchema, <<"">>),
-  Type    = get_attr_value(<<"type">>,    FieldSchema),
-  Default = get_attr_value(<<"default">>, FieldSchema, undefined),
-  Order   = get_attr_value(<<"order">>,   FieldSchema, <<"ascending">>),
-  Aliases = get_attr_value(<<"aliases">>, FieldSchema, []),
+  Name      = get_attr_value(<<"name">>,    FieldSchema),
+  Doc       = get_attr_value(<<"doc">>,     FieldSchema, <<"">>),
+  Type      = get_attr_value(<<"type">>,    FieldSchema),
+  Default   = get_attr_value(<<"default">>, FieldSchema, undefined),
+  Order     = get_attr_value(<<"order">>,   FieldSchema, <<"ascending">>),
+  Aliases   = get_attr_value(<<"aliases">>, FieldSchema, []),
   FieldType = parse_type(Type, EnclosingNs),
   #avro_record_field
   { name    = binary_to_list(Name)
@@ -104,9 +104,14 @@ parse_record_field(FieldSchema, EnclosingNs) ->
 
 parse_default_value(undefined, _FieldType) ->
   undefined;
-parse_default_value(_Default, _FieldType) ->
-  %% TODO:
-  erlang:error({not_implemented, parse_default_value}).
+parse_default_value(Value, FieldType) when ?AVRO_IS_UNION_TYPE(FieldType) ->
+  %% Strange agreement about unions: default value for an union field
+  %% corresponds to the first type in this union.
+  %% Why not to use normal union values format?
+  [FirstType|_] = avro_union:get_types(FieldType),
+  parse_value(Value, FirstType, todo_extract_fun);
+parse_default_value(Value, FieldType) ->
+  parse_value(Value, FieldType, todo_extract_fun).
 
 parse_order(<<"ascending">>)  -> ascending;
 parse_order(<<"descending">>) -> ascending;
@@ -119,8 +124,8 @@ parse_enum_type(Attrs, EnclosingNs) ->
   Doc     = get_attr_value(<<"doc">>,       Attrs, <<"">>),
   Aliases = get_attr_value(<<"aliases">>,   Attrs, []),
   Symbols = get_attr_value(<<"symbols">>,   Attrs),
-  Name = binary_to_list(NameBin),
-  Ns = binary_to_list(NsBin),
+  Name    = binary_to_list(NameBin),
+  Ns      = binary_to_list(NsBin),
   Type = #avro_enum_type
          { name      = binary_to_list(NameBin)
          , namespace = binary_to_list(NsBin)
@@ -129,7 +134,7 @@ parse_enum_type(Attrs, EnclosingNs) ->
          , symbols   = parse_enum_symbols(Symbols)
          , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
          },
-  avro:verify_type(Type),
+  avro_check:verify_type(Type),
   Type.
 
 parse_enum_symbols(SymbolsArray) when is_list(SymbolsArray) ->
@@ -147,9 +152,7 @@ parse_enum_symbols(_) ->
 
 parse_array_type(Attrs, EnclosingNs) ->
   Items = get_attr_value(<<"items">>, Attrs),
-  #avro_array_type
-  { type = parse_type(Items, EnclosingNs)
-  }.
+  avro_array:type(parse_type(Items, EnclosingNs)).
 
 parse_map_type(Attrs, EnclosingNs) ->
   Values = get_attr_value(<<"values">>, Attrs),
@@ -162,8 +165,8 @@ parse_fixed_type(Attrs, EnclosingNs) ->
   NsBin   = get_attr_value(<<"namespace">>, Attrs, <<"">>),
   Aliases = get_attr_value(<<"aliases">>,   Attrs, []),
   Size    = get_attr_value(<<"size">>, Attrs),
-  Name = binary_to_list(NameBin),
-  Ns = binary_to_list(NsBin),
+  Name    = binary_to_list(NameBin),
+  Ns      = binary_to_list(NsBin),
   Type = #avro_fixed_type
          { name      = Name
          , namespace = Ns
@@ -171,7 +174,7 @@ parse_fixed_type(Attrs, EnclosingNs) ->
          , size      = parse_fixed_size(Size)
          , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
          },
-  avro:verify_type(Type),
+  avro_check:verify_type(Type),
   Type.
 
 parse_fixed_size(N) when is_integer(N) andalso N > 0 ->
@@ -185,8 +188,7 @@ parse_union_type(Attrs, EnclosingNs) ->
                 parse_schema(Schema, EnclosingNs)
             end,
             Attrs),
-  %% TODO: check union correctness
-  #avro_union_type{ types = Types }.
+  avro_union:type(Types).
 
 parse_aliases(AliasesArray) when is_list(AliasesArray) ->
   lists:map(

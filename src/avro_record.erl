@@ -8,6 +8,7 @@
 
 %% API
 -export([type/4]).
+-export([type/6]).
 -export([field/3]).
 -export([field/4]).
 -export([get_field_type/2]).
@@ -28,14 +29,18 @@
 %%%===================================================================
 
 type(Name, Namespace, Doc, Fields) ->
+  type(Name, Namespace, Doc, Fields, [], "").
+
+type(Name, Namespace, Doc, Fields, Aliases, EnclosingNs) ->
   Type = #avro_record_type
          { name      = Name
          , namespace = Namespace
          , doc       = Doc
          , fields    = Fields
-         , fullname  = avro:build_type_fullname(Name, Namespace, "")
+         , aliases   = Aliases
+         , fullname  = avro:build_type_fullname(Name, Namespace, EnclosingNs)
          },
-  avro:verify_type(Type),
+  avro_check:verify_type(Type),
   Type.
 
 field(Name, Type, Doc) ->

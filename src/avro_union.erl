@@ -29,8 +29,10 @@
 %%% API
 %%%===================================================================
 
-type(Types) ->
-    #avro_union_type{types = Types}.
+type([]) ->
+  erlang:error(avro_union_should_have_at_least_one_type);
+type(Types) when is_list(Types) ->
+  #avro_union_type{types = Types}.
 
 get_types(#avro_union_type{types = Types}) -> Types.
 
@@ -42,11 +44,11 @@ new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
 
 %% Get current value of a union type variable
 get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
-    ?AVRO_VALUE_DATA(Union).
+  ?AVRO_VALUE_DATA(Union).
 
 %% Sets new value to a union type variable
 set_value(Union, Value) when ?AVRO_IS_UNION_VALUE(Union) ->
-    ?AVRO_UPDATE_VALUE(Union, Value).
+  ?AVRO_UPDATE_VALUE(Union, Value).
 
 %%%===================================================================
 %%% API: casting
