@@ -243,10 +243,6 @@ cast_primitive_test() ->
   ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_INT, 1)}, cast("int", 1)),
   ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_LONG, 1)}, cast("long", 1)).
 
-cast_array_test() ->
-  ArrayType = avro_array:type(avro_primitive:int_type()),
-  _Array = cast(ArrayType, [1,2,3,4]).
-
 -endif.
 
 %%%_* Emacs ============================================================

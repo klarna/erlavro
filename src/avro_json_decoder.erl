@@ -194,7 +194,7 @@ parse_aliases(AliasesArray) when is_list(AliasesArray) ->
   lists:map(
     fun(AliasBin) when is_binary(AliasBin) ->
         Alias = binary_to_list(AliasBin),
-        %% TODO: check alias
+        avro_check:verify_dotted_name(Alias),
         Alias;
        (_) ->
         erlang:error(wrong_aliases_specification)

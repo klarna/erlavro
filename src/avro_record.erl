@@ -129,7 +129,7 @@ update(FieldName, Fun, Record) ->
       {value, {_,T,OldValue}, Rest} ->
         case avro:cast(T, Fun(OldValue)) of
           {ok, NewValue} -> [{FieldName, T, NewValue}|Rest];
-          Err            -> erlang:error(Err)
+          {error, Err}   -> erlang:error(Err)
         end;
       false ->
         erlang:error({unknown_field, FieldName})
