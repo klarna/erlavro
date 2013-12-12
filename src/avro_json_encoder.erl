@@ -375,14 +375,14 @@ encode_record_type_test() ->
 encode_record_test() ->
     Json = encode_value(sample_record()),
     Expected = "{"
-               "\"bool\":true,"
-               "\"int\":100,"
-               "\"long\":123456789123456789,"
-               "\"float\":2.718281828,"
-               "\"double\":3.14159265358,"
+               "\"string\":\"string value\","
                "\"bytes\":\"\\u0062\\u0079\\u0074\\u0065\\u0073\\u0020\\u0076"
                            "\\u0061\\u006c\\u0075\\u0065\","
-               "\"string\":\"string value\""
+               "\"double\":3.14159265358,"
+               "\"float\":2.718281828,"
+               "\"long\":123456789123456789,"
+               "\"int\":100,"
+               "\"bool\":true"
                "}",
     ?assertEqual(Expected, to_string(Json)).
 
@@ -391,6 +391,7 @@ encode_enum_test() ->
              { name = "Enum"
              , namespace = "com.klarna.test.bix"
              , symbols = ["A", "B", "C"]
+             , fullname = "com.klarna.test.bix.Enum"
              },
   EnumValue = ?AVRO_VALUE(EnumType, "B"),
   EnumTypeJson = encode_type(EnumType),

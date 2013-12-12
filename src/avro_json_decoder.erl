@@ -6,7 +6,7 @@
 -module(avro_json_decoder).
 
 %% API
--export([decode_schema/1]).
+-export([decode_schema/2]).
 -export([decode_value/3]).
 
 -include("erlavro.hrl").
@@ -15,23 +15,38 @@
 %%% API
 %%%===================================================================
 
-decode_schema(JsonSchema) ->
-  parse_schema(mochijson3:decode(JsonSchema), "").
+%% Decode Avro schema specified as Json string.
+%% ExtractTypeFun should be a function returning Avro type by its full name,
+%% it is needed to parse default values.
+-spec decode_schema(string(),
+                    fun((string()) -> avro_type()))
+                    -> avro_type().
 
-decode_value(JsonValue, Schema, ExtractFun) ->
-  parse_value(mochijson3:decode(JsonValue), Schema, ExtractFun).
+decode_schema(JsonSchema, ExtractTypeFun) ->
+  parse_schema(mochijson3:decode(JsonSchema), "", ExtractTypeFun).
+
+%% Decode value specified as Json string according to Avro schema
+%% in Schema. ExtractTypeFun should be provided to retrieve types
+%% specified by their names inside Schema.
+-spec decode_value(string(),
+                   avro_type_or_name(),
+                   fun((string()) -> avro_type()))
+                  -> avro_value().
+
+decode_value(JsonValue, Schema, ExtractTypeFun) ->
+  parse_value(mochijson3:decode(JsonValue), Schema, ExtractTypeFun).
 
 %%%===================================================================
 %%% Schema parsing
 %%%===================================================================
 
-parse_schema({struct, Attrs}, EnclosingNs) ->
+parse_schema({struct, Attrs}, EnclosingNs, ExtractTypeFun) ->
   %% Json object: this is a type definition (except for unions)
-  parse_type(Attrs, EnclosingNs);
-parse_schema(Array, EnclosingNs) when is_list(Array) ->
+  parse_type(Attrs, EnclosingNs, ExtractTypeFun);
+parse_schema(Array, EnclosingNs, ExtractTypeFun) when is_list(Array) ->
   %% Json array: this is an union definition
-  parse_union_type(Array, EnclosingNs);
-parse_schema(NameBin, EnclosingNs) when is_binary(NameBin) ->
+  parse_union_type(Array, EnclosingNs, ExtractTypeFun);
+parse_schema(NameBin, EnclosingNs, _ExtractTypeFun) when is_binary(NameBin) ->
   %% Json string: this is a type name. If the name corresponds to one
   %% of primitive types then return it, otherwise make full name.
   case type_from_name(NameBin) of
@@ -42,17 +57,17 @@ parse_schema(NameBin, EnclosingNs) when is_binary(NameBin) ->
     Type ->
       Type
   end;
-parse_schema(_, _EnclosingNs) ->
+parse_schema(_, _EnclosingNs, _ExtractTypeFun) ->
   %% Other Json value
   erlang:error(unexpected_element_in_schema).
 
-parse_type(Attrs, EnclosingNs) ->
+parse_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   TypeAttr = get_attr_value(<<"type">>, Attrs),
   case TypeAttr of
-    <<?AVRO_RECORD>> -> parse_record_type(Attrs, EnclosingNs);
+    <<?AVRO_RECORD>> -> parse_record_type(Attrs, EnclosingNs, ExtractTypeFun);
     <<?AVRO_ENUM>>   -> parse_enum_type(Attrs, EnclosingNs);
-    <<?AVRO_ARRAY>>  -> parse_array_type(Attrs, EnclosingNs);
-    <<?AVRO_MAP>>    -> parse_map_type(Attrs, EnclosingNs);
+    <<?AVRO_ARRAY>>  -> parse_array_type(Attrs, EnclosingNs, ExtractTypeFun);
+    <<?AVRO_MAP>>    -> parse_map_type(Attrs, EnclosingNs, ExtractTypeFun);
     <<?AVRO_FIXED>>  -> parse_fixed_type(Attrs, EnclosingNs);
     _                -> case type_from_name(TypeAttr) of
                           undefined -> erlang:error(unknown_type);
@@ -60,7 +75,7 @@ parse_type(Attrs, EnclosingNs) ->
                         end
   end.
 
-parse_record_type(Attrs, EnclosingNs) ->
+parse_record_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   NameBin = get_attr_value(<<"name">>,      Attrs),
   NsBin   = get_attr_value(<<"namespace">>, Attrs, <<"">>),
   Doc     = get_attr_value(<<"doc">>,       Attrs, <<"">>),
@@ -75,43 +90,46 @@ parse_record_type(Attrs, EnclosingNs) ->
   avro_record:type(Name,
                    Ns,
                    binary_to_list(Doc),
-                   parse_record_fields(Fields, RecordNs),
+                   parse_record_fields(Fields, RecordNs, ExtractTypeFun),
                    Aliases,
                    EnclosingNs).
 
-parse_record_fields(Fields, EnclosingNs) ->
-  lists:map(fun(FieldSchema) ->
-                parse_record_field(FieldSchema, EnclosingNs)
+parse_record_fields(Fields, EnclosingNs, ExtractTypeFun) ->
+  lists:map(fun({struct, FieldAttrs}) ->
+                parse_record_field(FieldAttrs, EnclosingNs, ExtractTypeFun);
+               (_) ->
+                erlang:error(wrong_record_field_specification)
             end,
             Fields).
 
-parse_record_field(FieldSchema, EnclosingNs) ->
-  Name      = get_attr_value(<<"name">>,    FieldSchema),
-  Doc       = get_attr_value(<<"doc">>,     FieldSchema, <<"">>),
-  Type      = get_attr_value(<<"type">>,    FieldSchema),
-  Default   = get_attr_value(<<"default">>, FieldSchema, undefined),
-  Order     = get_attr_value(<<"order">>,   FieldSchema, <<"ascending">>),
-  Aliases   = get_attr_value(<<"aliases">>, FieldSchema, []),
-  FieldType = parse_type(Type, EnclosingNs),
+parse_record_field(Attrs, EnclosingNs, ExtractTypeFun) ->
+  Name      = get_attr_value(<<"name">>,    Attrs),
+  Doc       = get_attr_value(<<"doc">>,     Attrs, <<"">>),
+  Type      = get_attr_value(<<"type">>,    Attrs),
+  Default   = get_attr_value(<<"default">>, Attrs, undefined),
+  Order     = get_attr_value(<<"order">>,   Attrs, <<"ascending">>),
+  Aliases   = get_attr_value(<<"aliases">>, Attrs, []),
+  FieldType = parse_schema(Type, EnclosingNs, ExtractTypeFun),
   #avro_record_field
   { name    = binary_to_list(Name)
   , doc     = binary_to_list(Doc)
   , type    = FieldType
-  , default = parse_default_value(Default, FieldType)
+  , default = parse_default_value(Default, FieldType, ExtractTypeFun)
   , order   = parse_order(Order)
   , aliases = parse_aliases(Aliases)
   }.
 
-parse_default_value(undefined, _FieldType) ->
+parse_default_value(undefined, _FieldType, _ExtractTypeFun) ->
   undefined;
-parse_default_value(Value, FieldType) when ?AVRO_IS_UNION_TYPE(FieldType) ->
+parse_default_value(Value, FieldType, ExtractTypeFun)
+  when ?AVRO_IS_UNION_TYPE(FieldType) ->
   %% Strange agreement about unions: default value for an union field
   %% corresponds to the first type in this union.
   %% Why not to use normal union values format?
   [FirstType|_] = avro_union:get_types(FieldType),
-  parse_value(Value, FirstType, todo_extract_fun);
-parse_default_value(Value, FieldType) ->
-  parse_value(Value, FieldType, todo_extract_fun).
+  avro_union:new(FieldType, parse_value(Value, FirstType, ExtractTypeFun));
+parse_default_value(Value, FieldType, ExtractTypeFun) ->
+  parse_value(Value, FieldType, ExtractTypeFun).
 
 parse_order(<<"ascending">>)  -> ascending;
 parse_order(<<"descending">>) -> ascending;
@@ -150,14 +168,14 @@ parse_enum_symbols(SymbolsArray) when is_list(SymbolsArray) ->
 parse_enum_symbols(_) ->
   erlang:error(wrong_enum_symbols_specification).
 
-parse_array_type(Attrs, EnclosingNs) ->
+parse_array_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   Items = get_attr_value(<<"items">>, Attrs),
-  avro_array:type(parse_type(Items, EnclosingNs)).
+  avro_array:type(parse_schema(Items, EnclosingNs, ExtractTypeFun)).
 
-parse_map_type(Attrs, EnclosingNs) ->
+parse_map_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   Values = get_attr_value(<<"values">>, Attrs),
   #avro_map_type
-  { type = parse_type(Values, EnclosingNs)
+  { type = parse_schema(Values, EnclosingNs, ExtractTypeFun)
   }.
 
 parse_fixed_type(Attrs, EnclosingNs) ->
@@ -182,10 +200,10 @@ parse_fixed_size(N) when is_integer(N) andalso N > 0 ->
 parse_fixed_size(_) ->
   erlang:error(wrong_fixed_size_specification).
 
-parse_union_type(Attrs, EnclosingNs) ->
+parse_union_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   Types = lists:map(
             fun(Schema) ->
-                parse_schema(Schema, EnclosingNs)
+                parse_schema(Schema, EnclosingNs, ExtractTypeFun)
             end,
             Attrs),
   avro_union:type(Types).
@@ -204,14 +222,15 @@ parse_aliases(_) ->
   erlang:error(wrong_aliases_specification).
 
 %% Primitive types can be specified as their names
-type_from_name(<<?AVRO_NULL>>)   -> avro_primitive:null_type();
-type_from_name(<<?AVRO_INT>>)    -> avro_primitive:int_type();
-type_from_name(<<?AVRO_LONG>>)   -> avro_primitive:long_type();
-type_from_name(<<?AVRO_FLOAT>>)  -> avro_primitive:float_type();
-type_from_name(<<?AVRO_DOUBLE>>) -> avro_primitive:double_type();
-type_from_name(<<?AVRO_BYTES>>)  -> avro_primitive:bytes_type();
-type_from_name(<<?AVRO_STRING>>) -> avro_primitive:string_type();
-type_from_name(_)                -> undefined.
+type_from_name(<<?AVRO_NULL>>)    -> avro_primitive:null_type();
+type_from_name(<<?AVRO_BOOLEAN>>) -> avro_primitive:boolean_type();
+type_from_name(<<?AVRO_INT>>)     -> avro_primitive:int_type();
+type_from_name(<<?AVRO_LONG>>)    -> avro_primitive:long_type();
+type_from_name(<<?AVRO_FLOAT>>)   -> avro_primitive:float_type();
+type_from_name(<<?AVRO_DOUBLE>>)  -> avro_primitive:double_type();
+type_from_name(<<?AVRO_BYTES>>)   -> avro_primitive:bytes_type();
+type_from_name(<<?AVRO_STRING>>)  -> avro_primitive:string_type();
+type_from_name(_)                 -> undefined.
 
 %%%===================================================================
 %%% Values parsing
@@ -404,12 +423,13 @@ get_test_record() ->
 parse_primitive_type_name_test() ->
   %% Check that primitive types specified by their names are parsed correctly
   ?assertEqual(avro_primitive:int_type(),
-               parse_schema(<<"int">>, "foobar")).
+               parse_schema(<<"int">>, "foobar", none)).
 
 parse_primitive_type_object_test() ->
   %% Check that primitive types specified by type objects are parsed correctly
+  Schema = {struct, [{<<"type">>, <<"int">>}]},
   ?assertEqual(avro_primitive:int_type(),
-               parse_schema({struct, [{<<"type">>, <<"int">>}]}, "foobar")).
+               parse_schema(Schema, "foobar", none)).
 
 parse_record_type_test() ->
   Schema = {struct,
@@ -418,9 +438,44 @@ parse_record_type_test() ->
             , {<<"namespace">>, <<"name.space">>}
             , {<<"fields">>, []}
             ]},
-  Record = parse_schema(Schema, ""),
+  Record = parse_schema(Schema, "", none),
   ?assertEqual(avro_record:type("TestRecord", "name.space", "", []),
                Record).
+
+parse_record_type_with_default_values_test() ->
+  Schema = {struct,
+            [ {<<"type">>, <<"record">>}
+            , {<<"name">>, <<"TestRecord">>}
+            , {<<"namespace">>, <<"name.space">>}
+            , {<<"fields">>,
+               [ {struct, [ {<<"name">>, <<"string_field">>}
+                          , {<<"type">>, <<"string">>}
+                          , {<<"default">>, <<"FOOBAR">>}
+                          ]}
+               , {struct, [ {<<"name">>, <<"union_field">>}
+                          , {<<"type">>, [<<"boolean">>, <<"int">>]}
+                          , {<<"default">>, true}
+                          ]}
+               ]}
+            ]},
+  Record = parse_schema(Schema, "", none),
+  ExpectedUnion = avro_union:type([ avro_primitive:boolean_type()
+                                  , avro_primitive:int_type()]),
+  Expected = avro_record:type(
+               "TestRecord",
+               "name.space",
+               "",
+               [ avro_record:field("string_field",
+                                   avro_primitive:string_type(),
+                                   "",
+                                   avro_primitive:string("FOOBAR"))
+               , avro_record:field("union_field",
+                                   ExpectedUnion,
+                                   "",
+                                   avro_union:new(ExpectedUnion,
+                                                  avro_primitive:boolean(true)))
+               ]),
+  ?assertEqual(Expected, Record).
 
 parse_record_type_with_enclosing_namespace_test() ->
   Schema= {struct,
@@ -428,16 +483,18 @@ parse_record_type_with_enclosing_namespace_test() ->
            , {<<"name">>, <<"TestRecord">>}
            , {<<"fields">>, []}
            ]},
-  Record = parse_schema(Schema, "name.space"),
+  Record = parse_schema(Schema, "name.space", none),
   ?assertEqual("name.space.TestRecord",  avro:get_type_fullname(Record)).
 
 parse_union_type_test() ->
   Schema = [ <<"int">>
            , <<"string">>
+           , <<"typename">>
            ],
-  Union = parse_schema(Schema, ""),
+  Union = parse_schema(Schema, "name.space", none),
   ?assertEqual(avro_union:type([avro_primitive:int_type(),
-                                avro_primitive:string_type()]),
+                                avro_primitive:string_type(),
+                                "name.space.typename"]),
                Union).
 
 parse_bytes_value_test() ->
@@ -505,6 +562,28 @@ parse_union_value_fail_test() ->
                          , avro_primitive:string_type()]),
   Json = {struct, [{<<"boolean">>, true}]},
   ?assertError(unknown_type_of_union_value, parse_value(Json, Type, none)).
+
+parse_value_with_extract_type_fun_test() ->
+  ExtractTypeFun = fun("name.space.Test") ->
+                       get_test_record()
+                   end,
+  Schema = {struct, [ {<<"type">>, <<"array">>}
+                    , {<<"items">>, <<"Test">>}
+                    ]},
+  ValueJson = [{struct,
+                [ {<<"invno">>, 100}
+                , {<<"array">>, [<<"ACTIVE">>, <<"CLOSED">>]}
+                , {<<"union">>, {struct, [{<<"boolean">>, true}]}}
+                ]}],
+  Type = parse_schema(Schema, "name.space", ExtractTypeFun),
+  ExpectedType = avro_array:type("name.space.Test"),
+  ?assertEqual(ExpectedType, Type),
+  Value = parse_value(ValueJson, Type, ExtractTypeFun),
+  [Rec] = avro_array:get(Value),
+  ?assert(?AVRO_IS_RECORD_VALUE(Rec)),
+  ?assertEqual("name.space.Test",
+               avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
+  ?assertEqual(avro_primitive:long(100), avro_record:get("invno", Rec)).
 
 -endif.
 

@@ -12,6 +12,7 @@
 
 -export([new/1]).
 -export([new/2]).
+-export([get/1]).
 -export([cast/2]).
 
 -export([prepend/2]).
@@ -36,6 +37,10 @@ new(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
     {ok, Value}  -> Value;
     {error, Err} -> erlang:error(Err)
   end.
+
+%% Returns array contents as a list of Avro values
+get(Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
+  ?AVRO_VALUE_DATA(Value).
 
 prepend(Items, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   new(?AVRO_VALUE_TYPE(Value), Items ++ ?AVRO_VALUE_DATA(Value)).
