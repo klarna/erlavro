@@ -265,8 +265,9 @@ parse_value(V, Type, _ExtractFun) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
 
 parse_value(V, Type, _ExtractFun) when ?AVRO_IS_BYTES_TYPE(Type) andalso
                                        is_binary(V) ->
-  %% I think this can be improved
-  Bin = list_to_binary(parse_bytes(V)),
+  %% mochijson3 returns strings in utf-8, so we have to transform
+  %% them back to latin-1 to get initial binary value.
+  Bin = list_to_binary(xmerl_ucs:from_utf8(binary_to_list(V))),
   avro_primitive:bytes(Bin);
 
 parse_value(V, Type, _ExtractFun) when ?AVRO_IS_STRING_TYPE(Type) andalso
@@ -298,12 +299,6 @@ parse_value(Value, SchemaName, ExtractFun) when is_list(SchemaName) ->
 
 parse_value(_Value, _Schema, _ExtractFun) ->
   erlang:error(value_does_not_correspond_to_schema).
-
-parse_bytes(<<>>) ->
-  [];
-parse_bytes(<<"\u00", H1:8, H2:8, Rest/binary>>) ->
-  D = from_hex(H1) * 16 + from_hex(H2),
-  [D | parse_bytes(Rest)].
 
 parse_record({struct, Attrs}, Type, ExtractFun) ->
   parse_record(Attrs, Type, ExtractFun);
@@ -389,15 +384,6 @@ get_attr_value(Name, Attrs, Default) ->
     {_, Value} -> Value;
     false      -> Default
   end.
-
-from_hex(H) when H >= $0 andalso H =< $9 ->
-  H - $0;
-from_hex(H) when H >= $a andalso H =< $f ->
-  H - $a + 10;
-from_hex(H) when H >= $A andalso H =< $F ->
-  H - $A + 10;
-from_hex(_) ->
-  erlang:error(wrong_binary_value).
 
 %%%===================================================================
 %%% Tests

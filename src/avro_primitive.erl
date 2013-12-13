@@ -27,7 +27,7 @@
 -export([bytes/1]).
 -export([string/1]).
 
--export([value/1]).
+-export([get_value/1]).
 
 -include_lib("erlavro/include/erlavro.hrl").
 
@@ -142,7 +142,8 @@ bytes(Value) -> from_cast(cast(bytes_type(), Value)).
 
 string(Value) -> from_cast(cast(string_type(), Value)).
 
-value(Value) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
+%% Get underlying erlang value from an Avro primitive value
+get_value(Value) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
   ?AVRO_VALUE_DATA(Value).
 
 %%%===================================================================

@@ -242,7 +242,7 @@ update_test() ->
   Rec0 = avro_record:new(Schema, [{"invno", 10}]),
   Rec1 = update("invno",
                 fun(X) ->
-                    avro_primitive:long(avro_primitive:value(X)*2)
+                    avro_primitive:long(avro_primitive:get_value(X)*2)
                 end,
                 Rec0),
   ?assertEqual(avro_primitive:long(20), get("invno", Rec1)).
