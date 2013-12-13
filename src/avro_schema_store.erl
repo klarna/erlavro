@@ -39,7 +39,7 @@
 -spec new() -> store().
 
 new() ->
-  new([{access, private}]).
+  new([]).
 
 %% Options:
 %%   {access, public|protected|private} - has same meaning as access

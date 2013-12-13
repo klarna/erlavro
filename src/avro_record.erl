@@ -24,6 +24,17 @@
 
 -include("erlavro.hrl").
 
+%% Record internals:
+%% Data is a list of {Name, Type, Value} tuples, where
+%%   Name is a field name;
+%%   Type is a field type (same type as in the field schema);
+%%   Value is a field value (#avro_value{}).
+%%
+%% Type is duplicated in the type spec and in data so we don't need to
+%% lookup type explicitly (one lookup instead of two).
+%%
+%% Data always contains values for all fields, even for non-required ones.
+
 %%%===================================================================
 %%% API: Type
 %%%===================================================================
