@@ -360,10 +360,17 @@ parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun) ->
 lookup_type_by_name(_FullName, []) ->
   false;
 lookup_type_by_name(FullName, [Type|Rest]) ->
-  CandidateTypeName = avro:get_type_fullname(Type),
+  CandidateTypeName = get_type_fullname_ex(Type),
   if FullName =:= CandidateTypeName -> {ok, Type};
      true                           -> lookup_type_by_name(FullName, Rest)
   end.
+
+%% If type is specified by its name then return this name,
+%% otherwise return type's full name.
+get_type_fullname_ex(TypeName) when is_list(TypeName) ->
+  TypeName;
+get_type_fullname_ex(Type) ->
+  avro:get_type_fullname(Type).
 
 parse_fixed(_V, _Type, _ExtractFun) ->
   erlang:error(
