@@ -265,9 +265,7 @@ parse_value(V, Type, _ExtractFun) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
 
 parse_value(V, Type, _ExtractFun) when ?AVRO_IS_BYTES_TYPE(Type) andalso
                                        is_binary(V) ->
-  %% mochijson3 returns strings in utf-8, so we have to transform
-  %% them back to latin-1 to get initial binary value.
-  Bin = list_to_binary(xmerl_ucs:from_utf8(binary_to_list(V))),
+  Bin = parse_bytes(V),
   avro_primitive:bytes(Bin);
 
 parse_value(V, Type, _ExtractFun) when ?AVRO_IS_STRING_TYPE(Type) andalso
@@ -299,6 +297,17 @@ parse_value(Value, SchemaName, ExtractFun) when is_list(SchemaName) ->
 
 parse_value(_Value, _Schema, _ExtractFun) ->
   erlang:error(value_does_not_correspond_to_schema).
+
+parse_bytes(BytesStr) ->
+  list_to_binary(parse_bytes(BytesStr, [])).
+
+parse_bytes(<<>>, Acc) ->
+  lists:reverse(Acc);
+parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
+  Byte = erlang:list_to_integer([B1, B0], 16),
+  parse_bytes(Rest, [Byte | Acc]);
+parse_bytes(_, _) ->
+  erlang:error(wrong_bytes_string).
 
 parse_record({struct, Attrs}, Type, ExtractFun) ->
   parse_record(Attrs, Type, ExtractFun);
@@ -491,9 +500,9 @@ parse_union_type_test() ->
                Union).
 
 parse_bytes_value_test() ->
-  Json = <<"\u0010\u0000\u00FF">>,
+  Json = <<"\\u0010\\u0000\\u00FF">>,
   Value = parse_value(Json, avro_primitive:bytes_type(), none),
-  ?assertEqual(avro_primitive:bytes(<<16,0:8,255>>), Value).
+  ?assertEqual(avro_primitive:bytes(<<16,0,255>>), Value).
 
 parse_record_value_test() ->
   %% This test also tests parsing other types inside the record
