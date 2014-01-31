@@ -407,7 +407,7 @@ encode_union_type_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
                               , avro_primitive:int_type()]),
   Json = encode_type(UnionType),
-  ?assertEqual("[\"string\",\"int\"]", to_string(Json)).
+  ?assertEqual("[\"int\",\"string\"]", to_string(Json)).
 
 encode_union_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
