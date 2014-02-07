@@ -94,7 +94,7 @@ do_encode_type(#avro_map_type{type = Type}) ->
   };
 
 do_encode_type(#avro_union_type{types = Types}) ->
-  lists:map(fun do_encode_type/1, Types);
+  lists:sort(lists:map(fun do_encode_type/1, Types));
 
 do_encode_type(#avro_fixed_type{} = T) ->
   #avro_fixed_type{ name = Name
@@ -407,7 +407,7 @@ encode_union_type_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
                               , avro_primitive:int_type()]),
   Json = encode_type(UnionType),
-  ?assertEqual("[\"string\",\"int\"]", to_string(Json)).
+  ?assertEqual("[\"int\",\"string\"]", to_string(Json)).
 
 encode_union_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
