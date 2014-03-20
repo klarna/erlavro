@@ -22,6 +22,7 @@
 %% API
 -export([new/0]).
 -export([new/1]).
+-export([close/1]).
 -export([add_type/2]).
 -export([lookup_type/2]).
 -export([fold/3]).
@@ -52,6 +53,9 @@ new() ->
 new(Options) ->
   Access = proplists:get_value(access, Options, private),
   init_ets_store(Access).
+
+close(Store) ->
+  destroy_ets_store(Store).
 
 -spec add_type(avro_type(), store()) -> store().
 
@@ -186,6 +190,10 @@ get_type_from_store(Name, Store) ->
     []             -> false;
     [{Name, Type}] -> {ok, Type}
   end.
+
+destroy_ets_store(Store) ->
+  ets:delete(Store),
+  ok.
 
 %%%===================================================================
 %%% Tests
