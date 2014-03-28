@@ -126,7 +126,7 @@ cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
                        ?AVRO_IS_FLOAT_VALUE(Value) ->
   {ok, ?AVRO_VALUE(Type, ?AVRO_VALUE_DATA(Value))};
 
-cast(_, _) -> {error, type_mismatch}.
+cast(Type, Value) -> {error, {type_mismatch, Type, Value}}.
 
 %%%===================================================================
 %%% API: Helpers
