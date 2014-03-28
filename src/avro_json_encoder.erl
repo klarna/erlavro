@@ -98,7 +98,12 @@ do_encode_type(#avro_map_type{type = Type}) ->
   };
 
 do_encode_type(#avro_union_type{types = Types}) ->
-  lists:sort(lists:map(fun do_encode_type/1, Types));
+  SortedTypes =
+    case ?AVRO_IS_NULL_TYPE((hd(Types))) of
+      true -> [hd(Types) | lists:sort(tl(Types))];
+      false -> lists:sort(Types)
+    end,
+  lists:map(fun do_encode_type/1, SortedTypes);
 
 do_encode_type(#avro_fixed_type{} = T) ->
   #avro_fixed_type{ name = Name
