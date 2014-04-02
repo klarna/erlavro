@@ -37,12 +37,8 @@ get_encoder() ->
 to_json(Data) ->
   (get_encoder())(Data).
 
-optional_field(_Key, Default, Default, _MappingFun) ->
-  [];
-optional_field(default, Value, _, MappingFun) ->
-  [{default, {json, MappingFun(Value)}}];
-optional_field(Key, Value, _Default, MappingFun) ->
-  [{Key, MappingFun(Value)}].
+optional_field(_Key, Default, Default, _MappingFun) -> [];
+optional_field(Key, Value, _Default, MappingFun)    -> [{Key, MappingFun(Value)}].
 
 do_encode_type(Name) when is_list(Name) ->
   encode_string(Name);
@@ -125,11 +121,14 @@ encode_field(Field) ->
   , [ {name, encode_string(Name)}
     , {type, do_encode_type(Type)}
     ]
-    ++ optional_field(default, Default, undefined, fun encode_value/1)
+    ++ encode_default(Default)
     ++ optional_field(doc,     Doc,     "",        fun encode_string/1)
     ++ optional_field(order,   Order,   ascending, fun encode_order/1)
     ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1)
   }.
+
+encode_default(undefined) -> [];
+encode_default(Value)     -> [{default, {json, encode_value(Value)}}].
 
 encode_string(String) ->
   erlang:list_to_binary(String).
