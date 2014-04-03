@@ -121,14 +121,11 @@ encode_field(Field) ->
   , [ {name, encode_string(Name)}
     , {type, do_encode_type(Type)}
     ]
-    ++ encode_default(Default)
+    ++ optional_field(default, Default, undefined, fun do_encode_value/1)
     ++ optional_field(doc,     Doc,     "",        fun encode_string/1)
     ++ optional_field(order,   Order,   ascending, fun encode_order/1)
     ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1)
   }.
-
-encode_default(undefined) -> [];
-encode_default(Value)     -> [{default, do_encode_value(Value)}].
 
 encode_string(String) ->
   erlang:list_to_binary(String).
