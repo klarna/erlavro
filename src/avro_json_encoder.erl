@@ -128,7 +128,7 @@ encode_field(Field) ->
   }.
 
 encode_default(undefined) -> [];
-encode_default(Value)     -> [{default, {json, encode_value(Value)}}].
+encode_default(Value)     -> [{default, do_encode_value(Value)}].
 
 encode_string(String) ->
   erlang:list_to_binary(String).
@@ -231,13 +231,19 @@ sample_record_type() ->
       "SampleRecord",
       "com.klarna.test.bix",
       "Record documentation",
-      [ avro_record:field("bool",   avro_primitive:boolean_type(), "bool f")
-      , avro_record:field("int",    avro_primitive:int_type(),     "int f")
-      , avro_record:field("long",   avro_primitive:long_type(),    "long f")
-      , avro_record:field("float",  avro_primitive:float_type(),   "float f")
-      , avro_record:field("double", avro_primitive:double_type(),  "double f")
+      [ avro_record:field("bool",   avro_primitive:boolean_type(), "bool f",
+                          avro_primitive:boolean(false))
+      , avro_record:field("int",    avro_primitive:int_type(),     "int f",
+                          avro_primitive:int(0))
+      , avro_record:field("long",   avro_primitive:long_type(),    "long f",
+                          avro_primitive:long(42))
+      , avro_record:field("float",  avro_primitive:float_type(),   "float f",
+                          avro_primitive:float(3.14))
+      , avro_record:field("double", avro_primitive:double_type(),  "double f",
+                          avro_primitive:double(6.67221937))
       , avro_record:field("bytes",  avro_primitive:bytes_type(),   "bytes f")
-      , avro_record:field("string", avro_primitive:string_type(),  "string f")
+      , avro_record:field("string", avro_primitive:string_type(),  "string f",
+                          avro_primitive:string("string value"))
       ]).
 
 sample_record() ->
@@ -352,24 +358,30 @@ encode_record_type_test() ->
                   "\"fields\":["
                     "{\"name\":\"bool\","
                     "\"type\":\"boolean\","
+                    "\"default\":false,"
                     "\"doc\":\"bool f\"},"
                     "{\"name\":\"int\","
                     "\"type\":\"int\","
+                    "\"default\":0,"
                     "\"doc\":\"int f\"},"
                     "{\"name\":\"long\","
                     "\"type\":\"long\","
+                    "\"default\":42,"
                     "\"doc\":\"long f\"},"
                     "{\"name\":\"float\","
                     "\"type\":\"float\","
+                    "\"default\":3.14,"
                     "\"doc\":\"float f\"},"
                     "{\"name\":\"double\","
                     "\"type\":\"double\","
+                    "\"default\":6.67221937,"
                     "\"doc\":\"double f\"},"
                     "{\"name\":\"bytes\","
                     "\"type\":\"bytes\","
                     "\"doc\":\"bytes f\"},"
                     "{\"name\":\"string\","
                     "\"type\":\"string\","
+                    "\"default\":\"string value\","
                     "\"doc\":\"string f\"}],"
                   "\"namespace\":\"com.klarna.test.bix\","
                   "\"doc\":\"Record documentation\"}",
@@ -410,7 +422,7 @@ encode_union_type_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
                               , avro_primitive:int_type()]),
   Json = encode_type(UnionType),
-  ?assertEqual("[\"int\",\"string\"]", to_string(Json)).
+  ?assertEqual("[\"string\",\"int\"]", to_string(Json)).
 
 encode_union_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
