@@ -169,7 +169,7 @@ do_encode_value(Value) when ?AVRO_IS_STRING_VALUE(Value) ->
 do_encode_value(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   FieldsAndValues = avro_record:to_list(Record),
   { struct
-  , lists:map(fun encode_record_field_with_value/1, FieldsAndValues)
+  , lists:map(fun encode_field_with_value/1, FieldsAndValues)
   };
 
 do_encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
@@ -178,7 +178,11 @@ do_encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
 do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
 
-%% TODO: map
+do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
+  L = avro_map:to_list(Map),
+  { struct
+  , lists:map(fun encode_field_with_value/1, L)
+  };
 
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   Data = avro_union:get_value(Union),
@@ -195,8 +199,7 @@ do_encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
   %% mochijson3 doesn't support Avro style of encoding binaries
   {json, encode_binary(?AVRO_VALUE_DATA(Fixed))}.
 
-
-encode_record_field_with_value({FieldName, Value}) ->
+encode_field_with_value({FieldName, Value}) ->
   {encode_string(FieldName), do_encode_value(Value)}.
 
 encode_binary(Bin) ->
@@ -398,18 +401,24 @@ encode_record_test() ->
                "}",
     ?assertEqual(Expected, to_string(Json)).
 
+encode_enum_type_test() ->
+  EnumType =
+    avro_enum:type("Enum",
+                   ["A", "B", "C"],
+                   [{namespace, "com.klarna.test.bix"}]),
+  EnumTypeJson = encode_type(EnumType),
+  ?assertEqual("{\"type\":\"enum\","
+               "\"name\":\"Enum\","
+               "\"symbols\":[\"A\",\"B\",\"C\"],"
+               "\"namespace\":\"com.klarna.test.bix\"}",
+               to_string(EnumTypeJson)).
+
 encode_enum_test() ->
   EnumType =
     avro_enum:type("Enum",
                    ["A", "B", "C"],
                    [{namespace, "com.klarna.test.bix"}]),
   EnumValue = ?AVRO_VALUE(EnumType, "B"),
-  EnumTypeJson = encode_type(EnumType),
-  ?assertEqual("{\"type\":\"enum\","
-               "\"name\":\"Enum\","
-               "\"symbols\":[\"A\",\"B\",\"C\"],"
-               "\"namespace\":\"com.klarna.test.bix\"}",
-               to_string(EnumTypeJson)),
   EnumValueJson = encode_value(EnumValue),
   ?assertEqual("\"B\"", to_string(EnumValueJson)).
 
@@ -445,6 +454,24 @@ encode_array_test() ->
                          , avro_primitive:string("b")]),
   Json = encode_value(Value),
   ?assertEqual("[\"a\",\"b\"]", to_string(Json)).
+
+encode_map_type_test() ->
+  MapType = avro_map:type(avro_union:type(
+                            [avro_primitive:int_type(),
+                             avro_primitive:null_type()])),
+  Json = encode_type(MapType),
+  ?assertEqual("{\"type\":\"map\",\"values\":[\"int\",\"null\"]}",
+               to_string(Json)).
+
+encode_map_test() ->
+  MapType = avro_map:type(avro_union:type(
+                            [avro_primitive:int_type(),
+                             avro_primitive:null_type()])),
+  MapValue = avro_map:new(MapType,
+                          [{"v1", 1}, {"v2", null}, {"v3", 2}]),
+  Json = encode_value(MapValue),
+  ?assertEqual("{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}",
+               to_string(Json)).
 
 -endif.
 

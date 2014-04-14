@@ -167,9 +167,7 @@ parse_array_type(Attrs, EnclosingNs, ExtractTypeFun) ->
 
 parse_map_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   Values = get_attr_value(<<"values">>, Attrs),
-  #avro_map_type
-  { type = parse_schema(Values, EnclosingNs, ExtractTypeFun)
-  }.
+  avro_map:type(parse_schema(Values, EnclosingNs, ExtractTypeFun)).
 
 parse_fixed_type(Attrs, EnclosingNs) ->
   NameBin = get_attr_value(<<"name">>,      Attrs),
@@ -331,8 +329,16 @@ parse_array(V, Type, ExtractFun) when is_list(V) ->
 parse_array(_, _, _) ->
   erlang:error(wrong_array_value).
 
-parse_map(_V, _Type, _ExtractFun) ->
-  erlang:error(maps_support_is_coming_soon).
+parse_map({struct, Attrs}, Type, ExtractFun) ->
+  ItemsType = avro_map:get_items_type(Type),
+  L = lists:map(
+        fun({KeyBin, Value}) ->
+            { binary_to_list(KeyBin)
+            , parse_value(Value, ItemsType, ExtractFun)
+            }
+        end,
+        Attrs),
+  avro_map:new(Type, L).
 
 parse_union(null = Value, Type, ExtractFun) ->
   %% Union values specified as null
@@ -528,6 +534,15 @@ parse_enum_type_short_test() ->
                   ]),
   ?assertEqual(ExpectedType, Enum).
 
+parse_map_type_test() ->
+  Schema = {struct,
+            [ {<<"type">>,   <<"map">>}
+            , {<<"values">>, <<"int">>}
+            ]},
+  Map = parse_schema(Schema, "enc.losing", none),
+  ExpectedType = avro_map:type(avro_primitive:int_type()),
+  ?assertEqual(ExpectedType, Map).
+
 parse_bytes_value_test() ->
   Json = <<"\\u0010\\u0000\\u00FF">>,
   Value = parse_value(Json, avro_primitive:bytes_type(), none),
@@ -598,6 +613,15 @@ parse_enum_value_test() ->
   Type = avro_enum:type("MyEnum", ["A", "B", "C"]),
   Json = <<"B">>,
   Expected = avro_enum:new(Type, "B"),
+  ?assertEqual(Expected, parse_value(Json, Type, none)).
+
+parse_map_value_test() ->
+  Type = avro_map:type(avro_primitive:int_type()),
+  Json = {struct,
+          [ {<<"v1">>, 1}
+          , {<<"v2">>, 2}
+          ]},
+  Expected = avro_map:new(Type, [{"v1", 1}, {"v2", 2}]),
   ?assertEqual(Expected, parse_value(Json, Type, none)).
 
 parse_value_with_extract_type_fun_test() ->
