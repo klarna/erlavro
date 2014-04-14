@@ -142,29 +142,22 @@ parse_enum_type(Attrs, EnclosingNs) ->
   Doc     = get_attr_value(<<"doc">>,       Attrs, <<"">>),
   Aliases = get_attr_value(<<"aliases">>,   Attrs, []),
   Symbols = get_attr_value(<<"symbols">>,   Attrs),
-  Name    = binary_to_list(NameBin),
-  Ns      = binary_to_list(NsBin),
-  Type = #avro_enum_type
-         { name      = binary_to_list(NameBin)
-         , namespace = binary_to_list(NsBin)
-         , doc       = binary_to_list(Doc)
-         , aliases   = parse_aliases(Aliases)
-         , symbols   = parse_enum_symbols(Symbols)
-         , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
-         },
-  avro_check:verify_type(Type),
-  Type.
+  avro_enum:type(binary_to_list(NameBin),
+                 parse_enum_symbols(Symbols),
+                 [ {namespace,    binary_to_list(NsBin)}
+                 , {doc,          binary_to_list(Doc)}
+                 , {aliases,      parse_aliases(Aliases)}
+                 , {enclosing_ns, EnclosingNs}
+                 ]).
 
 parse_enum_symbols(SymbolsArray) when is_list(SymbolsArray) ->
-  Symbols = lists:map(
-              fun(SymBin) when is_binary(SymBin) ->
-                  erlang:binary_to_list(SymBin);
-                 (_) ->
-                  erlang:error(wrong_enum_symbols_specification)
-              end,
-              SymbolsArray),
-  %% TODO: check correctness and uniqueness
-  Symbols;
+  lists:map(
+    fun(SymBin) when is_binary(SymBin) ->
+        erlang:binary_to_list(SymBin);
+       (_) ->
+        erlang:error(wrong_enum_symbols_specification)
+    end,
+    SymbolsArray);
 parse_enum_symbols(_) ->
   erlang:error(wrong_enum_symbols_specification).
 
@@ -275,8 +268,9 @@ parse_value(V, Type, _ExtractFun) when ?AVRO_IS_STRING_TYPE(Type) andalso
 parse_value(V, Type, ExtractFun) when ?AVRO_IS_RECORD_TYPE(Type) ->
   parse_record(V, Type, ExtractFun);
 
-parse_value(V, Type, ExtractFun) when ?AVRO_IS_ENUM_TYPE(Type) ->
-  parse_enum(V, Type, ExtractFun);
+parse_value(V, Type, _ExtractFun) when ?AVRO_IS_ENUM_TYPE(Type)
+                                  andalso is_binary(V) ->
+  avro_enum:new(Type, binary_to_list(V));
 
 parse_value(V, Type, ExtractFun) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   parse_array(V, Type, ExtractFun);
@@ -325,9 +319,6 @@ convert_attrs_to_record_fields(Attrs, Type, ExtractFun) ->
         {FieldName, parse_value(Value, FieldType, ExtractFun)}
     end,
     Attrs).
-
-parse_enum(_V, _Type, _ExtractFun) ->
-  erlang:error(enums_support_is_coming_soon).
 
 parse_array(V, Type, ExtractFun) when is_list(V) ->
   ItemsType = avro_array:get_items_type(Type),
@@ -499,6 +490,44 @@ parse_union_type_test() ->
                                 "name.space.typename"]),
                Union).
 
+parse_enum_type_full_test() ->
+  Schema = {struct,
+           [ {<<"type">>,      <<"enum">>}
+           , {<<"name">>,      <<"TestEnum">>}
+           , {<<"namespace">>, <<"name.space">>}
+           , {<<"symbols">>,   [<<"A">>, <<"B">>, <<"C">>]}
+           , {<<"doc">>,       <<"descr">>}
+           , {<<"aliases">>,   [<<"EnumAlias">>, <<"EnumAlias2">>]}
+           ]},
+  Enum = parse_schema(Schema, "enc.losing", none),
+  ExpectedType = avro_enum:type(
+                  "TestEnum",
+                  ["A", "B", "C"],
+                  [ {namespace,    "name.space"}
+                  , {doc,          "descr"}
+                  , {aliases,      ["EnumAlias", "EnumAlias2"]}
+                  , {enclosing_ns, "enc.losing"}
+                  ]),
+  ?assertEqual(ExpectedType, Enum).
+
+parse_enum_type_short_test() ->
+  %% Only required fields are present
+  Schema = {struct,
+           [ {<<"type">>,      <<"enum">>}
+           , {<<"name">>,      <<"TestEnum">>}
+           , {<<"symbols">>,   [<<"A">>, <<"B">>, <<"C">>]}
+           ]},
+  Enum = parse_schema(Schema, "enc.losing", none),
+  ExpectedType = avro_enum:type(
+                  "TestEnum",
+                  ["A", "B", "C"],
+                  [ {namespace,    ""}
+                  , {doc,          ""}
+                  , {aliases,      []}
+                  , {enclosing_ns, "enc.losing"}
+                  ]),
+  ?assertEqual(ExpectedType, Enum).
+
 parse_bytes_value_test() ->
   Json = <<"\\u0010\\u0000\\u00FF">>,
   Value = parse_value(Json, avro_primitive:bytes_type(), none),
@@ -564,6 +593,12 @@ parse_union_value_fail_test() ->
                          , avro_primitive:string_type()]),
   Json = {struct, [{<<"boolean">>, true}]},
   ?assertError(unknown_type_of_union_value, parse_value(Json, Type, none)).
+
+parse_enum_value_test() ->
+  Type = avro_enum:type("MyEnum", ["A", "B", "C"]),
+  Json = <<"B">>,
+  Expected = avro_enum:new(Type, "B"),
+  ?assertEqual(Expected, parse_value(Json, Type, none)).
 
 parse_value_with_extract_type_fun_test() ->
   ExtractTypeFun = fun("name.space.Test") ->

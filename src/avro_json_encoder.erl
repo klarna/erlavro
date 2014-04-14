@@ -399,12 +399,10 @@ encode_record_test() ->
     ?assertEqual(Expected, to_string(Json)).
 
 encode_enum_test() ->
-  EnumType = #avro_enum_type
-             { name = "Enum"
-             , namespace = "com.klarna.test.bix"
-             , symbols = ["A", "B", "C"]
-             , fullname = "com.klarna.test.bix.Enum"
-             },
+  EnumType =
+    avro_enum:type("Enum",
+                   ["A", "B", "C"],
+                   [{namespace, "com.klarna.test.bix"}]),
   EnumValue = ?AVRO_VALUE(EnumType, "B"),
   EnumTypeJson = encode_type(EnumType),
   ?assertEqual("{\"type\":\"enum\","
