@@ -39,10 +39,10 @@ error_if(false, _Error) -> ok.
 error_if_not(Cond, Error) -> error_if(not Cond, Error).
 
 verify_name(Name) ->
-  error_if_false(is_correct_name(Name), {invalid_name, Name}).
+  error_if_not(is_correct_name(Name), {invalid_name, Name}).
 
 verify_dotted_name(Name) ->
-  error_if_false(is_correct_dotted_name(Name), {invalid_name, Name}).
+  error_if_not(is_correct_dotted_name(Name), {invalid_name, Name}).
 
 %% Verify overall type definition for correctness. Error is thrown
 %% when issues are found.
@@ -102,11 +102,8 @@ verify_type_name(Type) ->
   %% We are not interested in the namespace here, so we can ignore
   %% EnclosingExtension value.
   {CanonicalName, _} = avro:split_type_name(Name, Ns, ""),
-  error_if_false(not lists:member(CanonicalName, reserved_type_names()),
-                 reserved_name_is_used_for_type_name).
-
-error_if_false(true, _Err) -> ok;
-error_if_false(false, Err) -> erlang:error(Err).
+  error_if(lists:member(CanonicalName, reserved_type_names()),
+           reserved_name_is_used_for_type_name).
 
 %% Splits string to tokens but doesn't count consecutive delimiters as
 %% a single delimiter. So tokens_ex("a...b", $.) produces ["a","","","b"].
