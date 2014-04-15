@@ -47,7 +47,7 @@ type(Name, Symbols, Opts) ->
   avro_check:verify_type(Type),
   Type.
 
--spec new(#avro_record_type{}, term()) -> avro_value().
+-spec new(#avro_enum_type{}, term()) -> avro_value().
 
 new(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   case cast(Type, Value) of

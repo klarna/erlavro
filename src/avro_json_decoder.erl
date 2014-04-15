@@ -174,17 +174,12 @@ parse_fixed_type(Attrs, EnclosingNs) ->
   NsBin   = get_attr_value(<<"namespace">>, Attrs, <<"">>),
   Aliases = get_attr_value(<<"aliases">>,   Attrs, []),
   Size    = get_attr_value(<<"size">>, Attrs),
-  Name    = binary_to_list(NameBin),
-  Ns      = binary_to_list(NsBin),
-  Type = #avro_fixed_type
-         { name      = Name
-         , namespace = Ns
-         , aliases   = parse_aliases(Aliases)
-         , size      = parse_fixed_size(Size)
-         , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
-         },
-  avro_check:verify_type(Type),
-  Type.
+  avro_fixed:type(binary_to_list(NameBin),
+                  parse_fixed_size(Size),
+                  [ {namespace,    binary_to_list(NsBin)}
+                  , {aliases,      parse_aliases(Aliases)}
+                  , {enclosing_ns, EnclosingNs}
+                  ]).
 
 parse_fixed_size(N) when is_integer(N) andalso N > 0 ->
   N;
@@ -378,9 +373,8 @@ get_type_fullname_ex(TypeName) when is_list(TypeName) ->
 get_type_fullname_ex(Type) ->
   avro:get_type_fullname(Type).
 
-parse_fixed(_V, _Type, _ExtractFun) ->
-  erlang:error(
-    fixed_support_is_only_available_for_premium_customers_for_100_euro).
+parse_fixed(V, Type, _ExtractFun) ->
+  avro_fixed:new(Type, parse_bytes(V)).
 
 %%%===================================================================
 %%% Utilities
@@ -543,6 +537,22 @@ parse_map_type_test() ->
   ExpectedType = avro_map:type(avro_primitive:int_type()),
   ?assertEqual(ExpectedType, Map).
 
+parse_fixed_type_test() ->
+  Schema = {struct,
+           [ {<<"type">>,      <<"fixed">>}
+           , {<<"size">>,      2}
+           , {<<"name">>,      <<"FooBar">>}
+           , {<<"aliases">>,   [<<"Alias1">>, <<"Alias2">>]}
+           , {<<"namespace">>, <<"name.space">>}
+           ]},
+  Fixed = parse_schema(Schema, "enc.losing", none),
+  ExpectedType = avro_fixed:type("FooBar", 2,
+                                 [ {namespace, "name.space"}
+                                 , {aliases, ["Alias1", "Alias2"]}
+                                 , {enclosing_ns, "enc.losing"}
+                                 ]),
+  ?assertEqual(ExpectedType, Fixed).
+
 parse_bytes_value_test() ->
   Json = <<"\\u0010\\u0000\\u00FF">>,
   Value = parse_value(Json, avro_primitive:bytes_type(), none),
@@ -622,6 +632,12 @@ parse_map_value_test() ->
           , {<<"v2">>, 2}
           ]},
   Expected = avro_map:new(Type, [{"v1", 1}, {"v2", 2}]),
+  ?assertEqual(Expected, parse_value(Json, Type, none)).
+
+parse_fixed_value_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  Json = <<"\\u0001\\u007f">>,
+  Expected = avro_fixed:new(Type, <<1,127>>),
   ?assertEqual(Expected, parse_value(Json, Type, none)).
 
 parse_value_with_extract_type_fun_test() ->

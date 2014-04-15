@@ -473,6 +473,25 @@ encode_map_test() ->
   ?assertEqual("{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}",
                to_string(Json)).
 
+encode_fixed_type_test() ->
+  Type = avro_fixed:type("FooBar", 2,
+                         [ {namespace, "name.space"}
+                         , {aliases, ["Alias1", "Alias2"]}
+                         ]),
+  Json = encode_type(Type),
+  ?assertEqual("{\"type\":\"fixed\","
+               "\"name\":\"FooBar\","
+               "\"size\":2,"
+               "\"namespace\":\"name.space\","
+               "\"aliases\":[\"Alias1\",\"Alias2\"]}",
+               to_string(Json)).
+
+encode_fixed_value_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  Value = avro_fixed:new(Type, <<1,127>>),
+  Json = encode_value(Value),
+  ?assertEqual("\"\\u0001\\u007f\"", to_string(Json)).
+
 -endif.
 
 %%%_* Emacs ============================================================
