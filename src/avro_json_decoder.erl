@@ -62,7 +62,7 @@ parse_schema(_, _EnclosingNs, _ExtractTypeFun) ->
   erlang:error(unexpected_element_in_schema).
 
 parse_type(Attrs, EnclosingNs, ExtractTypeFun) ->
-  TypeAttr = get_attr_value(<<"type">>, Attrs),
+  TypeAttr = avro_util:get_opt(<<"type">>, Attrs),
   case TypeAttr of
     <<?AVRO_RECORD>> -> parse_record_type(Attrs, EnclosingNs, ExtractTypeFun);
     <<?AVRO_ENUM>>   -> parse_enum_type(Attrs, EnclosingNs);
@@ -76,11 +76,11 @@ parse_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   end.
 
 parse_record_type(Attrs, EnclosingNs, ExtractTypeFun) ->
-  NameBin = get_attr_value(<<"name">>,      Attrs),
-  NsBin   = get_attr_value(<<"namespace">>, Attrs, <<"">>),
-  Doc     = get_attr_value(<<"doc">>,       Attrs, <<"">>),
-  Aliases = get_attr_value(<<"aliases">>,   Attrs, []),
-  Fields  = get_attr_value(<<"fields">>,    Attrs),
+  NameBin = avro_util:get_opt(<<"name">>,      Attrs),
+  NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
+  Doc     = avro_util:get_opt(<<"doc">>,       Attrs, <<"">>),
+  Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
+  Fields  = avro_util:get_opt(<<"fields">>,    Attrs),
   Name    = binary_to_list(NameBin),
   Ns      = binary_to_list(NsBin),
   %% Based on the record's own namespace and the enclosing namespace
@@ -103,12 +103,12 @@ parse_record_fields(Fields, EnclosingNs, ExtractTypeFun) ->
             Fields).
 
 parse_record_field(Attrs, EnclosingNs, ExtractTypeFun) ->
-  Name      = get_attr_value(<<"name">>,    Attrs),
-  Doc       = get_attr_value(<<"doc">>,     Attrs, <<"">>),
-  Type      = get_attr_value(<<"type">>,    Attrs),
-  Default   = get_attr_value(<<"default">>, Attrs, undefined),
-  Order     = get_attr_value(<<"order">>,   Attrs, <<"ascending">>),
-  Aliases   = get_attr_value(<<"aliases">>, Attrs, []),
+  Name      = avro_util:get_opt(<<"name">>,    Attrs),
+  Doc       = avro_util:get_opt(<<"doc">>,     Attrs, <<"">>),
+  Type      = avro_util:get_opt(<<"type">>,    Attrs),
+  Default   = avro_util:get_opt(<<"default">>, Attrs, undefined),
+  Order     = avro_util:get_opt(<<"order">>,   Attrs, <<"ascending">>),
+  Aliases   = avro_util:get_opt(<<"aliases">>, Attrs, []),
   FieldType = parse_schema(Type, EnclosingNs, ExtractTypeFun),
   #avro_record_field
   { name    = binary_to_list(Name)
@@ -137,11 +137,11 @@ parse_order(<<"ignore">>)     -> ignore;
 parse_order(Order)            -> erlang:error({unknown_sort_order, Order}).
 
 parse_enum_type(Attrs, EnclosingNs) ->
-  NameBin = get_attr_value(<<"name">>,      Attrs),
-  NsBin   = get_attr_value(<<"namespace">>, Attrs, <<"">>),
-  Doc     = get_attr_value(<<"doc">>,       Attrs, <<"">>),
-  Aliases = get_attr_value(<<"aliases">>,   Attrs, []),
-  Symbols = get_attr_value(<<"symbols">>,   Attrs),
+  NameBin = avro_util:get_opt(<<"name">>,      Attrs),
+  NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
+  Doc     = avro_util:get_opt(<<"doc">>,       Attrs, <<"">>),
+  Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
+  Symbols = avro_util:get_opt(<<"symbols">>,   Attrs),
   avro_enum:type(binary_to_list(NameBin),
                  parse_enum_symbols(Symbols),
                  [ {namespace,    binary_to_list(NsBin)}
@@ -162,18 +162,18 @@ parse_enum_symbols(_) ->
   erlang:error(wrong_enum_symbols_specification).
 
 parse_array_type(Attrs, EnclosingNs, ExtractTypeFun) ->
-  Items = get_attr_value(<<"items">>, Attrs),
+  Items = avro_util:get_opt(<<"items">>, Attrs),
   avro_array:type(parse_schema(Items, EnclosingNs, ExtractTypeFun)).
 
 parse_map_type(Attrs, EnclosingNs, ExtractTypeFun) ->
-  Values = get_attr_value(<<"values">>, Attrs),
+  Values = avro_util:get_opt(<<"values">>, Attrs),
   avro_map:type(parse_schema(Values, EnclosingNs, ExtractTypeFun)).
 
 parse_fixed_type(Attrs, EnclosingNs) ->
-  NameBin = get_attr_value(<<"name">>,      Attrs),
-  NsBin   = get_attr_value(<<"namespace">>, Attrs, <<"">>),
-  Aliases = get_attr_value(<<"aliases">>,   Attrs, []),
-  Size    = get_attr_value(<<"size">>, Attrs),
+  NameBin = avro_util:get_opt(<<"name">>,      Attrs),
+  NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
+  Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
+  Size    = avro_util:get_opt(<<"size">>, Attrs),
   avro_fixed:type(binary_to_list(NameBin),
                   parse_fixed_size(Size),
                   [ {namespace,    binary_to_list(NsBin)}
@@ -375,22 +375,6 @@ get_type_fullname_ex(Type) ->
 
 parse_fixed(V, Type, _ExtractFun) ->
   avro_fixed:new(Type, parse_bytes(V)).
-
-%%%===================================================================
-%%% Utilities
-%%%===================================================================
-
-get_attr_value(Name, Attrs) ->
-  case lists:keyfind(Name, 1, Attrs) of
-    {_, Value} -> Value;
-    false      -> erlang:error({required_attribute_missing, Name})
-  end.
-
-get_attr_value(Name, Attrs, Default) ->
-  case lists:keyfind(Name, 1, Attrs) of
-    {_, Value} -> Value;
-    false      -> Default
-  end.
 
 %%%===================================================================
 %%% Tests

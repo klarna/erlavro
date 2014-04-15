@@ -24,7 +24,7 @@
 get_opt(Key, Opts) ->
   case lists:keyfind(Key, 1, Opts) of
     {Key, Value} -> Value;
-    false        -> erlang:error({error, {key_not_found, Key, Opts}})
+    false        -> erlang:error({error, {key_not_found, Key}})
   end.
 
 get_opt(Key, Opts, Default) ->
