@@ -52,7 +52,7 @@ parse_schema(NameBin, EnclosingNs, _ExtractTypeFun) when is_binary(NameBin) ->
   case type_from_name(NameBin) of
     undefined ->
       Name = binary_to_list(NameBin),
-      avro_check:verify_dotted_name(Name),
+      avro_util:verify_dotted_name(Name),
       avro:build_type_fullname(Name, EnclosingNs, EnclosingNs);
     Type ->
       Type
@@ -198,7 +198,7 @@ parse_aliases(AliasesArray) when is_list(AliasesArray) ->
   lists:map(
     fun(AliasBin) when is_binary(AliasBin) ->
         Alias = binary_to_list(AliasBin),
-        avro_check:verify_dotted_name(Alias),
+        avro_util:verify_dotted_name(Alias),
         Alias;
        (_) ->
         erlang:error(wrong_aliases_specification)

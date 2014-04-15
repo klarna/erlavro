@@ -210,10 +210,7 @@ type_from_name(_)            -> undefined.
                    , data = Value}).
 
 get_test_type(Name, Namespace) ->
-  #avro_fixed_type{name = Name,
-                   namespace = Namespace,
-                   size = 16,
-                   fullname = build_type_fullname(Name, Namespace, "")}.
+  avro_fixed:type(Name, 16, [{namespace, Namespace}]).
 
 split_type_name_test() ->
   ?assertEqual({"tname", ""},

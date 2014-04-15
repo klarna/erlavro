@@ -44,7 +44,7 @@ type(Name, Symbols, Opts) ->
          , symbols   = Symbols
          , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
          },
-  avro_check:verify_type(Type),
+  avro_util:verify_type(Type),
   Type.
 
 -spec new(#avro_enum_type{}, term()) -> avro_value().
@@ -74,7 +74,7 @@ check_symbols(Symbols) ->
                      empty_symbols),
   avro_util:error_if(length(lists:usort(Symbols)) =/= SymLen,
                      non_unique_symbols),
-  lists:foreach(fun(S) -> avro_check:verify_name(S) end, Symbols).
+  lists:foreach(fun(S) -> avro_util:verify_name(S) end, Symbols).
 
 do_cast(Type, Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
   %% When casting from other enums only equality of type names is checked

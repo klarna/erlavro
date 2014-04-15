@@ -51,7 +51,7 @@ type(Name, Namespace, Doc, Fields, Aliases, EnclosingNs) ->
          , aliases   = Aliases
          , fullname  = avro:build_type_fullname(Name, Namespace, EnclosingNs)
          },
-  avro_check:verify_type(Type),
+  avro_util:verify_type(Type),
   Type.
 
 field(Name, Type, Doc) ->

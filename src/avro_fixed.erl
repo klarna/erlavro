@@ -39,7 +39,7 @@ type(Name, Size, Opts) ->
          , size      = Size
          , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
          },
-  avro_check:verify_type(Type),
+  avro_util:verify_type(Type),
   Type.
 
 -spec get_size(#avro_fixed_type{}) -> integer().
