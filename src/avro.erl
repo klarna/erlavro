@@ -148,11 +148,14 @@ cast(TypeName, Value) when is_list(TypeName) ->
       %% corresponding types and can cast to them.
       cast(Type, Value)
   end;
-cast(Type, Value) ->
-  case get_type_module(Type) of
-    undefined -> {error, {unknown_type, Type}};
-    Mod       -> Mod:cast(Type, Value)
-  end.
+cast(#avro_primitive_type{} = T, V) -> avro_primitive:cast(T, V);
+cast(#avro_record_type{} = T,    V) -> avro_record:cast(T, V);
+cast(#avro_enum_type{} = T,      V) -> avro_enum:cast(T, V);
+cast(#avro_array_type{} = T,     V) -> avro_array:cast(T, V);
+cast(#avro_map_type{} = T,       V) -> avro_map:cast(T, V);
+cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
+cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V);
+cast(Type, _)                       -> {error, {unknown_type, Type}}.
 
 %%%===================================================================
 %%% Internal functions
@@ -184,15 +187,6 @@ make_fullname(Name, Namespace) ->
 %% Checks if the type has specified full name
 has_fullname(Type, FullName) ->
   is_named_type(Type) andalso get_type_fullname(Type) =:= FullName.
-
-get_type_module(#avro_primitive_type{}) -> avro_primitive;
-get_type_module(#avro_record_type{})    -> avro_record;
-get_type_module(#avro_enum_type{})      -> avro_enum;
-get_type_module(#avro_array_type{})     -> avro_array;
-get_type_module(#avro_map_type{})       -> avro_map;
-get_type_module(#avro_union_type{})     -> avro_union;
-get_type_module(#avro_fixed_type{})     -> avro_fixed;
-get_type_module(_)                      -> undefined.
 
 type_from_name(?AVRO_NULL)   -> avro_primitive:null_type();
 type_from_name(?AVRO_INT)    -> avro_primitive:int_type();
