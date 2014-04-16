@@ -12,6 +12,7 @@
 -export([get_size/1]).
 -export([new/2]).
 -export([get_value/1]).
+-export([to_integer/1]).
 -export([cast/2]).
 
 -include_lib("erlavro/include/erlavro.hrl").
@@ -61,6 +62,12 @@ new(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
 get_value(Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
 
+%% Interprets internal binary as an encoded integer, decodes and returns it.
+-spec to_integer(avro_value()) -> integer().
+
+to_integer(Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
+  binary:decode_unsigned(?AVRO_VALUE_DATA(Value)).
+
 %% Fixed values can be casted from other fixed values or from integers
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
 
@@ -71,11 +78,23 @@ cast(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
 %%% Internal functions
 %%%===================================================================
 
+pad_binary(Size, Bin) ->
+  PadSize = (Size - size(Bin))*8,
+  <<0:PadSize, Bin/binary>>.
+
 do_cast(Type, Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
   TargetTypeName = Type#avro_fixed_type.fullname,
   SourceTypeName = (?AVRO_VALUE_TYPE(Value))#avro_fixed_type.fullname,
   if TargetTypeName =:= SourceTypeName -> {ok, Value};
      true                              -> {error, type_name_mismatch}
+  end;
+do_cast(Type, Value) when is_integer(Value) ->
+  #avro_fixed_type{ size = Size } = Type,
+  case Value >= 0 andalso Value < (1 bsl (8*Size)) of
+    true  ->
+      do_cast(Type, pad_binary(Size, binary:encode_unsigned(Value)));
+    false ->
+      {error, integer_out_of_range}
   end;
 do_cast(Type, Value) when is_binary(Value) ->
   #avro_fixed_type{ size = Size } = Type,
@@ -132,6 +151,13 @@ correct_cast_from_binary_test() ->
   Type = type("FooBar", 2),
   Bin = <<1,2>>,
   ?assertEqual({ok, ?AVRO_VALUE(Type, Bin)}, cast(Type, Bin)).
+
+integer_cast_test() ->
+  Type = type("FooBar", 2),
+  Value1 = new(Type, 67),   %% 1 byte
+  Value2 = new(Type, 1017), %% 2 bytes
+  ?assertEqual(67, to_integer(Value1)),
+  ?assertEqual(1017, to_integer(Value2)).
 
 get_value_test() ->
   Type = type("FooBar", 2),
