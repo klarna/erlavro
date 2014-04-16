@@ -297,8 +297,6 @@ parse_bytes(_, _) ->
   erlang:error(wrong_bytes_string).
 
 parse_record({struct, Attrs}, Type, ExtractFun) ->
-  parse_record(Attrs, Type, ExtractFun);
-parse_record(Attrs, Type, ExtractFun) when is_list(Attrs) ->
   Fields = convert_attrs_to_record_fields(Attrs, Type, ExtractFun),
   avro_record:new(Type, Fields);
 parse_record(_, _, _) ->

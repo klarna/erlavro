@@ -9,6 +9,7 @@
 -export([get_type_name/1]).
 -export([get_type_namespace/1]).
 -export([get_type_fullname/1]).
+-export([get_aliases/1]).
 
 -export([split_type_name/2]).
 -export([split_type_name/3]).
@@ -20,7 +21,7 @@
 -include("erlavro.hrl").
 
 %%%===================================================================
-%%% API: Accessing types' properties
+%%% API: Accessing types properties
 %%%===================================================================
 
 %% Returns true if the type can have its own name defined in schema.
@@ -70,6 +71,19 @@ get_type_fullname(#avro_array_type{})                 -> ?AVRO_ARRAY;
 get_type_fullname(#avro_map_type{})                   -> ?AVRO_MAP;
 get_type_fullname(#avro_union_type{})                 -> ?AVRO_UNION;
 get_type_fullname(#avro_fixed_type{fullname = Name})  -> Name.
+
+
+%% Returns aliases for the type (types without aliases are considered to
+%% have empty alias list).
+-spec get_aliases(avro_type()) -> [string()].
+
+get_aliases(#avro_primitive_type{})               -> [];
+get_aliases(#avro_record_type{aliases = Aliases}) -> Aliases;
+get_aliases(#avro_enum_type{aliases = Aliases})   -> Aliases;
+get_aliases(#avro_array_type{})                   -> [];
+get_aliases(#avro_map_type{})                     -> [];
+get_aliases(#avro_union_type{})                   -> [];
+get_aliases(#avro_fixed_type{aliases = Aliases})  -> Aliases.
 
 %%%===================================================================
 %%% API: Calculating of canonical short and full names of types

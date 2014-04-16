@@ -32,10 +32,12 @@ type(Name, Size, Opts) ->
   Ns          = avro_util:get_opt(namespace, Opts, ""),
   Aliases     = avro_util:get_opt(aliases, Opts, []),
   EnclosingNs = avro_util:get_opt(enclosing_ns, Opts, ""),
+  avro_util:verify_aliases(Aliases),
   Type = #avro_fixed_type
          { name      = Name
          , namespace = Ns
-         , aliases   = Aliases
+         , aliases   = avro_util:canonicalize_aliases(
+                         Aliases, Name, Ns, EnclosingNs)
          , size      = Size
          , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
          },

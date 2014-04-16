@@ -28,14 +28,9 @@ To do
 This version of library supports only subset of all functionality needed to
 export data from BIX. What things should be done:
 
-1. Decoding of JSON data.
 2. Support of binary encoder/decoder.
-3. Different runtime checks: type check during assignments,
-   names checks, etc.
 4. Parsing Canonical Form.
 5. Object (avro_schema) to manage all types included in the schema,
    with consistency checks, etc. (DONE without consistency checks).
 6. Better coverage of possible operations by modules, so ?AVRO_VALUE*
    macros are not exposed to external code.
-7. Support of automatic default values assignment for records (DONE).
-8. Automatic types inferring (t.ex. avro:value_from(X) instead of avro_primitive:Type(X)). (DONE)

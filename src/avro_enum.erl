@@ -36,10 +36,12 @@ type(Name, Symbols, Opts) ->
   Doc         = avro_util:get_opt(doc, Opts, ""),
   Aliases     = avro_util:get_opt(aliases, Opts, []),
   EnclosingNs = avro_util:get_opt(enclosing_ns, Opts, ""),
+  avro_util:verify_aliases(Aliases),
   Type = #avro_enum_type
          { name      = Name
          , namespace = Ns
-         , aliases   = Aliases
+         , aliases   = avro_util:canonicalize_aliases(
+                         Aliases, Name, Ns, EnclosingNs)
          , doc       = Doc
          , symbols   = Symbols
          , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)

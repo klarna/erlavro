@@ -7,18 +7,25 @@
 -module(avro_record).
 
 %% API
--export([type/4]).
--export([type/6]).
--export([field/3]).
--export([field/4]).
+-export([type/2]).
+-export([type/3]).
+-export([type/4]). %% DEPRECATED
+-export([type/6]). %% DEPRECATED
+-export([define_field/2]).
+-export([define_field/3]).
+-export([field/3]). %% DEPRECATED
+-export([field/4]). %% DEPRECATED
 -export([get_field_type/2]).
 
 -export([cast/2]).
 
 -export([new/2]).
--export([get/2]).
--export([set/2]).
--export([set/3]).
+-export([get/2]). %% DEPRECATED
+-export([get_value/2]).
+-export([set/2]). %% DEPRECATED
+-export([set/3]). %% DEPRECATED
+-export([set_values/2]).
+-export([set_value/3]).
 -export([update/3]).
 -export([to_list/1]).
 
@@ -39,31 +46,81 @@
 %%% API: Type
 %%%===================================================================
 
-type(Name, Namespace, Doc, Fields) ->
-  type(Name, Namespace, Doc, Fields, [], "").
+type(Name, Fields) ->
+  type(Name, Fields, []).
 
-type(Name, Namespace, Doc, Fields, Aliases, EnclosingNs) ->
+%% Options:
+%%   namespace    :: string()
+%%   doc          :: string()
+%%   aliases      :: [string()]
+%%   enclosing_ns :: string()
+type(Name, Fields, Opts) ->
+  Ns = avro_util:get_opt(namespace, Opts, ""),
+  Doc = avro_util:get_opt(doc, Opts, ""),
+  Aliases = avro_util:get_opt(aliases, Opts, []),
+  EnclosingNs = avro_util:get_opt(enclosing_ns, Opts, ""),
+  avro_util:verify_aliases(Aliases),
   Type = #avro_record_type
          { name      = Name
-         , namespace = Namespace
+         , namespace = Ns
          , doc       = Doc
          , fields    = Fields
-         , aliases   = Aliases
-         , fullname  = avro:build_type_fullname(Name, Namespace, EnclosingNs)
+         , aliases   = avro_util:canonicalize_aliases(
+                         Aliases, Name, Ns, EnclosingNs)
+         , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
          },
   avro_util:verify_type(Type),
   Type.
 
+%% DEPRECATED: Use type/2,3 instead
+type(Name, Namespace, Doc, Fields) ->
+  type(Name, Fields,
+       [ {namespace, Namespace}
+       , {doc, Doc}
+       ]).
+
+%% DEPRECATED: Use type/2,3 instead
+type(Name, Namespace, Doc, Fields, Aliases, EnclosingNs) ->
+  type(Name, Fields,
+       [ {namespace, Namespace}
+       , {doc, Doc}
+       , {aliases, Aliases}
+       , {enclosing_ns, EnclosingNs}
+       ]).
+
+define_field(Name, Type) ->
+  define_field(Name, Type, []).
+
+%% Options:
+%%   doc     :: string()
+%%   order   :: avro_ordering()
+%%   default :: avro_value()
+%%   aliases :: [string()]
+define_field(Name, Type, Opts) ->
+  Doc = avro_util:get_opt(doc, Opts, ""),
+  Order = avro_util:get_opt(order, Opts, ascending),
+  Default = avro_util:get_opt(default, Opts, undefined),
+  Aliases = avro_util:get_opt(aliases, Opts, []),
+  avro_util:verify_names(Aliases),
+  #avro_record_field
+  { name    = Name
+  , type    = Type
+  , doc     = Doc
+  , default = Default
+  , order   = Order
+  , aliases = Aliases
+  }.
+
+%% DEPRECATED: use define_field instead
 field(Name, Type, Doc) ->
     field(Name, Type, Doc, undefined).
 
+%% DEPRECATED: use define_field instead
 field(Name, Type, Doc, Default) ->
-    #avro_record_field
-    { name    = Name
-    , type    = Type
-    , doc     = Doc
-    , default = Default
-    }.
+  define_field(Name, Type,
+               [ {doc, Doc}
+               , {default, Default}
+               ]).
 
 get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     case get_field_def(FieldName, Type) of
@@ -95,25 +152,41 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
     {error, Err} -> erlang:error(Err)
   end.
 
--spec get(string(), avro_value()) -> avro_value().
+%% DEPRECATED: use get_value instead
+get(FieldName, Record) ->
+  get_value(FieldName, Record).
 
-get(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+-spec get_value(string(), avro_value()) -> avro_value().
+
+get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
     case lists:keyfind(FieldName, 1, ?AVRO_VALUE_DATA(Record)) of
         {_N, _T, V} -> V;
         false       -> erlang:error({unknown_field, FieldName})
     end.
 
+%% DEPRECATED: use set_values/2 instead
 set(Values, Record) ->
+  set_values(Values, Record).
+
+%% Set values for multiple fields in one call
+-spec set_values([{string(), any()}], avro_value()) -> avro_value().
+
+set_values(Values, Record) ->
     lists:foldl(
       fun({FieldName, Value}, R) ->
-              set(FieldName, Value, R)
+              set_value(FieldName, Value, R)
       end,
       Record,
       Values).
 
--spec set(string(), avro_value(), avro_value()) -> avro_value().
+%% DEPRECATED: use set_value/3 instead
+set(FieldName, Value, Record) ->
+  set_value(FieldName, Value, Record).
 
-set(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+%% Set value for the specified field
+-spec set_value(string(), avro_value(), avro_value()) -> avro_value().
+
+set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   NewData =
     case lists:keytake(FieldName, 1, Data) of
@@ -195,7 +268,7 @@ do_cast(Type, Proplist) when is_list(Proplist) ->
               %% try to use default value if provided
               case Default of
                 undefined -> {error, {required_field_missed, FieldName}};
-                _       -> cast_field_value(FieldName, FieldType, Default, Acc)
+                _         -> cast_field_value(FieldName, FieldType, Default, Acc)
               end
           end
       end,
@@ -221,47 +294,59 @@ get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
 -ifdef(EUNIT).
 
 type_test() ->
-  Field = field("invno", avro_primitive:long_type(), ""),
-  Schema = type("Test", "name.space", "", [Field]),
+  Field = define_field("invno", avro_primitive:long_type()),
+  Schema = type("Test", [Field],
+                [ {namespace, "name.space"}
+                ]),
   ?assertEqual("name.space.Test", avro:get_type_fullname(Schema)),
   ?assertEqual({ok, Field}, get_field_def("invno", Schema)).
 
 get_field_type_test() ->
-  Field = field("invno", avro_primitive:long_type(), ""),
-  Schema = type("Test", "name.space", "", [Field]),
+  Field = define_field("invno", avro_primitive:long_type()),
+  Schema = type("Test", [Field],
+                [ {namespace, "name.space"}
+                ]),
   ?assertEqual(avro_primitive:long_type(), get_field_type("invno", Schema)).
 
 default_fields_test() ->
-  Field = field("invno",
-                avro_primitive:long_type(),
-                "Invoice number",
-                avro_primitive:long(10)),
-  Schema = type("Test", "name.space", "", [Field]),
+  Field = define_field("invno",
+                       avro_primitive:long_type(),
+                       [ {default, avro_primitive:long(10)}
+                       ]),
+  Schema = type("Test", [Field],
+                [ {namespace, "name.space"}
+                ]),
   Rec = new(Schema, []),
-  ?assertEqual(avro_primitive:long(10), get("invno", Rec)).
+  ?assertEqual(avro_primitive:long(10), get_value("invno", Rec)).
 
 get_set_test() ->
-  Schema = type("Test", "name.space", "",
-                [field("invno", avro_primitive:long_type(), "")]),
+  Schema = type("Test",
+                [define_field("invno", avro_primitive:long_type())],
+                [ {namespace, "name.space"}
+                ]),
   Rec0 = avro_record:new(Schema, [{"invno", 0}]),
-  Rec1 = set("invno", avro_primitive:long(1), Rec0),
-  ?assertEqual(avro_primitive:long(1), get("invno", Rec1)).
+  Rec1 = set_value("invno", avro_primitive:long(1), Rec0),
+  ?assertEqual(avro_primitive:long(1), get_value("invno", Rec1)).
 
 update_test() ->
-  Schema = type("Test", "name.space", "",
-                [field("invno", avro_primitive:long_type(), "")]),
+  Schema = type("Test",
+                [define_field("invno", avro_primitive:long_type())],
+                [ {namespace, "name.space"}
+                ]),
   Rec0 = avro_record:new(Schema, [{"invno", 10}]),
   Rec1 = update("invno",
                 fun(X) ->
                     avro_primitive:long(avro_primitive:get_value(X)*2)
                 end,
                 Rec0),
-  ?assertEqual(avro_primitive:long(20), get("invno", Rec1)).
+  ?assertEqual(avro_primitive:long(20), get_value("invno", Rec1)).
 
 to_list_test() ->
-  Schema = type("Test", "name.space", "",
-                [ field("invno", avro_primitive:long_type(), "")
-                , field("name", avro_primitive:string_type(), "")
+  Schema = type("Test",
+                [ define_field("invno", avro_primitive:long_type())
+                , define_field("name", avro_primitive:string_type())
+                ],
+                [ {namespace, "name.space"}
                 ]),
   Rec = avro_record:new(Schema, [ {"invno", avro_primitive:long(1)}
                                 , {"name", avro_primitive:string("some name")}
@@ -274,14 +359,16 @@ to_list_test() ->
                lists:keyfind("name", 1, L)).
 
 cast_test() ->
-  RecordType = type("Record", "namespace", "",
-                    [ field("a", avro_primitive:string_type(), "")
-                    , field("b", avro_primitive:int_type(), "")
+  RecordType = type("Record",
+                    [ define_field("a", avro_primitive:string_type())
+                    , define_field("b", avro_primitive:int_type())
+                    ],
+                    [ {namespace, "name.space"}
                     ]),
   {ok, Record} = cast(RecordType, [{"b", 1},
                                    {"a", "foo"}]),
-  ?assertEqual(avro_primitive:string("foo"), avro_record:get("a", Record)),
-  ?assertEqual(avro_primitive:int(1), avro_record:get("b", Record)).
+  ?assertEqual(avro_primitive:string("foo"), get_value("a", Record)),
+  ?assertEqual(avro_primitive:int(1), get_value("b", Record)).
 
 -endif.
 

@@ -12,8 +12,11 @@
 -export([error_if/2]).
 -export([error_if_not/2]).
 -export([verify_name/1]).
+-export([verify_names/1]).
 -export([verify_dotted_name/1]).
+-export([verify_aliases/1]).
 -export([verify_type/1]).
+-export([canonicalize_aliases/4]).
 
 -include("erlavro.hrl").
 
@@ -41,8 +44,19 @@ error_if_not(Cond, Error) -> error_if(not Cond, Error).
 verify_name(Name) ->
   error_if_not(is_correct_name(Name), {invalid_name, Name}).
 
+verify_names(Names) ->
+  lists:foreach(fun verify_name/1, Names).
+
 verify_dotted_name(Name) ->
   error_if_not(is_correct_dotted_name(Name), {invalid_name, Name}).
+
+%% Verify aliases list for correctness
+verify_aliases(Aliases) ->
+  lists:foreach(
+    fun(Alias) ->
+        verify_dotted_name(Alias)
+    end,
+    Aliases).
 
 %% Verify overall type definition for correctness. Error is thrown
 %% when issues are found.
@@ -53,6 +67,16 @@ verify_type(Type) ->
         true  -> verify_type_name(Type);
         false -> ok
     end.
+
+%% Convert aliases to full-name representation using provided names and
+%% namespaces from the original type
+canonicalize_aliases(Aliases, Name, Namespace, EnclosingNs) ->
+  lists:map(
+    fun(Alias) ->
+        {_, ProperNs} = avro:split_type_name(Name, Namespace, EnclosingNs),
+        avro:build_type_fullname(Alias, ProperNs, EnclosingNs)
+    end,
+    Aliases).
 
 %%%===================================================================
 %%% Internal functions
@@ -154,6 +178,32 @@ verify_type_test() ->
   ?assertError({invalid_name, _}, verify_type(get_test_type("", ""))),
   ?assertError({invalid_name, _}, verify_type(get_test_type("", "name.space"))),
   ?assertEqual(ok, verify_type(get_test_type("tname", ""))).
+
+canonizalize_aliases_test() ->
+  %% Namespaces for aliases are taken from the original type namespace
+  ?assertEqual(["name.space.Foo", "name.space.Bar"],
+               canonicalize_aliases(["Foo", "Bar"],
+                                    "Bee",
+                                    "name.space",
+                                    "enc.losing")),
+  %% Aliases have their own namespaces
+  ?assertEqual(["other.ns.Foo", "another.ns2.Bar"],
+               canonicalize_aliases(["other.ns.Foo", "another.ns2.Bar"],
+                                    "Bee",
+                                    "name.space",
+                                    "enc.losing")),
+  %% Namespaces for aliases are taken from enclosing namespace
+  ?assertEqual(["enc.losing.Foo", "enc.losing.Bar"],
+               canonicalize_aliases(["Foo", "Bar"],
+                                    "Bee",
+                                    "",
+                                    "enc.losing")),
+  %% Namespaces for aliases are taken from the full type name
+  ?assertEqual(["name.space.Foo", "name.space.Bar"],
+               canonicalize_aliases(["Foo", "Bar"],
+                                    "name.space.Bee",
+                                    "bla.bla",
+                                    "enc.losing")).
 
 -endif.
 
