@@ -91,11 +91,18 @@ fold(F, Acc0, Store) ->
 
 do_add_type(Type, Store) ->
   FullName = avro:get_type_fullname(Type),
-  case get_type_from_store(FullName, Store) of
+  Aliases = avro:get_aliases(Type),
+  do_add_type_by_names([FullName|Aliases], Type, Store).
+
+do_add_type_by_names([], _Type, Store) ->
+  Store;
+do_add_type_by_names([Name|Rest], Type, Store) ->
+  case get_type_from_store(Name, Store) of
     {ok, _} ->
-      erlang:error(type_with_same_name_already_exists_in_store);
+      erlang:error({type_with_same_name_already_exists_in_store, Name});
     false   ->
-      put_type_to_store(FullName, Type, Store)
+      Store1 =  put_type_to_store(Name, Type, Store),
+      do_add_type_by_names(Rest, Type, Store1)
   end.
 
 %% Extract all children types from the type if possible, replace extracted
@@ -213,6 +220,20 @@ sub_record() ->
     ],
     [ {namespace, "com.klarna.test.bix"}
     , {doc, "Some doc"}
+    , {aliases, ["TestSubRecordAlias"]}
+    ]).
+
+extracted_sub_record() ->
+  avro_record:type(
+    "TestSubRecord",
+    [ avro_record:define_field(
+        "sub_field1", avro_primitive:boolean_type())
+    , avro_record:define_field(
+        "sub_field2", "another.name.MyEnum")
+    ],
+    [ {namespace, "com.klarna.test.bix"}
+    , {doc, "Some doc"}
+    , {aliases, ["TestSubRecordAlias"]}
     ]).
 
 test_record() ->
@@ -235,8 +256,32 @@ test_record() ->
     ],
     [ {namespace, "com.klarna.test.bix"}
     , {doc, "Some doc"}
+    , {aliases, ["TestRecordAlias1", "TestRecordAlias2"]}
     ]
    ).
+
+extracted_test_record() ->
+  avro_record:type(
+    "TestRecord",
+    [ %% simple type
+      avro_record:define_field(
+        "field1", avro_primitive:int_type())
+      %% huge nested type
+    , avro_record:define_field(
+        "field2", avro_array:type(
+                    avro_union:type(
+                      [ avro_primitive:string_type()
+                      , "com.klarna.test.bix.TestSubRecord"
+                      , "com.klarna.test.bix.MyFixed"
+                      ])))
+      %% named type without explicit namespace
+    , avro_record:define_field(
+        "field3", "com.klarna.test.bix.SomeType")
+    ],
+    [ {namespace, "com.klarna.test.bix"}
+    , {doc, "Some doc"}
+    , {aliases, ["TestRecordAlias1", "TestRecordAlias2"]}
+    ]).
 
 extract_from_primitive_type_test() ->
   Type = avro_primitive:int_type(),
@@ -253,36 +298,8 @@ extract_from_named_type_test() ->
 extract_from_extractable_type_test() ->
   Type = avro_array:type(test_record()),
   Expected = { avro_array:type("com.klarna.test.bix.TestRecord")
-             , [ avro_record:type(
-                   "TestRecord",
-                   [ %% simple type
-                     avro_record:define_field(
-                       "field1", avro_primitive:int_type())
-                     %% huge nested type
-                   , avro_record:define_field(
-                       "field2", avro_array:type(
-                                   avro_union:type(
-                                     [ avro_primitive:string_type()
-                                     , "com.klarna.test.bix.TestSubRecord"
-                                     , "com.klarna.test.bix.MyFixed"
-                                     ])))
-                     %% named type without explicit namespace
-                   , avro_record:define_field(
-                       "field3", "com.klarna.test.bix.SomeType")
-                   ],
-                   [ {namespace, "com.klarna.test.bix"}
-                   , {doc, "Some doc"}
-                   ])
-                 , avro_record:type(
-                     "TestSubRecord",
-                     [ avro_record:define_field(
-                         "sub_field1", avro_primitive:boolean_type())
-                     , avro_record:define_field(
-                         "sub_field2", "another.name.MyEnum")
-                     ],
-                     [ {namespace, "com.klarna.test.bix"}
-                     , {doc, "Some doc"}
-                     ])
+             , [ extracted_test_record()
+               , extracted_sub_record()
                , avro_enum:type("MyEnum", ["A"],
                                 [{namespace, "another.name"}])
                , avro_fixed:type("MyFixed", 16,
@@ -290,6 +307,18 @@ extract_from_extractable_type_test() ->
                ]
              },
   ?assertEqual(Expected, extract_children_types(Type)).
+
+add_type_test() ->
+  Store = new(),
+  Store1 = add_type(test_record(), Store),
+  ?assertEqual({ok, extracted_test_record()},
+               lookup_type("com.klarna.test.bix.TestRecord", Store1)),
+  ?assertEqual({ok, extracted_test_record()},
+               lookup_type("com.klarna.test.bix.TestRecordAlias1", Store1)),
+  ?assertEqual({ok, extracted_sub_record()},
+               lookup_type("com.klarna.test.bix.TestSubRecord", Store1)),
+  ?assertEqual({ok, extracted_sub_record()},
+               lookup_type("com.klarna.test.bix.TestSubRecordAlias", Store1)).
 
 -endif.
 
