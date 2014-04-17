@@ -122,6 +122,7 @@ field(Name, Type, Doc, Default) ->
                , {default, Default}
                ]).
 
+%% Returns type of the specified field. Aliases can be used for FieldName.
 get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     case get_field_def(FieldName, Type) of
         {ok, #avro_record_field{type = FieldType}} -> FieldType;
@@ -232,10 +233,44 @@ to_list(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
 %%% Internal functions
 %%%===================================================================
 
-cast_field_value(FieldName, FieldType, Value, Acc) ->
-  case avro:cast(FieldType, Value) of
-    {ok, CastedValue} -> [{FieldName, FieldType, CastedValue}|Acc];
-    Err               -> Err
+%% Try to find a value for a field specified by list of its names
+%% (including direct name and aliases)
+lookup_value_by_name([], _Values) ->
+  false;
+lookup_value_by_name([FieldName|Rest], Values) ->
+  case lists:keyfind(FieldName, 1, Values) of
+    {_, Value} -> {ok, Value};
+    false      -> lookup_value_by_name(Rest, Values)
+  end.
+
+lookup_value_from_list(FieldDef, Values) ->
+  #avro_record_field
+  { name = FieldName
+  , default = Default
+  , aliases = Aliases
+  } = FieldDef,
+  case lookup_value_by_name([FieldName|Aliases], Values) of
+    {ok, Value} -> Value;
+    false       -> Default
+  end.
+
+cast_fields([], _Values, Acc) ->
+  lists:reverse(Acc);
+cast_fields([FieldDef|Rest], Values, Acc) ->
+  #avro_record_field
+  { name = FieldName
+  , type = FieldType
+  } = FieldDef,
+  case lookup_value_from_list(FieldDef, Values) of
+    undefined ->
+      {error, {required_field_missed, FieldName}};
+    Value ->
+      case avro:cast(FieldType, Value) of
+        {ok, CastedValue} ->
+          cast_fields(Rest, Values, [{FieldName, FieldType, CastedValue}|Acc]);
+        Err ->
+          Err
+      end
   end.
 
 do_cast(Type, Value) when ?AVRO_IS_RECORD_VALUE(Value) ->
@@ -248,41 +283,27 @@ do_cast(Type, Value) when ?AVRO_IS_RECORD_VALUE(Value) ->
      true                                     -> {error, type_name_mismatch}
   end;
 do_cast(Type, Proplist) when is_list(Proplist) ->
-  CastResult =
-    lists:foldl(
-      fun(_FieldDef, {error, _} = Acc) ->
-          %% Don't do anything after the first error
-          Acc;
-         (FieldDef, Acc) ->
-          #avro_record_field
-            { name = FieldName
-            , type = FieldType
-            , default = Default
-            } = FieldDef,
-          case lists:keyfind(FieldName, 1, Proplist) of
-            {_, Value} ->
-              %% Data has value for the current field, cast it
-              cast_field_value(FieldName, FieldType, Value, Acc);
-            false ->
-              %% There is no value for the current field in Data,
-              %% try to use default value if provided
-              case Default of
-                undefined -> {error, {required_field_missed, FieldName}};
-                _         -> cast_field_value(FieldName, FieldType, Default, Acc)
-              end
-          end
-      end,
-      [],
-      Type#avro_record_type.fields),
-  case CastResult of
+  FieldsWithValues = cast_fields(Type#avro_record_type.fields, Proplist, []),
+  case FieldsWithValues of
     {error, _} = Err -> Err;
-    Data             -> {ok, ?AVRO_VALUE(Type, Data)}
+    _                -> {ok, ?AVRO_VALUE(Type, FieldsWithValues)}
   end.
 
 get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
   case lists:keyfind(FieldName, #avro_record_field.name, Fields) of
-    false -> false;
-    Def -> {ok, Def}
+    #avro_record_field{} = Def -> {ok, Def};
+    false ->
+      %% Field definition has not been found by its direct name,
+      %% try to search by aliases
+      get_field_def_by_alias(FieldName, Fields)
+  end.
+
+get_field_def_by_alias(_Alias, []) ->
+  false;
+get_field_def_by_alias(Alias, [FieldDef|Rest]) ->
+  case lists:member(Alias, FieldDef#avro_record_field.aliases) of
+    true -> {ok, FieldDef};
+    false -> get_field_def_by_alias(Alias, Rest)
   end.
 
 %%%===================================================================
@@ -300,6 +321,17 @@ type_test() ->
                 ]),
   ?assertEqual("name.space.Test", avro:get_type_fullname(Schema)),
   ?assertEqual({ok, Field}, get_field_def("invno", Schema)).
+
+get_field_def_test() ->
+  Field1 = define_field("f1", avro_primitive:long_type()),
+  Field2 = define_field("f2", avro_primitive:long_type(),
+                        [{aliases, ["a1", "a2"]}]),
+  Field3 = define_field("f3", avro_primitive:long_type()),
+  Record = type("Test", [Field1, Field2, Field3]),
+  ?assertEqual(false, get_field_def("f4", Record)),
+  ?assertEqual({ok, Field2}, get_field_def("f2", Record)),
+  ?assertEqual({ok, Field3}, get_field_def("f3", Record)),
+  ?assertEqual({ok, Field2}, get_field_def("a2", Record)).
 
 get_field_type_test() ->
   Field = define_field("invno", avro_primitive:long_type()),
@@ -367,6 +399,20 @@ cast_test() ->
                     ]),
   {ok, Record} = cast(RecordType, [{"b", 1},
                                    {"a", "foo"}]),
+  ?assertEqual(avro_primitive:string("foo"), get_value("a", Record)),
+  ?assertEqual(avro_primitive:int(1), get_value("b", Record)).
+
+cast_by_aliases_test() ->
+  RecordType = type("Record",
+                    [ define_field("a", avro_primitive:string_type(),
+                                  [{aliases, ["al1", "al2"]}])
+                    , define_field("b", avro_primitive:int_type(),
+                                   [{aliases, ["al3", "al4"]}])
+                    ],
+                    [ {namespace, "name.space"}
+                    ]),
+  {ok, Record} = cast(RecordType, [{"al4", 1},
+                                   {"al1", "foo"}]),
   ?assertEqual(avro_primitive:string("foo"), get_value("a", Record)),
   ?assertEqual(avro_primitive:int(1), get_value("b", Record)).
 
