@@ -205,42 +205,36 @@ destroy_ets_store(Store) ->
 
 sub_record() ->
   avro_record:type(
-   "TestSubRecord",
-   "com.klarna.test.bix",
-   "Some doc",
-   [ avro_record:field("sub_field1", avro_primitive:boolean_type(), "")
-   , avro_record:field("sub_field2",
-                       #avro_enum_type{ name = "MyEnum"
-                                      , namespace = "another.name"
-                                      , symbols = ["A"]
-                                      , fullname = "another.name.MyEnum"},
-                       "")
-   ]).
+    "TestSubRecord",
+    [ avro_record:define_field("sub_field1", avro_primitive:boolean_type())
+    , avro_record:define_field("sub_field2",
+                               avro_enum:type("MyEnum", ["A"],
+                                              [{namespace, "another.name"}]))
+    ],
+    [ {namespace, "com.klarna.test.bix"}
+    , {doc, "Some doc"}
+    ]).
 
 test_record() ->
   avro_record:type(
     "TestRecord",
-    "com.klarna.test.bix",
-    "Some doc",
     [ %% simple type
-      avro_record:field("field1", avro_primitive:int_type(), "")
+      avro_record:define_field("field1", avro_primitive:int_type())
       %% huge nested type
-    , avro_record:field("field2",
-                        avro_array:type(
-                          avro_union:type(
-                            [ avro_primitive:string_type()
-                            , sub_record()
-                            , #avro_fixed_type{ name = "MyFixed"
-                                              , namespace =
-                                                  "com.klarna.test.bix"
-                                              , size = 16
-                                              , fullname =
-                                                  "com.klarna.test.bix.MyFixed"
-                                              }
-                            ])),
-                        "")
-      %% named type without namespace
-    , avro_record:field("field3", "com.klarna.test.bix.SomeType", "")
+    , avro_record:define_field(
+        "field2",
+        avro_array:type(
+          avro_union:type(
+            [ avro_primitive:string_type()
+            , sub_record()
+            , avro_fixed:type("MyFixed", 16,
+                              [{namespace, "com.klarna.test.bix"}])
+            ])))
+      %% named type without explicit namespace
+    , avro_record:define_field("field3", "com.klarna.test.bix.SomeType")
+    ],
+    [ {namespace, "com.klarna.test.bix"}
+    , {doc, "Some doc"}
     ]
    ).
 
@@ -261,43 +255,38 @@ extract_from_extractable_type_test() ->
   Expected = { avro_array:type("com.klarna.test.bix.TestRecord")
              , [ avro_record:type(
                    "TestRecord",
-                   "com.klarna.test.bix",
-                   "Some doc",
                    [ %% simple type
-                     avro_record:field("field1", avro_primitive:int_type(), "")
+                     avro_record:define_field(
+                       "field1", avro_primitive:int_type())
                      %% huge nested type
-                   , avro_record:field("field2",
-                                       avro_array:type(
-                                         avro_union:type(
-                                           [ avro_primitive:string_type()
-                                           , "com.klarna.test.bix.TestSubRecord"
-                                           , "com.klarna.test.bix.MyFixed"
-                                           ])),
-                                       "")
-                     %% named type without namespace
-                   , avro_record:field("field3",
-                                       "com.klarna.test.bix.SomeType",
-                                       "")
+                   , avro_record:define_field(
+                       "field2", avro_array:type(
+                                   avro_union:type(
+                                     [ avro_primitive:string_type()
+                                     , "com.klarna.test.bix.TestSubRecord"
+                                     , "com.klarna.test.bix.MyFixed"
+                                     ])))
+                     %% named type without explicit namespace
+                   , avro_record:define_field(
+                       "field3", "com.klarna.test.bix.SomeType")
+                   ],
+                   [ {namespace, "com.klarna.test.bix"}
+                   , {doc, "Some doc"}
                    ])
                  , avro_record:type(
                      "TestSubRecord",
-                     "com.klarna.test.bix",
-                     "Some doc",
-                     [ avro_record:field("sub_field1",
-                                         avro_primitive:boolean_type(),
-                                         "")
-                     , avro_record:field("sub_field2",
-                                         "another.name.MyEnum",
-                                         "")
+                     [ avro_record:define_field(
+                         "sub_field1", avro_primitive:boolean_type())
+                     , avro_record:define_field(
+                         "sub_field2", "another.name.MyEnum")
+                     ],
+                     [ {namespace, "com.klarna.test.bix"}
+                     , {doc, "Some doc"}
                      ])
-               , #avro_enum_type{ name = "MyEnum"
-                                , namespace = "another.name"
-                                , symbols = ["A"]
-                                , fullname = "another.name.MyEnum"}
-               , #avro_fixed_type{ name = "MyFixed"
-                                 , namespace = "com.klarna.test.bix"
-                                 , size = 16
-                                 , fullname = "com.klarna.test.bix.MyFixed"}
+               , avro_enum:type("MyEnum", ["A"],
+                                [{namespace, "another.name"}])
+               , avro_fixed:type("MyFixed", 16,
+                                 [{namespace, "com.klarna.test.bix"}])
                ]
              },
   ?assertEqual(Expected, extract_children_types(Type)).

@@ -88,11 +88,12 @@ parse_record_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   %% calculated.
   {_, RecordNs} = avro:split_type_name(Name, Ns, EnclosingNs),
   avro_record:type(Name,
-                   Ns,
-                   binary_to_list(Doc),
                    parse_record_fields(Fields, RecordNs, ExtractTypeFun),
-                   Aliases,
-                   EnclosingNs).
+                   [ {namespace, Ns}
+                   , {doc, binary_to_list(Doc)}
+                   , {aliases, Aliases}
+                   , {enclosing_ns, EnclosingNs}
+                   ]).
 
 parse_record_fields(Fields, EnclosingNs, ExtractTypeFun) ->
   lists:map(fun({struct, FieldAttrs}) ->
@@ -383,17 +384,18 @@ parse_fixed(V, Type, _ExtractFun) ->
 -ifdef(EUNIT).
 
 get_test_record() ->
-  Fields = [ avro_record:field("invno", avro_primitive:long_type(), "")
-           , avro_record:field("array",
-                               avro_array:type(avro_primitive:string_type()),
-                               "")
-           , avro_record:field("union",
-                               avro_union:type([ avro_primitive:null_type()
-                                               , avro_primitive:int_type()
-                                               , avro_primitive:boolean_type()
-                                               ]),
-                               "")],
-  avro_record:type("Test", "name.space", "", Fields).
+  Fields = [ avro_record:define_field(
+               "invno", avro_primitive:long_type())
+           , avro_record:define_field(
+               "array", avro_array:type(avro_primitive:string_type()))
+           , avro_record:define_field(
+               "union", avro_union:type([ avro_primitive:null_type()
+                                        , avro_primitive:int_type()
+                                        , avro_primitive:boolean_type()
+                                        ]))
+           ],
+  avro_record:type("Test", Fields,
+                   [{namespace, "name.space"}]).
 
 parse_primitive_type_name_test() ->
   %% Check that primitive types specified by their names are parsed correctly
@@ -414,7 +416,7 @@ parse_record_type_test() ->
             , {<<"fields">>, []}
             ]},
   Record = parse_schema(Schema, "", none),
-  ?assertEqual(avro_record:type("TestRecord", "name.space", "", []),
+  ?assertEqual(avro_record:type("TestRecord", [], [{namespace, "name.space"}]),
                Record).
 
 parse_record_type_with_default_values_test() ->
@@ -438,18 +440,15 @@ parse_record_type_with_default_values_test() ->
                                   , avro_primitive:int_type()]),
   Expected = avro_record:type(
                "TestRecord",
-               "name.space",
-               "",
-               [ avro_record:field("string_field",
-                                   avro_primitive:string_type(),
-                                   "",
-                                   avro_primitive:string("FOOBAR"))
-               , avro_record:field("union_field",
-                                   ExpectedUnion,
-                                   "",
-                                   avro_union:new(ExpectedUnion,
-                                                  avro_primitive:boolean(true)))
-               ]),
+               [ avro_record:define_field(
+                   "string_field", avro_primitive:string_type(),
+                   [{default, avro_primitive:string("FOOBAR")}])
+               , avro_record:define_field(
+                   "union_field", ExpectedUnion,
+                   [{default, avro_union:new(ExpectedUnion,
+                                             avro_primitive:boolean(true))}])
+               ],
+               [{namespace, "name.space"}]),
   ?assertEqual(Expected, Record).
 
 parse_record_type_with_enclosing_namespace_test() ->
