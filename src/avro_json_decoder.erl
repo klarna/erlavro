@@ -8,6 +8,7 @@
 %% API
 -export([decode_schema/2]).
 -export([decode_value/3]).
+-export([decode_value_jsonx/3]).
 
 -include("erlavro.hrl").
 
@@ -35,6 +36,28 @@ decode_schema(JsonSchema, ExtractTypeFun) ->
 
 decode_value(JsonValue, Schema, ExtractTypeFun) ->
   parse_value(mochijson3:decode(JsonValue), Schema, ExtractTypeFun).
+
+%% Experimental support for jsonx decoding.
+%% jsonx is about 12 times faster than mochijson3 and almost compatible
+%% with it. The one discovered incompatibility is that jsonx performs more
+%% strict checks on incoming json strings and can fail on some cases
+%% (for example, on non-ascii symbols) while mochijson3 can parse such strings
+%% without problems.
+%% Current strategy is to use jsonx as the main parser and fall back to mochijson3
+%% in case of parsing issues. In such configuration we can parse data stream almost
+%% completely (more tests needed).
+-spec decode_value_jsonx(string(),
+                         avro_type_or_name(),
+                         fun((string()) -> avro_type()))
+                        -> avro_value().
+
+decode_value_jsonx(JsonValue, Schema, ExtractTypeFun) ->
+  case jsonx:decode(JsonValue, [{format, struct}]) of
+    {error, _Err, _Pos} ->
+      decode_value(JsonValue, Schema, ExtractTypeFun);
+    Decoded ->
+      parse_value(Decoded, Schema, ExtractTypeFun)
+  end.
 
 %%%===================================================================
 %%% Schema parsing
