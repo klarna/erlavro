@@ -319,7 +319,9 @@ parse_array(V, Type, ExtractFun) when is_list(V) ->
                 parse_value(Item, ItemsType, ExtractFun)
             end,
             V),
-  avro_array:new(Type, Items);
+  %% Here we can use direct version of new because we casted all items
+  %% to the array type before
+  avro_array:new_direct(Type, Items);
 parse_array(_, _, _) ->
   erlang:error(wrong_array_value).
 
@@ -348,7 +350,10 @@ parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun) ->
   PossibleTypes = avro_union:get_types(UnionType),
   case lookup_type_by_name(ValueTypeName, PossibleTypes) of
     {ok, ValueType} ->
-      avro_union:new(UnionType, parse_value(Value, ValueType, ExtractFun));
+      %% Here we can create the value directly because we know that
+      %% the type of value belongs to the union type and we can skip
+      %% additional looping over union types in avro_union:cast
+      avro_union:new_direct(UnionType, parse_value(Value, ValueType, ExtractFun));
     false ->
       erlang:error(unknown_type_of_union_value)
   end.

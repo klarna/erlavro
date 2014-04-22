@@ -18,6 +18,12 @@
 -export([verify_type/1]).
 -export([canonicalize_aliases/4]).
 
+%% Performance testing
+-export([prf_encode/0]).
+-export([prf_encode/2]).
+-export([prf_decode/2]).
+-export([prf_decode/3]).
+
 -include("erlavro.hrl").
 
 %%%===================================================================
@@ -138,6 +144,78 @@ tokens_ex([Delimiter|Rest], Delimiter) ->
 tokens_ex([C|Rest], Delimiter) ->
   [Token|Tail] = tokens_ex(Rest, Delimiter),
   [[C|Token]|Tail].
+
+%%%===================================================================
+%%% Performance testing
+%%% NOTE: not a public API
+%%%===================================================================
+
+prf_encode() ->
+  prf_encode(200, 10).
+
+%% Returns {Type, JsonString}
+prf_encode(RecordsCount, FieldsCount) ->
+  Type = prf_prepare_type(RecordsCount, FieldsCount),
+  Data = prf_prepare_data(Type, RecordsCount, FieldsCount),
+  {Type, avro_json_encoder:encode_value(Data)}.
+
+prf_decode(Type, Json) ->
+  prf_decode(Type, Json, 100).
+
+prf_decode(Type, Json, Count) ->
+  {Time, _} =
+    timer:tc(
+      fun() ->
+          lists:foreach(
+            fun(_) ->
+                avro_json_decoder:decode_value(Json, Type, none)
+            end,
+            lists:seq(1,Count))
+      end),
+  Time.
+
+prf_prepare_type(RecordsCount, FieldsCount) ->
+  avro_array:type(
+    avro_union:type(
+      lists:map(
+        fun(N) -> prf_record_type(N, FieldsCount) end,
+        lists:seq(1, RecordsCount))
+     )).
+
+prf_prepare_data(Type, RecordsCount, FieldsCount) ->
+  Records =
+    lists:map(
+      fun(RN) ->
+          Values = lists:map(
+                     fun(FN) ->
+                         {prf_get_field_name(RN, FN), "value"}
+                     end,
+                     lists:seq(1, FieldsCount)),
+          avro_record:new(prf_record_type(RN, FieldsCount), Values)
+      end,
+      lists:seq(1, RecordsCount)),
+  avro_array:new(Type, Records).
+
+prf_get_record_name(RN) ->
+  "MyRecord" ++ integer_to_list(RN).
+
+prf_get_field_name(RN, FN) ->
+  "Field" ++ integer_to_list(RN) ++ "_" ++ integer_to_list(FN).
+
+prf_record_type(RN, FieldsCount) ->
+  Fields =
+    lists:map(
+      fun(FieldNum) ->
+          avro_record:define_field(
+            prf_get_field_name(RN, FieldNum),
+            avro_primitive:string_type())
+      end,
+      lists:seq(1, FieldsCount)),
+  avro_record:type(
+    prf_get_record_name(RN),
+    Fields,
+    [ {namespace, "com.klarna.test.bix"}
+    ]).
 
 %%%===================================================================
 %%% Tests

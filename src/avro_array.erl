@@ -17,6 +17,9 @@
 
 -export([prepend/2]).
 
+%% API to be used only inside erlavro
+-export([new_direct/2]).
+
 -include_lib("erlavro/include/erlavro.hrl").
 
 %%%===================================================================
@@ -37,6 +40,12 @@ new(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
     {ok, Value}  -> Value;
     {error, Err} -> erlang:error(Err)
   end.
+
+%% Special optimized version of new which assumes that all items in List have
+%% been already casted to items type of the array, so we can skip checking
+%% types one more time during casting. Should only be used inside erlavro.
+new_direct(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+  ?AVRO_VALUE(Type, List).
 
 %% Returns array contents as a list of Avro values
 get(Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
@@ -91,6 +100,16 @@ cast_test() ->
   ?assertEqual(ArrayType, ?AVRO_VALUE_TYPE(Array)),
   ?assertEqual([avro_primitive:string("a"), avro_primitive:string("b")],
               ?AVRO_VALUE_DATA(Array)).
+
+new_direct_test() ->
+  Type = type(avro_primitive:int_type()),
+  NewVersion = new(Type, [1,2,3]),
+  DirectVersion = new_direct(Type,
+                             [ avro_primitive:int(1)
+                             , avro_primitive:int(2)
+                             , avro_primitive:int(3)
+                             ]),
+  ?assertEqual(NewVersion, DirectVersion).
 
 -endif.
 

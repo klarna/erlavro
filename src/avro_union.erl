@@ -23,6 +23,9 @@
 -export([get_value/1]).
 -export([set_value/2]).
 
+%% API functions which should be used only inside erlavro
+-export([new_direct/2]).
+
 -include_lib("erlavro/include/erlavro.hrl").
 
 %%%===================================================================
@@ -41,6 +44,12 @@ new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
     {ok, Union}  -> Union;
     {error, Err} -> erlang:error(Err)
   end.
+
+%% Special optimized version of new which assumes that Value
+%% is already casted to one of the union types. Should only
+%% be used inside erlavro.
+new_direct(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
+  ?AVRO_VALUE(Type, Value).
 
 %% Get current value of a union type variable
 get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
@@ -96,6 +105,11 @@ cast_over_types([T|H], Value) ->
 
 -ifdef(EUNIT).
 
+new_direct_test() ->
+  Type = type([avro_primitive:int_type(), avro_primitive:string_type()]),
+  NewVersion = new(Type, "Foo"),
+  DirectVersion = new_direct(Type, avro_primitive:string("Foo")),
+  ?assertEqual(NewVersion, DirectVersion).
 
 -endif.
 
