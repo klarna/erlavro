@@ -72,10 +72,10 @@ cast(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
 
 check_symbols(Symbols) ->
   SymLen = length(Symbols),
-  avro_util:error_if(SymLen =:= 0,
-                     empty_symbols),
-  avro_util:error_if(length(lists:usort(Symbols)) =/= SymLen,
-                     non_unique_symbols),
+  ?ERROR_IF(SymLen =:= 0,
+            empty_symbols),
+  ?ERROR_IF(length(lists:usort(Symbols)) =/= SymLen,
+            non_unique_symbols),
   lists:foreach(fun(S) -> avro_util:verify_name(S) end, Symbols).
 
 do_cast(Type, Value) when ?AVRO_IS_ENUM_VALUE(Value) ->

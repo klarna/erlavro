@@ -204,4 +204,13 @@
 -define(AVRO_IS_FIXED_VALUE(Value), ?AVRO_IS_FIXED_TYPE(
                                        ?AVRO_VALUE_TYPE(Value))).
 
+%% Service macroses
+-define(ERROR_IF(Cond, Err),
+        case Cond of
+            true  -> erlang:error(Err);
+            false -> ok
+        end).
+
+-define(ERROR_IF_NOT(Cond, Err), ?ERROR_IF(not (Cond), Err)).
+
 -endif.

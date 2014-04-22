@@ -29,7 +29,7 @@ type(Name, Size) ->
 %%   aliases      :: [string()]
 %%   enclosing_ns :: string()
 type(Name, Size, Opts) ->
-  avro_util:error_if(Size < 1, invalid_size),
+  ?ERROR_IF(Size < 1, invalid_size),
   Ns          = avro_util:get_opt(namespace, Opts, ""),
   Aliases     = avro_util:get_opt(aliases, Opts, []),
   EnclosingNs = avro_util:get_opt(enclosing_ns, Opts, ""),
@@ -68,7 +68,8 @@ get_value(Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
 to_integer(Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
   binary:decode_unsigned(?AVRO_VALUE_DATA(Value)).
 
-%% Fixed values can be casted from other fixed values or from integers
+%% Fixed values can be casted from other fixed values, from integers
+%% or from binaries
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
 
 cast(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->

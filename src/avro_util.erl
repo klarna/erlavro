@@ -9,8 +9,6 @@
 %% API
 -export([get_opt/2]).
 -export([get_opt/3]).
--export([error_if/2]).
--export([error_if_not/2]).
 -export([verify_name/1]).
 -export([verify_names/1]).
 -export([verify_dotted_name/1]).
@@ -42,19 +40,14 @@ get_opt(Key, Opts, Default) ->
     false        -> Default
   end.
 
-error_if(true, Error)   -> erlang:error(Error);
-error_if(false, _Error) -> ok.
-
-error_if_not(Cond, Error) -> error_if(not Cond, Error).
-
 verify_name(Name) ->
-  error_if_not(is_correct_name(Name), {invalid_name, Name}).
+  ?ERROR_IF_NOT(is_correct_name(Name), {invalid_name, Name}).
 
 verify_names(Names) ->
   lists:foreach(fun verify_name/1, Names).
 
 verify_dotted_name(Name) ->
-  error_if_not(is_correct_dotted_name(Name), {invalid_name, Name}).
+  ?ERROR_IF_NOT(is_correct_dotted_name(Name), {invalid_name, Name}).
 
 %% Verify aliases list for correctness
 verify_aliases(Aliases) ->
@@ -132,8 +125,8 @@ verify_type_name(Type) ->
   %% We are not interested in the namespace here, so we can ignore
   %% EnclosingExtension value.
   {CanonicalName, _} = avro:split_type_name(Name, Ns, ""),
-  error_if(lists:member(CanonicalName, reserved_type_names()),
-           reserved_name_is_used_for_type_name).
+  ?ERROR_IF(lists:member(CanonicalName, reserved_type_names()),
+            reserved_name_is_used_for_type_name).
 
 %% Splits string to tokens but doesn't count consecutive delimiters as
 %% a single delimiter. So tokens_ex("a...b", $.) produces ["a","","","b"].
@@ -226,10 +219,8 @@ prf_record_type(RN, FieldsCount) ->
 -ifdef(EUNIT).
 
 get_test_type(Name, Namespace) ->
-  #avro_fixed_type{name = Name,
-                   namespace = Namespace,
-                   size = 16,
-                   fullname = avro:build_type_fullname(Name, Namespace, "")}.
+  avro_fixed:type(Name, 16,
+                  [{namespace, Namespace}]).
 
 tokens_ex_test() ->
   ?assertEqual([""], tokens_ex("", $.)),
