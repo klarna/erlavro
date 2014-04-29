@@ -16,6 +16,7 @@
 %% API
 -export([type/1]).
 -export([get_types/1]).
+-export([lookup_child_type/2]).
 
 -export([cast/2]).
 
@@ -35,9 +36,28 @@
 type([]) ->
   erlang:error(avro_union_should_have_at_least_one_type);
 type(Types) when is_list(Types) ->
-  #avro_union_type{types = Types}.
+  TypesDict =
+    case length(Types) > 10 of
+      true  -> build_types_dict(Types);
+      false -> undefined
+    end,
+  #avro_union_type
+  { types      = Types
+  , types_dict = TypesDict
+  }.
 
 get_types(#avro_union_type{types = Types}) -> Types.
+
+%% Search for a type by its full name through the children types
+%% of the union
+-spec lookup_child_type(#avro_union_type{}, string())
+                       -> false | {ok, avro_type()}.
+
+lookup_child_type(Union, TypeName) when ?AVRO_IS_UNION_TYPE(Union) ->
+  case Union#avro_union_type.types_dict of
+    undefined -> lookup_type_direct(TypeName, Union#avro_union_type.types);
+    TypesDict -> lookup_type_in_dict(TypeName, TypesDict)
+  end.
 
 new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
   case cast(Type, Value) of
@@ -76,6 +96,35 @@ cast(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+build_types_dict(Types) ->
+  lists:foldl(
+    fun(Type, D) ->
+        dict:store(avro:get_type_fullname(Type), Type, D)
+    end,
+    dict:new(),
+    Types).
+
+lookup_type_direct(_TypeName, []) ->
+  false;
+lookup_type_direct(TypeName, [Type|Rest]) ->
+  CandidateTypeName = get_type_fullname_ex(Type),
+  if TypeName =:= CandidateTypeName -> {ok, Type};
+     true                           -> lookup_type_direct(TypeName, Rest)
+  end.
+
+%% If type is specified by its name then return this name,
+%% otherwise return type's full name.
+get_type_fullname_ex(TypeName) when is_list(TypeName) ->
+  TypeName;
+get_type_fullname_ex(Type) ->
+  avro:get_type_fullname(Type).
+
+lookup_type_in_dict(TypeName, Dict) ->
+  case dict:find(TypeName, Dict) of
+    {ok, _} = Res -> Res;
+    error         -> false
+  end.
 
 do_cast(Type, Value) when ?AVRO_IS_UNION_VALUE(Value) ->
   %% Unions can't have other unions as their subtypes, so in this case

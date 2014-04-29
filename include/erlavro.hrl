@@ -77,6 +77,13 @@
 
 -record(avro_union_type,
         { types     ?REQUIRED :: [avro_type_or_name()]
+          %% Precached dictionary of types inside the union,
+          %% helps to speed up types lookups for big unions.
+          %% Dictionary is filled only for big unions (>10)
+          %% when dictionary lookup is more efficient than
+          %% sequential scan, so it is normal if the dictionary
+          %% is set to undefined.
+        , types_dict          :: undefined | dict() %% string() -> avro_type()
         }).
 
 -record(avro_fixed_type,

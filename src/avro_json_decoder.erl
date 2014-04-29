@@ -369,8 +369,7 @@ parse_union(_, _, _) ->
   erlang:error(wrong_union_value).
 
 parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun) ->
-  PossibleTypes = avro_union:get_types(UnionType),
-  case lookup_type_by_name(ValueTypeName, PossibleTypes) of
+  case avro_union:lookup_child_type(UnionType, ValueTypeName) of
     {ok, ValueType} ->
       %% Here we can create the value directly because we know that
       %% the type of value belongs to the union type and we can skip
@@ -380,25 +379,6 @@ parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun) ->
     false ->
       erlang:error(unknown_type_of_union_value)
   end.
-
-%% Search for a type through list of types by its full name.
-%% Since full names for unnamed types are same as their Avro names,
-%% this code effectively performs resolution of all types inside
-%% unions.
-lookup_type_by_name(_FullName, []) ->
-  false;
-lookup_type_by_name(FullName, [Type|Rest]) ->
-  CandidateTypeName = get_type_fullname_ex(Type),
-  if FullName =:= CandidateTypeName -> {ok, Type};
-     true                           -> lookup_type_by_name(FullName, Rest)
-  end.
-
-%% If type is specified by its name then return this name,
-%% otherwise return type's full name.
-get_type_fullname_ex(TypeName) when is_list(TypeName) ->
-  TypeName;
-get_type_fullname_ex(Type) ->
-  avro:get_type_fullname(Type).
 
 parse_fixed(V, Type, _ExtractFun) ->
   avro_fixed:new(Type, parse_bytes(V)).
