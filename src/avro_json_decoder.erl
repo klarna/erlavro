@@ -43,9 +43,8 @@ decode_value(JsonValue, Schema, ExtractTypeFun) ->
 %% strict checks on incoming json strings and can fail on some cases
 %% (for example, on non-ascii symbols) while mochijson3 can parse such strings
 %% without problems.
-%% Current strategy is to use jsonx as the main parser and fall back to mochijson3
-%% in case of parsing issues. In such configuration we can parse data stream almost
-%% completely (more tests needed).
+%% Current strategy is to use jsonx as the main parser and fall back to
+%% mochijson3 in case of parsing issues.
 -spec decode_value_jsonx(string(),
                          avro_type_or_name(),
                          fun((string()) -> avro_type()))
@@ -376,7 +375,8 @@ parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun) ->
       %% Here we can create the value directly because we know that
       %% the type of value belongs to the union type and we can skip
       %% additional looping over union types in avro_union:cast
-      avro_union:new_direct(UnionType, parse_value(Value, ValueType, ExtractFun));
+      avro_union:new_direct(UnionType,
+                            parse_value(Value, ValueType, ExtractFun));
     false ->
       erlang:error(unknown_type_of_union_value)
   end.
