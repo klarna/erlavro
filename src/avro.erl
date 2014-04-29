@@ -162,6 +162,10 @@ cast(TypeName, Value) when is_list(TypeName) ->
       %% corresponding types and can cast to them.
       cast(Type, Value)
   end;
+%% When casting to same type just return the original value
+cast(T, ?AVRO_VALUE(T, _) = V)      -> {ok, V};
+%% For all other combinations call corresponding cast functions
+%% in type modules
 cast(#avro_primitive_type{} = T, V) -> avro_primitive:cast(T, V);
 cast(#avro_record_type{} = T,    V) -> avro_record:cast(T, V);
 cast(#avro_enum_type{} = T,      V) -> avro_enum:cast(T, V);
