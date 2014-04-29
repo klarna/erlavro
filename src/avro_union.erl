@@ -154,11 +154,31 @@ cast_over_types([T|H], Value) ->
 
 -ifdef(EUNIT).
 
+get_record(N) ->
+  Name = "R" ++ integer_to_list(N),
+  avro_record:type(Name, [avro_record:define_field("F", avro_primitive:int_type())],
+                   [{namespace, "com.klarna.test.bix"}]).
+tiny_union() ->
+  type([get_record(N) || N <- lists:seq(1,5)]).
+
+big_union() ->
+  type([get_record(N) || N <- lists:seq(1,200)]).
+
 new_direct_test() ->
   Type = type([avro_primitive:int_type(), avro_primitive:string_type()]),
   NewVersion = new(Type, "Foo"),
   DirectVersion = new_direct(Type, avro_primitive:string("Foo")),
   ?assertEqual(NewVersion, DirectVersion).
+
+lookup_child_type_from_tiny_union_test() ->
+  Type = tiny_union(),
+  ExpectedRec = get_record(2),
+  ?assertEqual({ok, ExpectedRec}, lookup_child_type(Type, "com.klarna.test.bix.R2")).
+
+lookup_child_type_from_big_union_test() ->
+  Type = big_union(),
+  ExpectedRec = get_record(100),
+  ?assertEqual({ok, ExpectedRec}, lookup_child_type(Type, "com.klarna.test.bix.R100")).
 
 -endif.
 
