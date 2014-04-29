@@ -100,7 +100,7 @@ cast(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
 build_types_dict(Types) ->
   lists:foldl(
     fun(Type, D) ->
-        dict:store(avro:get_type_fullname(Type), Type, D)
+        dict:store(get_type_fullname_ex(Type), Type, D)
     end,
     dict:new(),
     Types).
