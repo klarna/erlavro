@@ -254,7 +254,8 @@ sample_record_type() ->
                                  ])
       , avro_record:define_field("string", avro_primitive:string_type(),
                                  [ {doc, "string f"}
-                                 , {default, avro_primitive:string("string value")}
+                                 , {default,
+                                    avro_primitive:string("string value")}
                                  ])
       ],
       [ {namespace, "com.klarna.test.bix"}
