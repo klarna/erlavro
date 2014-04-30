@@ -29,6 +29,14 @@
 -export([update/3]).
 -export([to_list/1]).
 
+-deprecated({type, 4, eventually}).
+-deprecated({type, 6, eventually}).
+-deprecated({field, 3 ,eventually}).
+-deprecated({field, 4, eventually}).
+-deprecated({get, 2, eventually}).
+-deprecated({set, 2, eventually}).
+-deprecated({set, 3, eventually}).
+
 -include("erlavro.hrl").
 
 %% Record internals:
@@ -72,14 +80,14 @@ type(Name, Fields, Opts) ->
   avro_util:verify_type(Type),
   Type.
 
-%% DEPRECATED: Use type/2,3 instead
+%% @deprecated Use type/2,3 instead
 type(Name, Namespace, Doc, Fields) ->
   type(Name, Fields,
        [ {namespace, Namespace}
        , {doc, Doc}
        ]).
 
-%% DEPRECATED: Use type/2,3 instead
+%% @deprecated Use type/2,3 instead
 type(Name, Namespace, Doc, Fields, Aliases, EnclosingNs) ->
   type(Name, Fields,
        [ {namespace, Namespace}
@@ -111,11 +119,11 @@ define_field(Name, Type, Opts) ->
   , aliases = Aliases
   }.
 
-%% DEPRECATED: use define_field instead
+%% @deprecated Use define_field instead
 field(Name, Type, Doc) ->
-    field(Name, Type, Doc, undefined).
+  field(Name, Type, Doc, undefined).
 
-%% DEPRECATED: use define_field instead
+%% @deprecated Use define_field instead
 field(Name, Type, Doc, Default) ->
   define_field(Name, Type,
                [ {doc, Doc}
@@ -124,10 +132,10 @@ field(Name, Type, Doc, Default) ->
 
 %% Returns type of the specified field. Aliases can be used for FieldName.
 get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
-    case get_field_def(FieldName, Type) of
-        {ok, #avro_record_field{type = FieldType}} -> FieldType;
-        false -> erlang:error({unknown_field, FieldName})
-    end.
+  case get_field_def(FieldName, Type) of
+    {ok, #avro_record_field{type = FieldType}} -> FieldType;
+    false -> erlang:error({unknown_field, FieldName})
+  end.
 
 %%%===================================================================
 %%% API: casting
@@ -146,26 +154,25 @@ cast(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
 
 -spec new(#avro_record_type{}, term()) -> avro_value().
 
-%% TODO: initialize fields with default values
 new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
   case cast(Type, Value) of
     {ok, Rec}    -> Rec;
     {error, Err} -> erlang:error(Err)
   end.
 
-%% DEPRECATED: use get_value instead
+%% @deprecated Use get_value instead
 get(FieldName, Record) ->
   get_value(FieldName, Record).
 
 -spec get_value(string(), avro_value()) -> avro_value().
 
 get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
-    case lists:keyfind(FieldName, 1, ?AVRO_VALUE_DATA(Record)) of
-        {_N, _T, V} -> V;
-        false       -> erlang:error({unknown_field, FieldName})
-    end.
+  case lists:keyfind(FieldName, 1, ?AVRO_VALUE_DATA(Record)) of
+    {_N, _T, V} -> V;
+    false       -> erlang:error({unknown_field, FieldName})
+  end.
 
-%% DEPRECATED: use set_values/2 instead
+%% @deprecated Use set_values/2 instead
 set(Values, Record) ->
   set_values(Values, Record).
 
@@ -173,14 +180,14 @@ set(Values, Record) ->
 -spec set_values([{string(), any()}], avro_value()) -> avro_value().
 
 set_values(Values, Record) ->
-    lists:foldl(
-      fun({FieldName, Value}, R) ->
-              set_value(FieldName, Value, R)
-      end,
-      Record,
-      Values).
+  lists:foldl(
+    fun({FieldName, Value}, R) ->
+        set_value(FieldName, Value, R)
+    end,
+    Record,
+    Values).
 
-%% DEPRECATED: use set_value/3 instead
+%% @deprecated Use set_value/3 instead
 set(FieldName, Value, Record) ->
   set_value(FieldName, Value, Record).
 

@@ -62,10 +62,10 @@ verify_aliases(Aliases) ->
 -spec verify_type(avro_type()) -> ok.
 
 verify_type(Type) ->
-    case avro:is_named_type(Type) of
-        true  -> verify_type_name(Type);
-        false -> ok
-    end.
+  case avro:is_named_type(Type) of
+    true  -> verify_type_name(Type);
+    false -> ok
+  end.
 
 %% Convert aliases to full-name representation using provided names and
 %% namespaces from the original type
@@ -99,9 +99,9 @@ is_correct_dotted_name(DottedName) ->
   Names =/= [] andalso lists:all(fun is_correct_name/1, Names).
 
 reserved_type_names() ->
-    [?AVRO_NULL, ?AVRO_BOOLEAN, ?AVRO_INT, ?AVRO_LONG, ?AVRO_FLOAT,
-     ?AVRO_DOUBLE, ?AVRO_BYTES, ?AVRO_STRING, ?AVRO_RECORD, ?AVRO_ENUM,
-     ?AVRO_ARRAY, ?AVRO_MAP, ?AVRO_UNION, ?AVRO_FIXED].
+  [?AVRO_NULL, ?AVRO_BOOLEAN, ?AVRO_INT, ?AVRO_LONG, ?AVRO_FLOAT,
+   ?AVRO_DOUBLE, ?AVRO_BYTES, ?AVRO_STRING, ?AVRO_RECORD, ?AVRO_ENUM,
+   ?AVRO_ARRAY, ?AVRO_MAP, ?AVRO_UNION, ?AVRO_FIXED].
 
 is_correct_first_symbol(S) -> (S >= $A andalso S =< $Z) orelse
                               (S >= $a andalso S =< $z) orelse

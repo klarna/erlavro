@@ -101,7 +101,7 @@ do_add_type_by_names([Name|Rest], Type, Store) ->
     {ok, _} ->
       erlang:error({type_with_same_name_already_exists_in_store, Name});
     false   ->
-      Store1 =  put_type_to_store(Name, Type, Store),
+      Store1 = put_type_to_store(Name, Type, Store),
       do_add_type_by_names(Rest, Type, Store1)
   end.
 
