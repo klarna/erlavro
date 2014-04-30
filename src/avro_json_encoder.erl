@@ -179,7 +179,7 @@ do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
 
 do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
-  L = avro_map:to_list(Map),
+  L = dict:to_list(avro_map:to_dict(Map)),
   { struct
   , lists:map(fun encode_field_with_value/1, L)
   };
@@ -485,7 +485,7 @@ encode_map_test() ->
   MapValue = avro_map:new(MapType,
                           [{"v1", 1}, {"v2", null}, {"v3", 2}]),
   Json = encode_value(MapValue),
-  ?assertEqual("{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}",
+  ?assertEqual("{\"v3\":{\"int\":2},\"v1\":{\"int\":1},\"v2\":null}",
                to_string(Json)).
 
 encode_fixed_type_test() ->

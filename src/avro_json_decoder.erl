@@ -349,14 +349,15 @@ parse_array(_, _, _) ->
 
 parse_map({struct, Attrs}, Type, ExtractFun) ->
   ItemsType = avro_map:get_items_type(Type),
-  L = lists:map(
-        fun({KeyBin, Value}) ->
-            { binary_to_list(KeyBin)
-            , parse_value(Value, ItemsType, ExtractFun)
-            }
+  D = lists:foldl(
+        fun({KeyBin, Value}, D) ->
+            dict:store(binary_to_list(KeyBin),
+                       parse_value(Value, ItemsType, ExtractFun),
+                       D)
         end,
+        dict:new(),
         Attrs),
-  avro_map:new(Type, L).
+  avro_map:new(Type, D).
 
 parse_union(null = Value, Type, ExtractFun) ->
   %% Union values specified as null
