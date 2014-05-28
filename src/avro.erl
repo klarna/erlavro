@@ -25,19 +25,19 @@
 %%%===================================================================
 
 %% Returns true if the type can have its own name defined in schema.
--spec is_named_type(avro_type()) -> boolean().
-
-is_named_type(#avro_record_type{}) -> true;
-is_named_type(#avro_enum_type{})   -> true;
-is_named_type(#avro_fixed_type{})  -> true;
-is_named_type(_)                   -> false.
+-spec is_named_type(avro_value() | avro_type()) -> boolean().
+is_named_type(#avro_value{type = T}) -> is_named_type(T);
+is_named_type(#avro_record_type{})   -> true;
+is_named_type(#avro_enum_type{})     -> true;
+is_named_type(#avro_fixed_type{})    -> true;
+is_named_type(_)                     -> false.
 
 %% Returns the type's name. If the type is named then content of
 %% its name field is returned which can be short name or full name,
 %% depending on how the type was specified. If the type is unnamed
 %% then Avro name of the type is returned.
--spec get_type_name(avro_type()) -> string().
-
+-spec get_type_name(avro_value() | avro_type()) -> string().
+get_type_name(#avro_value{type = T})             -> get_type_name(T);
 get_type_name(#avro_primitive_type{name = Name}) -> Name;
 get_type_name(#avro_record_type{name = Name})    -> Name;
 get_type_name(#avro_enum_type{name = Name})      -> Name;
@@ -50,8 +50,8 @@ get_type_name(#avro_fixed_type{name = Name})     -> Name.
 %% Depending on how the type was specified it could the namespace
 %% or just an empty string if the name contains namespace in it.
 %% If the type can't have namespace then empty string is returned.
--spec get_type_namespace(avro_type()) -> string().
-
+-spec get_type_namespace(avro_value() | avro_type()) -> string().
+get_type_namespace(#avro_value{type = T})             -> get_type_namespace(T);
 get_type_namespace(#avro_primitive_type{})            -> "";
 get_type_namespace(#avro_record_type{namespace = Ns}) -> Ns;
 get_type_namespace(#avro_enum_type{namespace = Ns})   -> Ns;
@@ -62,8 +62,8 @@ get_type_namespace(#avro_fixed_type{namespace = Ns})  -> Ns.
 
 %% Returns fullname stored inside the type. For unnamed types
 %% their Avro name is returned.
--spec get_type_fullname(avro_type()) -> string().
-
+-spec get_type_fullname(avro_value() | avro_type()) -> string().
+get_type_fullname(#avro_value{type = T})              -> get_type_fullname(T);
 get_type_fullname(#avro_primitive_type{name = Name})  -> Name;
 get_type_fullname(#avro_record_type{fullname = Name}) -> Name;
 get_type_fullname(#avro_enum_type{fullname = Name})   -> Name;
