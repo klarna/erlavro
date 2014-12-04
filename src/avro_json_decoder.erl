@@ -6,9 +6,11 @@
 -module(avro_json_decoder).
 
 %% API
--export([decode_schema/2]).
--export([decode_value/3]).
--export([decode_value_jsonx/3]).
+-export([ decode_schema/1
+        , decode_schema/2
+        , decode_value/3
+        , decode_value_jsonx/3
+        ]).
 
 -include("erlavro.hrl").
 
@@ -16,13 +18,16 @@
 %%% API
 %%%===================================================================
 
+-spec decode_schema(string()) -> avro_type().
+decode_schema(Json) ->
+  decode_schema(Json, no_function).
+
 %% Decode Avro schema specified as Json string.
 %% ExtractTypeFun should be a function returning Avro type by its full name,
 %% it is needed to parse default values.
 -spec decode_schema(string(),
                     fun((string()) -> avro_type()))
                     -> avro_type().
-
 decode_schema(JsonSchema, ExtractTypeFun) ->
   parse_schema(mochijson3:decode(JsonSchema), "", ExtractTypeFun).
 
