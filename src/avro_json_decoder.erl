@@ -562,13 +562,13 @@ parse_record_value_test() ->
           , {<<"union">>, {struct, [{<<"boolean">>, true}]}}
           ]},
   Value = parse_value(Json, TestRecord, none),
-  ?assertEqual(avro_primitive:long(100), avro_record:get("invno", Value)),
+  ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Value)),
   ?assertEqual(avro_array:new(avro_record:get_field_type("array", TestRecord),
                               [avro_primitive:string("ACTIVE"),
                                avro_primitive:string("CLOSED")]),
-               avro_record:get("array", Value)),
+               avro_record:get_value("array", Value)),
   ?assertEqual(avro_primitive:boolean(true),
-               avro_union:get_value(avro_record:get("union", Value))).
+               avro_union:get_value(avro_record:get_value("union", Value))).
 
 parse_record_value_missing_field_test() ->
   %% This test also tests parsing other types inside the record
@@ -655,7 +655,7 @@ parse_value_with_extract_type_fun_test() ->
   ?assert(?AVRO_IS_RECORD_VALUE(Rec)),
   ?assertEqual("name.space.Test",
                avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
-  ?assertEqual(avro_primitive:long(100), avro_record:get("invno", Rec)).
+  ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).
 
 -endif.
 
