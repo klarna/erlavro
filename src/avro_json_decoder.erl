@@ -9,7 +9,7 @@
 -export([ decode_schema/1
         , decode_schema/2
         , decode_value/3
-        , decode_value_jsonx/3
+        %% , decode_value_jsonx/3
         ]).
 
 -include("erlavro.hrl").
@@ -50,18 +50,18 @@ decode_value(JsonValue, Schema, ExtractTypeFun) ->
 %% without problems.
 %% Current strategy is to use jsonx as the main parser and fall back to
 %% mochijson3 in case of parsing issues.
--spec decode_value_jsonx(string(),
-                         avro_type_or_name(),
-                         fun((string()) -> avro_type()))
-                        -> avro_value().
+%% -spec decode_value_jsonx(string(),
+%%                          avro_type_or_name(),
+%%                          fun((string()) -> avro_type()))
+%%                         -> avro_value().
 
-decode_value_jsonx(JsonValue, Schema, ExtractTypeFun) ->
-  case jsonx:decode(JsonValue, [{format, struct}]) of
-    {error, _Err, _Pos} ->
-      decode_value(JsonValue, Schema, ExtractTypeFun);
-    Decoded ->
-      parse_value(Decoded, Schema, ExtractTypeFun)
-  end.
+%% decode_value_jsonx(JsonValue, Schema, ExtractTypeFun) ->
+%%   case jsonx:decode(JsonValue, [{format, struct}]) of
+%%     {error, _Err, _Pos} ->
+%%       decode_value(JsonValue, Schema, ExtractTypeFun);
+%%     Decoded ->
+%%       parse_value(Decoded, Schema, ExtractTypeFun)
+%%   end.
 
 %%%===================================================================
 %%% Schema parsing
