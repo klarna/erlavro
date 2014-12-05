@@ -1,29 +1,32 @@
+REBAR = $(realpath ./rebar)
+
 suite=$(if $(SUITE), suite=$(SUITE), )
 
 .PHONY:	all deps check test clean
 
-all:
-	./rebar compile
+all: compile
+
+compile: deps
+	$(REBAR) compile
 
 deps:
-	./rebar get-deps
+	$(REBAR) get-deps
 
 docs:
-	./rebar doc
+	$(REBAR) doc
 
 check:
-	./rebar check-plt
-	./rebar dialyze
+	$(REBAR) check-plt
+	$(REBAR) dialyze
 
 test:
-	./rebar eunit $(suite) skip_deps=true
-
+	$(REBAR) eunit $(suite) apps=erlavro
 
 conf_clean:
 	@:
 
 clean:
-	./rebar clean
+	$(REBAR) clean
 	$(RM) doc/*
 
 # eof
