@@ -19,7 +19,7 @@ check:
 	$(REBAR) check-plt
 	$(REBAR) dialyze
 
-test:
+test: compile
 	$(REBAR) eunit $(suite) apps=erlavro
 
 conf_clean:
