@@ -5,16 +5,20 @@
 %%%-------------------------------------------------------------------
 -module(avro).
 
--export([is_named_type/1]).
--export([get_type_name/1]).
--export([get_type_namespace/1]).
--export([get_type_fullname/1]).
--export([get_aliases/1]).
+-export([ is_named_type/1
+        , get_type_name/1
+        , get_type_namespace/1
+        , get_type_fullname/1
+        , get_aliases/1
+        ]).
 
--export([split_type_name/2]).
--export([split_type_name/3]).
--export([build_type_fullname/2]).
--export([build_type_fullname/3]).
+-export([ split_type_name/2
+        , split_type_name/3
+        , build_type_fullname/2
+        , build_type_fullname/3
+        ]).
+
+-export([read_schema/1]).
 
 -export([cast/2]).
 
@@ -84,6 +88,18 @@ get_aliases(#avro_array_type{})                   -> [];
 get_aliases(#avro_map_type{})                     -> [];
 get_aliases(#avro_union_type{})                   -> [];
 get_aliases(#avro_fixed_type{aliases = Aliases})  -> Aliases.
+
+%%%===================================================================
+%%% API: Reading schema from json file
+%%%===================================================================
+-spec read_schema(file:filename()) -> avro_type().
+read_schema(File) ->
+  case file:read_file(File) of
+    {ok, Data} ->
+      {ok, avro_json_decoder:decode_schema(Data)};
+    Error ->
+      Error
+  end.
 
 %%%===================================================================
 %%% API: Calculating of canonical short and full names of types

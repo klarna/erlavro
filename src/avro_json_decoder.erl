@@ -6,9 +6,11 @@
 -module(avro_json_decoder).
 
 %% API
--export([decode_schema/2]).
--export([decode_value/3]).
--export([decode_value_jsonx/3]).
+-export([ decode_schema/1
+        , decode_schema/2
+        , decode_value/3
+        , decode_value_jsonx/3
+        ]).
 
 -include("erlavro.hrl").
 
@@ -16,13 +18,16 @@
 %%% API
 %%%===================================================================
 
+-spec decode_schema(string()) -> avro_type().
+decode_schema(Json) ->
+  decode_schema(Json, no_function).
+
 %% Decode Avro schema specified as Json string.
 %% ExtractTypeFun should be a function returning Avro type by its full name,
 %% it is needed to parse default values.
 -spec decode_schema(string(),
                     fun((string()) -> avro_type()))
                     -> avro_type().
-
 decode_schema(JsonSchema, ExtractTypeFun) ->
   parse_schema(mochijson3:decode(JsonSchema), "", ExtractTypeFun).
 
@@ -557,13 +562,13 @@ parse_record_value_test() ->
           , {<<"union">>, {struct, [{<<"boolean">>, true}]}}
           ]},
   Value = parse_value(Json, TestRecord, none),
-  ?assertEqual(avro_primitive:long(100), avro_record:get("invno", Value)),
+  ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Value)),
   ?assertEqual(avro_array:new(avro_record:get_field_type("array", TestRecord),
                               [avro_primitive:string("ACTIVE"),
                                avro_primitive:string("CLOSED")]),
-               avro_record:get("array", Value)),
+               avro_record:get_value("array", Value)),
   ?assertEqual(avro_primitive:boolean(true),
-               avro_union:get_value(avro_record:get("union", Value))).
+               avro_union:get_value(avro_record:get_value("union", Value))).
 
 parse_record_value_missing_field_test() ->
   %% This test also tests parsing other types inside the record
@@ -650,7 +655,7 @@ parse_value_with_extract_type_fun_test() ->
   ?assert(?AVRO_IS_RECORD_VALUE(Rec)),
   ?assertEqual("name.space.Test",
                avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
-  ?assertEqual(avro_primitive:long(100), avro_record:get("invno", Rec)).
+  ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).
 
 -endif.
 
