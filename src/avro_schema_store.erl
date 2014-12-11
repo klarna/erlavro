@@ -78,7 +78,7 @@ lookup_type(FullName, Store) ->
   get_type_from_store(FullName, Store).
 
 -spec lookup_type_json(string(), store()) -> {ok, term()} | false.
-lookup_type(FullName, Store) ->
+lookup_type_json(FullName, Store) ->
   get_type_json_from_store(FullName, Store).
 
 fold(F, Acc0, Store) ->
