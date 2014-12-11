@@ -20,12 +20,14 @@
 -module(avro_schema_store).
 
 %% API
--export([new/0]).
--export([new/1]).
--export([close/1]).
--export([add_type/2]).
--export([lookup_type/2]).
--export([fold/3]).
+-export([ new/0
+        , new/1
+        , close/1
+        , add_type/2
+        , lookup_type/2
+        , lookup_type_json/2
+        , fold/3
+        ]).
 
 -include("erlavro.hrl").
 
@@ -58,7 +60,6 @@ close(Store) ->
   destroy_ets_store(Store).
 
 -spec add_type(avro_type(), store()) -> store().
-
 add_type(Type, Store) ->
   case avro:is_named_type(Type) of
     true  ->
@@ -73,9 +74,12 @@ add_type(Type, Store) ->
   end.
 
 -spec lookup_type(string(), store()) -> {ok, avro_type()} | false.
-
 lookup_type(FullName, Store) ->
   get_type_from_store(FullName, Store).
+
+-spec lookup_type_json(string(), store()) -> {ok, term()} | false.
+lookup_type(FullName, Store) ->
+  get_type_json_from_store(FullName, Store).
 
 fold(F, Acc0, Store) ->
   ets:foldl(
@@ -190,12 +194,20 @@ init_ets_store(Access) when
 
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
+  Json = avro_json_encoder:encode_type(Type),
+  true = ets:insert(Store, {{json, Name}, Json}),
   Store.
 
 get_type_from_store(Name, Store) ->
   case ets:lookup(Store, Name) of
     []             -> false;
     [{Name, Type}] -> {ok, Type}
+  end.
+
+get_type_json_from_store(Name, Store) ->
+  case ets:lookup(Store, {json, Name}) of
+    []                     -> false;
+    [{{json, Name}, Json}] -> {ok, Json}
   end.
 
 destroy_ets_store(Store) ->
