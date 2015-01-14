@@ -83,7 +83,9 @@ lookup_type_json(FullName, Store) ->
 
 fold(F, Acc0, Store) ->
   ets:foldl(
-    fun({FullName, Type}, Acc) ->
+    fun({{json, _FullName}, _JSON}, Acc) ->
+        Acc;
+       ({FullName, Type}, Acc) ->
         F(FullName, Type, Acc)
     end,
     Acc0,
@@ -194,7 +196,7 @@ init_ets_store(Access) when
 
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
-  Json = avro_json_encoder:encode_type(Type),
+  Json = iolist_to_binary(avro_json_encoder:encode_type(Type)),
   true = ets:insert(Store, {{json, Name}, Json}),
   Store.
 
