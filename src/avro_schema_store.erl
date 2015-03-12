@@ -33,6 +33,8 @@
 
 -opaque store() :: ets:tid().
 
+-export_type([store/0]).
+
 -define(ETS_TABLE_NAME, ?MODULE).
 
 %%%===================================================================
