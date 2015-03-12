@@ -75,7 +75,7 @@
         { type      ?REQUIRED :: avro_type_or_name()
         }).
 
--ifndef(new_otp).
+-ifndef(otp_17_or_above).
 -type avro_types_dict() :: undefined | dict(). %% string() -> avro_type()
 -else.
 -type avro_types_dict() :: undefined | dict:dict(string(), avro_type()).
