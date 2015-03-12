@@ -75,6 +75,12 @@
         { type      ?REQUIRED :: avro_type_or_name()
         }).
 
+-ifndef(otp_17_or_above).
+-type avro_types_dict() :: undefined | dict(). %% string() -> avro_type()
+-else.
+-type avro_types_dict() :: undefined | dict:dict(string(), avro_type()).
+-endif.
+
 -record(avro_union_type,
         { types     ?REQUIRED :: [avro_type_or_name()]
           %% Precached dictionary of types inside the union,
@@ -83,7 +89,7 @@
           %% when dictionary lookup is more efficient than
           %% sequential scan, so it is normal if the dictionary
           %% is set to undefined.
-        , types_dict          :: undefined | dict() %% string() -> avro_type()
+        , types_dict          :: avro_types_dict()
         }).
 
 -record(avro_fixed_type,

@@ -1,3 +1,4 @@
+%% coding: latin-1
 %%%-------------------------------------------------------------------
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
 %%% @doc
