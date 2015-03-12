@@ -1,4 +1,3 @@
-%% -*- coding: utf-8 -*-
 %%%-------------------------------------------------------------------
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
 %%% @doc
@@ -362,7 +361,7 @@ encode_string_with_quoting_test() ->
     ?assertEqual("\"\\\"\\\\\"", to_string(Json)).
 
 encode_utf8_string_test() ->
-    S = xmerl_ucs:to_utf8("Avro √§r popul√§r"),
+    S = xmerl_ucs:to_utf8("Avro ‰r popul‰r"),
     Json = encode_value(avro_primitive:string(S)),
     ?assertEqual("\"Avro " ++ [195,164] ++ "r popul"++ [195,164] ++ "r\"",
                  to_string(Json)).
