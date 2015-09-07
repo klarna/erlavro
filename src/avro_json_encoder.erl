@@ -15,6 +15,7 @@
 %% API
 -export([encode_type/1]).
 -export([encode_value/1]).
+-export([encode_value/2]).
 
 -include("erlavro.hrl").
 
@@ -22,21 +23,37 @@
 %%% API
 %%%===================================================================
 
+%% @doc Encode avro schema in JSON format.
+%% We do not expect any failure in avro schema encoding.
+%% @end
+-spec encode_type(avro_type()) -> iodata().
 encode_type(Type) ->
-  to_json(do_encode_type(Type)).
+  jsonx:encode(do_encode_type(Type)).
 
+%% @doc Encode avro value in JSON format, use jsonx as default encoder.
+%% fallback to mochijson3 in case of failure
+%% @end
+-spec encode_value(avro_value()) -> iodata().
 encode_value(Value) ->
-  to_json(do_encode_value(Value)).
+  try
+    encode_value(Value, jsonx)
+  catch _ : _ ->
+    encode_value(Value, mochijson3)
+  end.
+
+%% @doc Allow caller to choose encoder so it can fallback to another
+%% in case of falure etc.
+%% @end
+-spec encode_value(avro_value(), jsonx | mochijson3) -> iodata().
+encode_value(Value, jsonx) ->
+  jsonx:encode(do_encode_value(Value));
+encode_value(Value, mochijson3) ->
+  Encoder = mochijson3:encoder([{utf8, true}]),
+  Encoder(do_encode_value(Value)).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-get_encoder() ->
-  mochijson3:encoder([{utf8, true}]).
-
-to_json(Data) ->
-  (get_encoder())(Data).
 
 optional_field(_Key, Default, Default, _MappingFun) -> [];
 optional_field(Key, Value, _Default, MappingFun) -> [{Key, MappingFun(Value)}].
@@ -318,12 +335,16 @@ encode_float_test() ->
 encode_float_precision_lost_test() ->
     %% Warning: implementation of doubles in erlang loses
     %% precision on such numbers.
-    Json = encode_value(avro_primitive:float(10000000000000001)),
-    ?assertEqual("1.0e+16", to_string(Json)).
+    ?assertEqual(<<"1e+16">>,
+      encode_value(avro_primitive:float(10000000000000001), jsonx)),
+    ?assertEqual("1.0e+16",
+      encode_value(avro_primitive:float(10000000000000001), mochijson3)).
 
 encode_integer_float_test() ->
-    Json = encode_value(avro_primitive:float(314159265358)),
-    ?assertEqual("314159265358.0", to_string(Json)).
+    ?assertEqual(<<"314159265358">>,
+      encode_value(avro_primitive:float(314159265358), jsonx)),
+    ?assertEqual("314159265358.0",
+      encode_value(avro_primitive:float(314159265358), mochijson3)).
 
 encode_double_type_test() ->
     Json = encode_type(avro_primitive:double_type()),
@@ -334,8 +355,10 @@ encode_double_test() ->
     ?assertEqual("3.14159265358", to_string(Json)).
 
 encode_integer_double_test() ->
-    Json = encode_value(avro_primitive:double(314159265358)),
-    ?assertEqual("314159265358.0", to_string(Json)).
+    ?assertEqual(<<"314159265358">>,
+      encode_value(avro_primitive:double(314159265358), jsonx)),
+    ?assertEqual("314159265358.0",
+      encode_value(avro_primitive:double(314159265358), mochijson3)).
 
 encode_bytes_type_test() ->
     Json = encode_type(avro_primitive:bytes_type()),
