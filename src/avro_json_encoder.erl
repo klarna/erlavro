@@ -335,12 +335,16 @@ encode_float_test() ->
 encode_float_precision_lost_test() ->
     %% Warning: implementation of doubles in erlang loses
     %% precision on such numbers.
-    Json = encode_value(avro_primitive:float(10000000000000001)),
-    ?assertEqual("1e+16", to_string(Json)).
+    ?assertEqual(<<"1e+16">>,
+      encode_value(avro_primitive:float(10000000000000001), jsonx)),
+    ?assertEqual("1.0e+16",
+      encode_value(avro_primitive:float(10000000000000001), mochijson3)).
 
 encode_integer_float_test() ->
-    Json = encode_value(avro_primitive:float(314159265358)),
-    ?assertEqual("314159265358", to_string(Json)).
+    ?assertEqual(<<"314159265358">>,
+      encode_value(avro_primitive:float(314159265358), jsonx)),
+    ?assertEqual("314159265358.0",
+      encode_value(avro_primitive:float(314159265358), mochijson3)).
 
 encode_double_type_test() ->
     Json = encode_type(avro_primitive:double_type()),
@@ -351,8 +355,10 @@ encode_double_test() ->
     ?assertEqual("3.14159265358", to_string(Json)).
 
 encode_integer_double_test() ->
-    Json = encode_value(avro_primitive:double(314159265358)),
-    ?assertEqual("314159265358", to_string(Json)).
+    ?assertEqual(<<"314159265358">>,
+      encode_value(avro_primitive:double(314159265358), jsonx)),
+    ?assertEqual("314159265358.0",
+      encode_value(avro_primitive:double(314159265358), mochijson3)).
 
 encode_bytes_type_test() ->
     Json = encode_type(avro_primitive:bytes_type()),
