@@ -51,8 +51,12 @@ new_direct(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
 get(Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
 
-prepend(Items, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
-  new(?AVRO_VALUE_TYPE(Value), Items ++ ?AVRO_VALUE_DATA(Value)).
+prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
+  Type = ?AVRO_VALUE_TYPE(Value),
+  Data = ?AVRO_VALUE_DATA(Value),
+  #avro_array_type{type = ItemType} = Type,
+  Items = cast_items(ItemType, Items0, []),
+  new_direct(Type, Items ++ Data).
 
 %% Only other Avro array type or erlang list can be casted to arrays
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
