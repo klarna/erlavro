@@ -105,6 +105,13 @@ cast_test() ->
   ?assertEqual([avro_primitive:string("a"), avro_primitive:string("b")],
               ?AVRO_VALUE_DATA(Array)).
 
+prepend_test() ->
+  ArrayType = type(avro_primitive:string_type()),
+  {ok, Array} = cast(ArrayType, ["b", "a"]),
+  NewArray = prepend(["d", "c"], Array),
+  ExpectedValues = [avro_primitive:string(S) || S <- ["d", "c", "b", "a"]],
+  ?assertEqual(ExpectedValues, ?AVRO_VALUE_DATA(NewArray)).
+
 new_direct_test() ->
   Type = type(avro_primitive:int_type()),
   NewVersion = new(Type, [1,2,3]),
