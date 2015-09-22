@@ -51,8 +51,12 @@ new_direct(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
 get(Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
 
-prepend(Items, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
-  new(?AVRO_VALUE_TYPE(Value), Items ++ ?AVRO_VALUE_DATA(Value)).
+prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
+  Type = ?AVRO_VALUE_TYPE(Value),
+  Data = ?AVRO_VALUE_DATA(Value),
+  #avro_array_type{type = ItemType} = Type,
+  Items = cast_items(ItemType, Items0, []),
+  new_direct(Type, Items ++ Data).
 
 %% Only other Avro array type or erlang list can be casted to arrays
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
@@ -100,6 +104,13 @@ cast_test() ->
   ?assertEqual(ArrayType, ?AVRO_VALUE_TYPE(Array)),
   ?assertEqual([avro_primitive:string("a"), avro_primitive:string("b")],
               ?AVRO_VALUE_DATA(Array)).
+
+prepend_test() ->
+  ArrayType = type(avro_primitive:string_type()),
+  {ok, Array} = cast(ArrayType, ["b", "a"]),
+  NewArray = prepend(["d", "c"], Array),
+  ExpectedValues = [avro_primitive:string(S) || S <- ["d", "c", "b", "a"]],
+  ?assertEqual(ExpectedValues, ?AVRO_VALUE_DATA(NewArray)).
 
 new_direct_test() ->
   Type = type(avro_primitive:int_type()),

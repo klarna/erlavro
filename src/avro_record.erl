@@ -221,7 +221,7 @@ update(FieldName, Fun, Record) ->
       {value, {_,T,OldValue}, Rest} ->
         case avro:cast(T, Fun(OldValue)) of
           {ok, NewValue} -> [{FieldName, T, NewValue}|Rest];
-          {error, Err}   -> erlang:error(Err)
+          {error, Err}   -> erlang:error({FieldName, Err})
         end;
       false ->
         erlang:error({unknown_field, FieldName})
@@ -275,8 +275,8 @@ cast_fields([FieldDef|Rest], Values, Acc) ->
       case avro:cast(FieldType, Value) of
         {ok, CastedValue} ->
           cast_fields(Rest, Values, [{FieldName, FieldType, CastedValue}|Acc]);
-        Err ->
-          Err
+        {error, Reason} ->
+          {error, {FieldName, Reason}}
       end
   end.
 
