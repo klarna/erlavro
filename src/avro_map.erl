@@ -12,6 +12,7 @@
 -export([new/2]).
 -export([to_dict/1]).
 -export([cast/2]).
+-export([to_term/1]).
 
 -include_lib("erlavro/include/erlavro.hrl").
 
@@ -39,6 +40,10 @@ to_dict(Value) when ?AVRO_IS_MAP_VALUE(Value) ->
 
 cast(Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
   do_cast(Type, Value).
+
+-spec to_term(avro_value()) -> list().
+to_term(Map) ->
+  [{K, avro:to_term(V)} || {K, V} <- dict:to_list(to_dict(Map))].
 
 %%%===================================================================
 %%% Internal functions
@@ -100,6 +105,13 @@ to_dict_test() ->
                ,{"v3", avro_primitive:int(3)}]),
   ?assertEqual(Expected,
                to_dict(Value)).
+
+to_term_test() ->
+  Type = type(avro_primitive:int_type()),
+  ExpectedMappings = [{"v1", 1}, {"v2", 2}, {"v3", 3}],
+  Value = new(Type, ExpectedMappings),
+  Mappings = avro:to_term(Value),
+  ?assertEqual(ExpectedMappings, lists:keysort(1, Mappings)).
 
 -endif.
 

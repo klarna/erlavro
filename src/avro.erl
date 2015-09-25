@@ -22,6 +22,8 @@
 
 -export([cast/2]).
 
+-export([to_term/1]).
+
 -include("erlavro.hrl").
 
 %%%===================================================================
@@ -190,6 +192,20 @@ cast(#avro_map_type{} = T,       V) -> avro_map:cast(T, V);
 cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
 cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V);
 cast(Type, _)                       -> {error, {unknown_type, Type}}.
+
+
+%% @doc Convert avro values to erlang term.
+-spec to_term(avro_value()) -> {ok, term()} | {error, any()}.
+to_term(#avro_value{type = T} = V) -> to_term(T, V).
+
+to_term(#avro_primitive_type{}, V) -> avro_primitive:get_value(V);
+to_term(#avro_record_type{}, V)    -> avro_record:to_term(V);
+to_term(#avro_enum_type{}, V)      -> avro_enum:get_value(V);
+to_term(#avro_array_type{}, V)     -> avro_array:to_term(V);
+to_term(#avro_map_type{}, V)       -> avro_map:to_term(V);
+to_term(#avro_union_type{}, V)     -> avro_union:to_term(V);
+to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V);
+to_term(T, _)                      -> {error, {unknown_type, T}}.
 
 %%%===================================================================
 %%% Internal functions

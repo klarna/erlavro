@@ -14,6 +14,7 @@
 -export([new/2]).
 -export([get/1]).
 -export([cast/2]).
+-export([to_term/1]).
 
 -export([prepend/2]).
 
@@ -64,6 +65,10 @@ prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
 cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   do_cast(Type, Value).
 
+-spec to_term(avro_value()) -> list().
+to_term(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
+  [ avro:to_term(Item) || Item <- ?AVRO_VALUE_DATA(Array) ].
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -97,6 +102,11 @@ cast_items(TargetType, [Item|H], Acc) ->
 -include_lib("eunit/include/eunit.hrl").
 
 -ifdef(EUNIT).
+
+to_term_test() ->
+  ArrayType = type(avro_primitive:int_type()),
+  {ok, Array} = cast(ArrayType, [1, 2]),
+  ?assertEqual([1, 2], avro:to_term(Array)).
 
 cast_test() ->
   ArrayType = type(avro_primitive:string_type()),

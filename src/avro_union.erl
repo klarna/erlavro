@@ -19,6 +19,7 @@
 -export([lookup_child_type/2]).
 
 -export([cast/2]).
+-export([to_term/1]).
 
 -export([new/2]).
 -export([get_value/1]).
@@ -92,6 +93,9 @@ set_value(Union, Value) when ?AVRO_IS_UNION_VALUE(Union) ->
 
 cast(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
   do_cast(Type, Value).
+
+-spec to_term(avro_value()) -> term().
+to_term(Union) -> avro:to_term(get_value(Union)).
 
 %%%===================================================================
 %%% Internal functions
@@ -182,6 +186,13 @@ lookup_child_type_from_big_union_test() ->
   ExpectedRec = get_record(100),
   ?assertEqual({ok, ExpectedRec},
                lookup_child_type(Type, "com.klarna.test.bix.R100")).
+
+to_term_test() ->
+  Type = type([avro_primitive:null_type(), avro_primitive:int_type()]),
+  Value1 = new(Type, null),
+  Value2 = new(Type, 1),
+  ?assertEqual(null, avro:to_term(Value1)),
+  ?assertEqual(1,    avro:to_term(Value2)).
 
 -endif.
 
