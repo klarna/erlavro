@@ -28,6 +28,7 @@
 -export([set_value/3]).
 -export([update/3]).
 -export([to_list/1]).
+-export([to_term/1]).
 
 -deprecated({type, 4, eventually}).
 -deprecated({type, 6, eventually}).
@@ -236,6 +237,11 @@ to_list(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
     end,
     ?AVRO_VALUE_DATA(Record)).
 
+-spec to_term(avro_value()) -> term().
+to_term(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+  Name = avro:get_type_fullname(Record),
+  {Name, lists:map(fun({N, V}) -> {N, avro:to_term(V)} end, to_list(Record))}.
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -396,6 +402,24 @@ to_list_test() ->
                lists:keyfind("invno", 1, L)),
   ?assertEqual({"name", avro_primitive:string("some name")},
                lists:keyfind("name", 1, L)).
+
+to_term_test() ->
+  Schema = type("Test",
+                [ define_field("invno", avro_primitive:long_type())
+                , define_field("name", avro_primitive:string_type())
+                ],
+                [ {namespace, "name.space"}
+                ]),
+  Rec = avro_record:new(Schema, [ {"invno", avro_primitive:long(1)}
+                                , {"name", avro_primitive:string("some name")}
+                                ]),
+  {Name, Fields} = avro:to_term(Rec),
+  ?assertEqual(Name, "name.space.Test"),
+  ?assertEqual(2, length(Fields)),
+  ?assertEqual({"invno", 1},
+               lists:keyfind("invno", 1, Fields)),
+  ?assertEqual({"name", "some name"},
+               lists:keyfind("name", 1, Fields)).
 
 cast_test() ->
   RecordType = type("Record",

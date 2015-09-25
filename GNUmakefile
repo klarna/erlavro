@@ -1,4 +1,4 @@
-REBAR = $(realpath ./rebar)
+REBAR ?= $(shell which rebar || which ./rebar 2>/dev/null)
 
 suite=$(if $(SUITE), suite=$(SUITE), )
 
@@ -28,5 +28,9 @@ conf_clean:
 clean:
 	$(REBAR) clean
 	$(RM) doc/*
+
+xref: compile
+	$(REBAR) xref
+
 
 # eof

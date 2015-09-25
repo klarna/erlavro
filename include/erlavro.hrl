@@ -78,6 +78,7 @@
 -ifndef(otp_17_or_above).
 -type avro_types_dict() :: undefined | dict(). %% string() -> avro_type()
 -else.
+-type dict() :: dict:dict().
 -type avro_types_dict() :: undefined | dict:dict(string(), avro_type()).
 -endif.
 
