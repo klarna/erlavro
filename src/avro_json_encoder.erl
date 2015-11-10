@@ -158,6 +158,9 @@ encode_order(ascending)  -> <<"ascending">>;
 encode_order(descending) -> <<"descending">>;
 encode_order(ignore)     -> <<"ignore">>.
 
+do_encode_value(?AVRO_VALUE(_, _Value = {json, IoData})) ->
+  {json, IoData};
+
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
   null;
 
