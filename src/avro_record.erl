@@ -20,6 +20,7 @@
 -export([cast/2]).
 
 -export([new/2]).
+-export([new/3]).
 -export([get/2]). %% DEPRECATED
 -export([get_value/2]).
 -export([set/2]). %% DEPRECATED
@@ -159,6 +160,11 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
     {ok, Rec}    -> Rec;
     {error, Err} -> erlang:error(Err)
   end.
+
+-spec new(#avro_record_type{}, term(), avro_encoding()) -> avro_value().
+new(Type, Value, json) ->
+  AvroValue = new(Type, Value),
+  ?AVRO_VALUE(Type, {json, avro_json_encoder:encode_value(AvroValue)}).
 
 %% @deprecated Use get_value instead
 get(FieldName, Record) ->

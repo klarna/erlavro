@@ -226,4 +226,6 @@
 
 -define(ERROR_IF_NOT(Cond, Err), ?ERROR_IF(not (Cond), Err)).
 
+-type avro_encoding() :: json.
+
 -endif.
