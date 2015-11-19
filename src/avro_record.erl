@@ -163,7 +163,7 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
 
 %% @doc Create a new record and encod it right away.
 %% NOTE: unlike avro_value()s, avro_encoded_value() can not be used
-%%       for further update or inner inspection any more.
+%%       for further update or inner inspection anymore.
 %% @end
 -spec new_encoded(#avro_record_type{}, term(), avro_encoding()) ->
         avro_encoded_value().
