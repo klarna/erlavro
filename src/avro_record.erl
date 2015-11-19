@@ -20,7 +20,7 @@
 -export([cast/2]).
 
 -export([new/2]).
--export([new/3]).
+-export([new_encoded/3]).
 -export([get/2]). %% DEPRECATED
 -export([get_value/2]).
 -export([set/2]). %% DEPRECATED
@@ -161,10 +161,15 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
     {error, Err} -> erlang:error(Err)
   end.
 
--spec new(#avro_record_type{}, term(), avro_encoding()) -> avro_value().
-new(Type, Value, json) ->
+%% @doc Create a new record and encod it right away.
+%% NOTE: unlike avro_value()s, avro_encoded_value() can not be used
+%%       for further update or inner inspection any more.
+%% @end
+-spec new_encoded(#avro_record_type{}, term(), avro_encoding()) ->
+        avro_encoded_value().
+new_encoded(Type, Value, _EncodeTo = json) ->
   AvroValue = new(Type, Value),
-  ?AVRO_VALUE(Type, {json, avro_json_encoder:encode_value(AvroValue)}).
+  ?AVRO_ENCODED_VALUE_JSON(Type, avro_json_encoder:encode_value(AvroValue)).
 
 %% @deprecated Use get_value instead
 get(FieldName, Record) ->

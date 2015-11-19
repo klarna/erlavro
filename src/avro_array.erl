@@ -12,7 +12,6 @@
 
 -export([new/1]).
 -export([new/2]).
--export([new/3]).
 -export([get/1]).
 -export([cast/2]).
 
@@ -41,11 +40,6 @@ new(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
     {ok, Value}  -> Value;
     {error, Err} -> erlang:error(Err)
   end.
-
--spec new(#avro_array_type{}, [any()], avro_encoding()) -> avro_value().
-new(Type, List, json) ->
-  AvroValue = new(Type, List),
-  ?AVRO_VALUE(Type, {json, avro_json_encoder:encode_value(AvroValue)}).
 
 %% Special optimized version of new which assumes that all items in List have
 %% been already casted to items type of the array, so we can skip checking

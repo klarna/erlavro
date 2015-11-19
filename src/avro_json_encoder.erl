@@ -33,7 +33,7 @@ encode_type(Type) ->
 %% @doc Encode avro value in JSON format, use jsonx as default encoder.
 %% fallback to mochijson3 in case of failure
 %% @end
--spec encode_value(avro_value()) -> binary().
+-spec encode_value(avro_value() | avro_encoded_value()) -> binary().
 encode_value(Value) ->
   R = try encode_value(Value, jsonx)
       catch _ : _ -> encode_value(Value, mochijson3)
@@ -157,8 +157,8 @@ encode_order(ascending)  -> <<"ascending">>;
 encode_order(descending) -> <<"descending">>;
 encode_order(ignore)     -> <<"ignore">>.
 
-do_encode_value(?AVRO_VALUE(_, _Value = {json, IoData})) ->
-  {json, IoData};
+do_encode_value(?AVRO_ENCODED_VALUE_JSON(_Type, _Value = Encoded)) ->
+  {json, Encoded};
 
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
   null;
