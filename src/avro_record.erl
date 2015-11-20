@@ -176,8 +176,8 @@ new_encoded(Type, Value, _EncodeTo = json_binary) ->
 get(FieldName, Record) ->
   get_value(FieldName, Record).
 
--spec get_value(string(), avro_value()) -> avro_value() | no_return().
-
+-spec get_value(string(), avro_value()) ->
+        avro_value() | no_return().
 get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
@@ -191,8 +191,8 @@ set(Values, Record) ->
   set_values(Values, Record).
 
 %% Set values for multiple fields in one call
--spec set_values([{string(), any()}], avro_value()) -> avro_value() | no_return().
-
+-spec set_values([{string(), any()}], avro_value()) ->
+        avro_value() | no_return().
 set_values(Values, Record) ->
   lists:foldl(
     fun({FieldName, Value}, R) ->
@@ -206,8 +206,8 @@ set(FieldName, Value, Record) ->
   set_value(FieldName, Value, Record).
 
 %% Set value for the specified field
--spec set_value(string(), avro_value(), avro_value()) -> avro_value().
-
+-spec set_value(string(), avro_value(), avro_value()) ->
+        avro_value() | no_return().
 set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
@@ -227,8 +227,8 @@ set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
 %% update(FieldName, Fun, Record) is equivalent to
 %% set(FieldName, Fun(get(FieldName,Record)), Record),
 %% but faster.
--spec update(string(), function(), avro_value()) -> avro_value().
-
+-spec update(string(), function(), avro_value()) ->
+        avro_value() | no_return().
 update(FieldName, Fun, Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
