@@ -167,18 +167,21 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
 %% @end
 -spec new_encoded(#avro_record_type{}, term(), avro_encoding()) ->
         avro_encoded_value().
-new_encoded(Type, Value, _EncodeTo = json) ->
+new_encoded(Type, Value, _EncodeTo = json_binary) ->
   AvroValue = new(Type, Value),
-  ?AVRO_ENCODED_VALUE_JSON(Type, avro_json_encoder:encode_value(AvroValue)).
+  JsonIoData = avro_json_encoder:encode_value(AvroValue),
+  ?AVRO_ENCODED_VALUE_JSON(Type, iolist_to_binary(JsonIoData)).
 
 %% @deprecated Use get_value instead
 get(FieldName, Record) ->
   get_value(FieldName, Record).
 
--spec get_value(string(), avro_value()) -> avro_value().
+-spec get_value(string(), avro_value()) -> avro_value() | no_return().
 
 get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
-  case lists:keyfind(FieldName, 1, ?AVRO_VALUE_DATA(Record)) of
+  Data = ?AVRO_VALUE_DATA(Record),
+  ok = ?ASSERT_AVRO_VALUE(Data),
+  case lists:keyfind(FieldName, 1, Data) of
     {_N, _T, V} -> V;
     false       -> erlang:error({unknown_field, FieldName})
   end.
@@ -188,7 +191,7 @@ set(Values, Record) ->
   set_values(Values, Record).
 
 %% Set values for multiple fields in one call
--spec set_values([{string(), any()}], avro_value()) -> avro_value().
+-spec set_values([{string(), any()}], avro_value()) -> avro_value() | no_return().
 
 set_values(Values, Record) ->
   lists:foldl(
@@ -207,6 +210,7 @@ set(FieldName, Value, Record) ->
 
 set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
+  ok = ?ASSERT_AVRO_VALUE(Data),
   NewData =
     case lists:keytake(FieldName, 1, Data) of
       {value, {_,T,_}, Rest} ->
@@ -227,6 +231,7 @@ set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
 
 update(FieldName, Fun, Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
+  ok = ?ASSERT_AVRO_VALUE(Data),
   NewData =
     case lists:keytake(FieldName, 1, Data) of
       {value, {_,T,OldValue}, Rest} ->
@@ -241,11 +246,13 @@ update(FieldName, Fun, Record) ->
 
 %% Extract fields and their values from the record.
 to_list(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+  Data = ?AVRO_VALUE_DATA(Record),
+  ok = ?ASSERT_AVRO_VALUE(Data),
   lists:map(
     fun({N, _T, V}) ->
         {N,V}
     end,
-    ?AVRO_VALUE_DATA(Record)).
+    Data).
 
 %%%===================================================================
 %%% Internal functions
@@ -433,6 +440,25 @@ cast_by_aliases_test() ->
                                    {"al1", "foo"}]),
   ?assertEqual(avro_primitive:string("foo"), get_value("a", Record)),
   ?assertEqual(avro_primitive:int(1), get_value("b", Record)).
+
+new_encoded_test() ->
+  Type = type("Test",
+              [ define_field("field1", avro_primitive:long_type())
+              , define_field("field2", avro_primitive:string_type())
+              ],
+              [ {namespace, "name.space"}
+              ]),
+  Fields = [ {"field1", avro_primitive:long(1)}
+           , {"field2", avro_primitive:string("f")}
+           ],
+  Rec = new_encoded(Type, Fields, json_binary),
+  ?assertException(throw, {value_already_encoded, _},
+                   get_value("any", Rec)),
+  ?assertException(throw, {value_already_encoded, _},
+                   set_value("any", "whatever", Rec)),
+  ?assertException(throw, {value_already_encoded, _},
+                   update("any", fun()-> "care not" end, Rec)),
+  ?assertException(throw, {value_already_encoded, _}, to_list(Rec)).
 
 -endif.
 

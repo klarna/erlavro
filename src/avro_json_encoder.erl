@@ -26,19 +26,18 @@
 %% @doc Encode avro schema in JSON format.
 %% We do not expect any failure in avro schema encoding.
 %% @end
--spec encode_type(avro_type()) -> binary().
+-spec encode_type(avro_type()) -> iodata().
 encode_type(Type) ->
-  iolist_to_binary(jsonx:encode(do_encode_type(Type))).
+  jsonx:encode(do_encode_type(Type)).
 
 %% @doc Encode avro value in JSON format, use jsonx as default encoder.
 %% fallback to mochijson3 in case of failure
 %% @end
--spec encode_value(avro_value() | avro_encoded_value()) -> binary().
+-spec encode_value(avro_value() | avro_encoded_value()) -> iodata().
 encode_value(Value) ->
-  R = try encode_value(Value, jsonx)
-      catch _ : _ -> encode_value(Value, mochijson3)
-      end,
-  iolist_to_binary(R).
+  try encode_value(Value, jsonx)
+  catch _ : _ -> encode_value(Value, mochijson3)
+  end.
 
 %% @doc Allow caller to choose encoder so it can fallback to another
 %% in case of falure etc.
