@@ -227,4 +227,20 @@
 
 -define(ERROR_IF_NOT(Cond, Err), ?ERROR_IF(not (Cond), Err)).
 
+-type avro_encoding() :: json_binary.
+
+-define(AVRO_ENCODED_VALUE_JSON(Type, Value), ?AVRO_VALUE(Type, {json, Value})).
+
+%% avro_encoded_value() can be used as a nested inner value of
+%% a parent avor_value(), but can not be used for further update or
+%% inspection using APIs in avro_xxx modules.
+-type avro_encoded_value() :: #avro_value{}.
+
+%% Throw an exception in case the value is already encoded.
+-define(ASSERT_AVRO_VALUE(VALUE),
+        case VALUE of
+          {json, _} -> erlang:throw({value_already_encoded, VALUE});
+          _         -> ok
+        end).
+
 -endif.

@@ -194,7 +194,7 @@ init_ets_store(Access) when
     Access =:= private orelse
     Access =:= protected orelse
     Access =:= public ->
-  ets:new(?ETS_TABLE_NAME, [Access]).
+  ets:new(?ETS_TABLE_NAME, [Access, {read_concurrency, true}]).
 
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
