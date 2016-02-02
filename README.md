@@ -2,11 +2,14 @@ Avro support for Erlang (http://avro.apache.org/).
 
 Current version implements Apache Avro 1.7.5 specification.
 
+License: Apache License 2.0
+
 Compilation
 -----------
 
    make
 
+Dependencies: jsonx and mochijson3 (see rebar.config).
 
 Technical information
 ---------------------
@@ -25,12 +28,12 @@ Erlang version doesn't make a difference between float and double values.
 To do
 -----
 
-This version of library supports only subset of all functionality needed to
-export data from BIX. What things should be done:
+This version of library supports only subset of all functionality.
+What things should be done:
 
-2. Support of binary encoder/decoder.
-4. Parsing Canonical Form.
-5. Object (avro_schema) to manage all types included in the schema,
+1. Support of binary encoder/decoder.
+2. Parsing Canonical Form.
+3. Object (avro_schema) to manage all types included in the schema,
    with consistency checks, etc. (DONE without consistency checks).
-6. Better coverage of possible operations by modules, so ?AVRO_VALUE*
+4. Better coverage of possible operations by modules, so ?AVRO_VALUE*
    macros are not exposed to external code.
