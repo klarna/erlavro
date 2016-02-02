@@ -1,6 +1,6 @@
 {application, erlavro,
  [
-  {description, "Implemenation of Apache Avro support for Erlang"},
+  {description, "Apache Avro support for Erlang"},
   {vsn, "1.1.0"},
   {registered, []},
   {applications, [
