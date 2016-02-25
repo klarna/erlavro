@@ -44,7 +44,7 @@
 %% API functions which should be used only inside erlavro
 -export([new_direct/2]).
 
--include_lib("erlavro/include/erlavro.hrl").
+-include("erlavro.hrl").
 
 %%%===================================================================
 %%% API

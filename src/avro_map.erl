@@ -30,7 +30,7 @@
 -export([cast/2]).
 -export([to_term/1]).
 
--include_lib("erlavro/include/erlavro.hrl").
+-include("erlavro.hrl").
 
 %%%===================================================================
 %%% API
