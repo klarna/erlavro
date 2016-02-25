@@ -45,7 +45,7 @@
 
 -export([get_value/1]).
 
--include_lib("erlavro/include/erlavro.hrl").
+-include("erlavro.hrl").
 
 
 %%%===================================================================
