@@ -3,3 +3,4 @@ ebin/*.beam
 .eunit
 /lib/
 /.rebar/
+doc/
