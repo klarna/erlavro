@@ -30,6 +30,7 @@
 -export([type/3]).
 -export([new/2]).
 -export([get_value/1]).
+-export([get_index/1]).
 -export([cast/2]).
 
 -include("erlavro.hrl").
@@ -60,6 +61,7 @@ type(Name, Symbols, Opts) ->
                          Aliases, Name, Ns, EnclosingNs)
          , doc       = Doc
          , symbols   = Symbols
+         , symbol_t  = build_symbol_tree(Symbols)
          , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
          },
   avro_util:verify_type(Type),
@@ -75,6 +77,11 @@ new(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
 
 get_value(Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
+
+get_index(Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
+  Type = ?AVRO_VALUE_TYPE(Value),
+  Symbol = ?AVRO_VALUE_DATA(Value),
+  gb_trees:get(Symbol, Type#avro_enum_type.symbol_t).
 
 %% Enums can be casted from other enums or strings
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
@@ -102,12 +109,17 @@ do_cast(Type, Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
      true                              -> {error, type_name_mismatch}
   end;
 do_cast(Type, Value) when is_list(Value) ->
-  case lists:member(Value, Type#avro_enum_type.symbols) of
-    true  -> {ok, ?AVRO_VALUE(Type, Value)};
-    false -> {error, {cast_error, Type, Value}}
+  case gb_trees:lookup(Value, Type#avro_enum_type.symbol_t) of
+    {value, _} -> {ok, ?AVRO_VALUE(Type, Value)};
+    none       -> {error, {cast_error, Type, Value}}
   end;
 do_cast(Type, Value) ->
   {error, {cast_error, Type, Value}}.
+
+build_symbol_tree(Symbols) ->
+  %% Symbol tree is used to retrieve efficiently enum indexes
+  Items = lists:zip(Symbols, lists:seq(0, length(Symbols) - 1)),
+  gb_trees:from_orddict(lists:sort(Items)).
 
 %%%===================================================================
 %%% Tests

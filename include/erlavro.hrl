@@ -79,6 +79,7 @@
         , aliases   = []      :: [string()]
         , doc       = ""      :: string()
         , symbols   ?REQUIRED :: [string()]
+        , symbol_t  ?REQUIRED :: gb_trees:tree()
         %% -- service fields --
         , fullname  ?REQUIRED :: string()
         }).
