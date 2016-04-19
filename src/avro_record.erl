@@ -32,6 +32,7 @@
 -export([field/3]). %% DEPRECATED
 -export([field/4]). %% DEPRECATED
 -export([get_field_type/2]).
+-export([get_all_field_types/1]).
 
 -export([cast/2]).
 
@@ -155,6 +156,17 @@ get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
     false -> erlang:error({unknown_field, FieldName})
   end.
 
+-spec get_all_field_types(#avro_record_type{}) ->
+        [{string(), avro_type_or_name()}].
+get_all_field_types(Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
+  #avro_record_type{fields = Fields} = Type,
+  lists:map(
+    fun(#avro_record_field{ name = FieldName
+                          , type = FieldTypeOrName
+                          }) ->
+      {FieldName, FieldTypeOrName}
+    end, Fields).
+
 %%%===================================================================
 %%% API: casting
 %%%===================================================================
@@ -184,10 +196,20 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
 %% @end
 -spec new_encoded(#avro_record_type{}, term(), avro_encoding()) ->
         avro_encoded_value().
-new_encoded(Type, Value, _EncodeTo = json_binary) ->
+new_encoded(Type, Value, json_binary) ->
+  %% this clause is for backward compatibility
+  %% 'json_binary' is used before 1.3
+  new_encoded(Type, Value, avro_json);
+new_encoded(Type, Value, EncodeTo) ->
   AvroValue = new(Type, Value),
-  JsonIoData = avro_json_encoder:encode_value(AvroValue),
-  ?AVRO_ENCODED_VALUE_JSON(Type, iolist_to_binary(JsonIoData)).
+  case EncodeTo of
+    avro_json ->
+      JsonIoData = avro_json_encoder:encode_value(AvroValue),
+      ?AVRO_ENCODED_VALUE_JSON(Type, iolist_to_binary(JsonIoData));
+    avro_binary ->
+      AvroIoData = avro_binary_encoder:encode_value(AvroValue),
+      ?AVRO_ENCODED_VALUE_BINARY(Type, iolist_to_binary(AvroIoData))
+  end.
 
 %% @deprecated Use get_value instead
 get(FieldName, Record) ->
@@ -328,6 +350,11 @@ do_cast(Type, Value) when ?AVRO_IS_RECORD_VALUE(Value) ->
   ValueTypeFullName = ValueType#avro_record_type.fullname,
   if TargetTypeFullName =:= ValueTypeFullName -> {ok, Value};
      true                                     -> {error, type_name_mismatch}
+  end;
+do_cast(Type, {Name, Proplist}) when is_list(Proplist) ->
+  case Type#avro_record_type.fullname =:= Name of
+    true  -> do_cast(Type, Proplist);
+    false -> {error, {record_name_mismatch, Type, Name}}
   end;
 do_cast(Type, Proplist) when is_list(Proplist) ->
   FieldsWithValues = cast_fields(Type#avro_record_type.fields, Proplist, []),

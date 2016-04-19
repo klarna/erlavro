@@ -31,9 +31,8 @@ To do
 This version of library supports only subset of all functionality.
 What things should be done:
 
-1. Support of binary encoder/decoder.
-2. Parsing Canonical Form.
-3. Object (avro_schema) to manage all types included in the schema,
+1. Parsing Canonical Form.
+2. Object (avro_schema) to manage all types included in the schema,
    with consistency checks, etc. (DONE without consistency checks).
-4. Better coverage of possible operations by modules, so ?AVRO_VALUE*
+3. Better coverage of possible operations by modules, so ?AVRO_VALUE*
    macros are not exposed to external code.

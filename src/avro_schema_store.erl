@@ -88,7 +88,7 @@ add_type(Type, Store) ->
         do_add_type(ConvertedType, Store),
         ExtractedTypes);
     false ->
-      erlang:error(unnamed_type_cant_be_added)
+      erlang:error({unnamed_type_cant_be_added, Type})
   end.
 
 -spec lookup_type(string(), store()) -> {ok, avro_type()} | false.

@@ -27,6 +27,7 @@
 -export([get_items_type/1]).
 -export([new/2]).
 -export([to_dict/1]).
+-export([to_list/1]).
 -export([cast/2]).
 -export([to_term/1]).
 
@@ -50,6 +51,9 @@ new(Type, Data) when ?AVRO_IS_MAP_TYPE(Type) ->
 
 to_dict(Value) when ?AVRO_IS_MAP_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
+
+to_list(Value) when ?AVRO_IS_MAP_VALUE(Value) ->
+  lists:keysort(1, dict:to_list(?AVRO_VALUE_DATA(Value))).
 
 %% Value is other Avro map value or a proplist with string keys.
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
