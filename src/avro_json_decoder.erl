@@ -25,10 +25,12 @@
 -export([ decode_schema/1
         , decode_schema/2
         , decode_value/3
-        , decode_value_jsonx/3
+        , decode_value/4
         ]).
 
 -include("erlavro.hrl").
+
+-type options() :: [{atom(), term()}].
 
 %%%===================================================================
 %%% API
@@ -47,18 +49,6 @@ decode_schema(Json) ->
 decode_schema(JsonSchema, ExtractTypeFun) ->
   parse_schema(mochijson3:decode(JsonSchema), "", ExtractTypeFun).
 
-%% Decode value specified as Json string according to Avro schema
-%% in Schema. ExtractTypeFun should be provided to retrieve types
-%% specified by their names inside Schema.
--spec decode_value(string(),
-                   avro_type_or_name(),
-                   fun((string()) -> avro_type()))
-                  -> avro_value().
-
-decode_value(JsonValue, Schema, ExtractTypeFun) ->
-  parse_value(mochijson3:decode(JsonValue), Schema, ExtractTypeFun).
-
-%% Experimental support for jsonx decoding.
 %% jsonx is about 12 times faster than mochijson3 and almost compatible
 %% with it. The one discovered incompatibility is that jsonx performs more
 %% strict checks on incoming json strings and can fail on some cases
@@ -66,18 +56,37 @@ decode_value(JsonValue, Schema, ExtractTypeFun) ->
 %% without problems.
 %% Current strategy is to use jsonx as the main parser and fall back to
 %% mochijson3 in case of parsing issues.
--spec decode_value_jsonx(string(),
-                         avro_type_or_name(),
-                         fun((string()) -> avro_type()))
-                        -> avro_value().
+-spec decode_value(binary(), avro_type_or_name(),
+                   fun((string()) -> avro_type()), options()) ->
+                      avro_value() | term().
+decode_value(JsonValue, Schema, ExtractTypeFun, Options) ->
+  DecodedJson =
+    case lists:keyfind(decoder, Options) of
+      {_, jsonx} ->
+        case jsonx:decode(JsonValue, [{format, struct}]) of
+          {error, _Err, _Pos} ->
+            mochijson3:decode(JsonValue);
+          Decoded ->
+            Decoded
+        end;
+      _ ->
+        mochijson3:decode(JsonValue)
+    end,
+  IsWrapped = case lists:keyfind(is_wrapped, Options) of
+                {is_wrapped, V} -> V;
+                false           -> true %% parse to wrapped value by default
+              end,
+  parse(DecodedJson, Schema, ExtractTypeFun, IsWrapped).
 
-decode_value_jsonx(JsonValue, Schema, ExtractTypeFun) ->
-  case jsonx:decode(JsonValue, [{format, struct}]) of
-    {error, _Err, _Pos} ->
-      decode_value(JsonValue, Schema, ExtractTypeFun);
-    Decoded ->
-      parse_value(Decoded, Schema, ExtractTypeFun)
-  end.
+%% Decode value specified as Json string according to Avro schema
+%% in Schema. ExtractTypeFun should be provided to retrieve types
+%% specified by their names inside Schema.
+-spec decode_value(binary(),
+                   avro_type_or_name(),
+                   fun((string()) -> avro_type()))
+                  -> avro_value().
+decode_value(JsonValue, Schema, ExtractTypeFun) ->
+  decode_value(JsonValue, Schema, ExtractTypeFun, [{decoder, mochijson3}]).
 
 %%%===================================================================
 %%% Schema parsing
@@ -266,68 +275,70 @@ type_from_name(_)                 -> undefined.
 %%% Values parsing
 %%%===================================================================
 
-parse_value(null, Type, _ExtractFun) when ?AVRO_IS_NULL_TYPE(Type) ->
+parse_value(Value, Type, ExtractFun) ->
+  parse(Value, Type, ExtractFun, _IsWrapped = true).
+
+parse(Value, TypeName, ExtractFun, IsWrapped) when is_list(TypeName) ->
+  %% Type is defined by its name
+  Type = ExtractFun(TypeName),
+  parse(Value, Type, ExtractFun, IsWrapped);
+parse(Value, Type, _ExtractFun, IsWrapped) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
+  WrappedValue = parse_prim(Value, Type),
+  case IsWrapped of
+    true  -> WrappedValue;
+    false -> avro_primitive:get_value(WrappedValue)
+  end;
+parse(V, Type, _ExtractFun, IsWrapped) when ?AVRO_IS_ENUM_TYPE(Type)
+                                            andalso is_binary(V) ->
+  case IsWrapped of
+    true  -> avro_enum:new(Type, binary_to_list(V));
+    false -> binary_to_list(V)
+  end;
+parse(V, Type, _ExtractFun, IsWrapped) when ?AVRO_IS_FIXED_TYPE(Type) ->
+  case IsWrapped of
+    true  -> avro_fixed:new(Type, parse_bytes(V));
+    false -> parse_bytes(V)
+  end;
+parse(V, Type, ExtractFun, IsWrapped) when ?AVRO_IS_RECORD_TYPE(Type) ->
+  parse_record(V, Type, ExtractFun, IsWrapped);
+parse(V, Type, ExtractFun, IsWrapped) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+  parse_array(V, Type, ExtractFun, IsWrapped);
+parse(V, Type, ExtractFun, IsWrapped) when ?AVRO_IS_MAP_TYPE(Type) ->
+  parse_map(V, Type, ExtractFun, IsWrapped);
+parse(V, Type, ExtractFun, IsWrapped) when ?AVRO_IS_UNION_TYPE(Type) ->
+  parse_union(V, Type, ExtractFun, IsWrapped);
+parse(Value, Type, _ExtractFun, _IsWrapped) ->
+  erlang:error({value_does_not_correspond_to_schema, Type, Value}).
+
+%% Parse primitive values, return wrapped value.
+parse_prim(null, Type) when ?AVRO_IS_NULL_TYPE(Type) ->
   avro_primitive:null();
-
-parse_value(V, Type, _ExtractFun) when ?AVRO_IS_BOOLEAN_TYPE(Type) andalso
-                                       is_boolean(V) ->
+parse_prim(V, Type) when ?AVRO_IS_BOOLEAN_TYPE(Type) andalso is_boolean(V) ->
   avro_primitive:boolean(V);
-
-parse_value(V, Type, _ExtractFun) when ?AVRO_IS_INT_TYPE(Type) andalso
-                                       is_integer(V)           andalso
-                                       V >= ?INT4_MIN          andalso
-                                       V =< ?INT4_MAX ->
+parse_prim(V, Type) when ?AVRO_IS_INT_TYPE(Type) andalso
+                         is_integer(V)           andalso
+                         V >= ?INT4_MIN          andalso
+                         V =< ?INT4_MAX ->
   avro_primitive:int(V);
-
-parse_value(V, Type, _ExtractFun) when ?AVRO_IS_LONG_TYPE(Type) andalso
-                                       is_integer(V)            andalso
-                                       V >= ?INT8_MIN           andalso
-                                       V =< ?INT8_MAX ->
+parse_prim(V, Type) when ?AVRO_IS_LONG_TYPE(Type) andalso
+                          is_integer(V)            andalso
+                          V >= ?INT8_MIN           andalso
+                          V =< ?INT8_MAX ->
   avro_primitive:long(V);
-
-parse_value(V, Type, _ExtractFun) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
-                                       (is_float(V) orelse is_integer(V)) ->
+parse_prim(V, Type) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
+                          (is_float(V) orelse is_integer(V)) ->
   avro_primitive:float(V);
-
-parse_value(V, Type, _ExtractFun) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
-                                       (is_float(V) orelse is_integer(V)) ->
+parse_prim(V, Type) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
+                         (is_float(V) orelse is_integer(V)) ->
   avro_primitive:double(V);
-
-parse_value(V, Type, _ExtractFun) when ?AVRO_IS_BYTES_TYPE(Type) andalso
-                                       is_binary(V) ->
+parse_prim(V, Type) when ?AVRO_IS_BYTES_TYPE(Type) andalso
+                         is_binary(V) ->
   Bin = parse_bytes(V),
   avro_primitive:bytes(Bin);
+parse_prim(V, Type) when ?AVRO_IS_STRING_TYPE(Type) andalso
+                         is_binary(V) ->
+  avro_primitive:string(binary_to_list(V)).
 
-parse_value(V, Type, _ExtractFun) when ?AVRO_IS_STRING_TYPE(Type) andalso
-                                       is_binary(V) ->
-  avro_primitive:string(binary_to_list(V));
-
-parse_value(V, Type, ExtractFun) when ?AVRO_IS_RECORD_TYPE(Type) ->
-  parse_record(V, Type, ExtractFun);
-
-parse_value(V, Type, _ExtractFun) when ?AVRO_IS_ENUM_TYPE(Type)
-                                  andalso is_binary(V) ->
-  avro_enum:new(Type, binary_to_list(V));
-
-parse_value(V, Type, ExtractFun) when ?AVRO_IS_ARRAY_TYPE(Type) ->
-  parse_array(V, Type, ExtractFun);
-
-parse_value(V, Type, ExtractFun) when ?AVRO_IS_MAP_TYPE(Type) ->
-  parse_map(V, Type, ExtractFun);
-
-parse_value(V, Type, ExtractFun) when ?AVRO_IS_UNION_TYPE(Type) ->
-  parse_union(V, Type, ExtractFun);
-
-parse_value(V, Type, ExtractFun) when ?AVRO_IS_FIXED_TYPE(Type) ->
-  parse_fixed(V, Type, ExtractFun);
-
-parse_value(Value, SchemaName, ExtractFun) when is_list(SchemaName) ->
-  %% Type is defined by its name
-  Schema = ExtractFun(SchemaName),
-  parse_value(Value, Schema, ExtractFun);
-
-parse_value(_Value, _Schema, _ExtractFun) ->
-  erlang:error(value_does_not_correspond_to_schema).
 
 parse_bytes(BytesStr) ->
   list_to_binary(parse_bytes(BytesStr, [])).
@@ -340,70 +351,86 @@ parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
 parse_bytes(_, _) ->
   erlang:error(wrong_bytes_string).
 
-parse_record({struct, Attrs}, Type, ExtractFun) ->
-  Fields = convert_attrs_to_record_fields(Attrs, Type, ExtractFun),
-  avro_record:new(Type, Fields);
-parse_record(_, _, _) ->
+parse_record({struct, Attrs}, Type, ExtractFun, IsWrapped) ->
+  Fields = convert_attrs_to_record_fields(Attrs, Type, ExtractFun, IsWrapped),
+  case IsWrapped of
+    true ->
+      avro_record:new(Type, Fields);
+    false ->
+      Name = avro:get_type_fullname(Type),
+      {Name, Fields}
+  end;
+parse_record(_, _, _, _) ->
   erlang:error(wrong_record_value).
 
-convert_attrs_to_record_fields(Attrs, Type, ExtractFun) ->
+convert_attrs_to_record_fields(Attrs, Type, ExtractFun, IsWrapped) ->
   lists:map(
     fun({FieldNameBin, Value}) ->
         FieldName = binary_to_list(FieldNameBin),
         FieldType = avro_record:get_field_type(FieldName, Type),
-        {FieldName, parse_value(Value, FieldType, ExtractFun)}
+        {FieldName, parse(Value, FieldType, ExtractFun, IsWrapped)}
     end,
     Attrs).
 
-parse_array(V, Type, ExtractFun) when is_list(V) ->
+parse_array(V, Type, ExtractFun, IsWrapped) when is_list(V) ->
   ItemsType = avro_array:get_items_type(Type),
   Items = lists:map(
             fun(Item) ->
-                parse_value(Item, ItemsType, ExtractFun)
+                parse(Item, ItemsType, ExtractFun, IsWrapped)
             end,
             V),
-  %% Here we can use direct version of new because we casted all items
-  %% to the array type before
-  avro_array:new_direct(Type, Items);
-parse_array(_, _, _) ->
+  case IsWrapped of
+    true ->
+      %% Here we can use direct version of new because we casted all items
+      %% to the array type before
+      avro_array:new_direct(Type, Items);
+    false ->
+      Items
+  end;
+parse_array(_, _, _, _) ->
   erlang:error(wrong_array_value).
 
-parse_map({struct, Attrs}, Type, ExtractFun) ->
+parse_map({struct, Attrs}, Type, ExtractFun, IsWrapped) ->
   ItemsType = avro_map:get_items_type(Type),
   D = lists:foldl(
         fun({KeyBin, Value}, D) ->
             dict:store(binary_to_list(KeyBin),
-                       parse_value(Value, ItemsType, ExtractFun),
+                       parse(Value, ItemsType, ExtractFun, IsWrapped),
                        D)
         end,
         dict:new(),
         Attrs),
-  avro_map:new(Type, D).
+  case IsWrapped of
+    true  -> avro_map:new(Type, D);
+    false -> dict:to_list(D)
+  end.
 
-parse_union(null = Value, Type, ExtractFun) ->
+parse_union(null = Value, Type, ExtractFun, IsWrapped) ->
   %% Union values specified as null
-  parse_union_ex(?AVRO_NULL, Value, Type, ExtractFun);
-parse_union({struct, [{ValueTypeNameBin, Value}]}, Type, ExtractFun) ->
+  parse_union_ex(?AVRO_NULL, Value, Type, ExtractFun, IsWrapped);
+parse_union({struct, [{ValueTypeNameBin, Value}]}, Type, ExtractFun, IsWrapped) ->
   %% Union value specified as {"type": <value>}
   ValueTypeName = binary_to_list(ValueTypeNameBin),
-  parse_union_ex(ValueTypeName, Value, Type, ExtractFun);
-parse_union(_, _, _) ->
+  parse_union_ex(ValueTypeName, Value, Type, ExtractFun, IsWrapped);
+parse_union(_, _, _, _) ->
   erlang:error(wrong_union_value).
 
-parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun) ->
+parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun, IsWrapped) ->
   case avro_union:lookup_child_type(UnionType, ValueTypeName) of
     {ok, ValueType} ->
-      %% Here we can create the value directly because we know that
-      %% the type of value belongs to the union type and we can skip
-      %% additional looping over union types in avro_union:cast
-      avro_union:new_direct(UnionType,
-                            parse_value(Value, ValueType, ExtractFun));
+      ParsedValue = parse(Value, ValueType, ExtractFun, IsWrapped),
+      case IsWrapped of
+        true ->
+          %% Here we can create the value directly because we know that
+          %% the type of value belongs to the union type and we can skip
+          %% additional looping over union types in avro_union:cast
+          avro_union:new_direct(UnionType, ParsedValue);
+        false ->
+          ParsedValue
+      end;
     false ->
       erlang:error(unknown_type_of_union_value)
   end.
-
-parse_fixed(V, Type, _ExtractFun) ->
-  avro_fixed:new(Type, parse_bytes(V)).
 
 %%%===================================================================
 %%% Tests
