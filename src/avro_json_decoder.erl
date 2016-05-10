@@ -30,7 +30,10 @@
 
 -include("erlavro.hrl").
 
--type options() :: [{atom(), term()}].
+-type option_name() :: json_decoder
+                     | is_wrapped.
+
+-type options() :: [{option_name(), term()}].
 
 %%%===================================================================
 %%% API
@@ -49,44 +52,73 @@ decode_schema(Json) ->
 decode_schema(JsonSchema, ExtractTypeFun) ->
   parse_schema(mochijson3:decode(JsonSchema), "", ExtractTypeFun).
 
-%% jsonx is about 12 times faster than mochijson3 and almost compatible
-%% with it. The one discovered incompatibility is that jsonx performs more
-%% strict checks on incoming json strings and can fail on some cases
-%% (for example, on non-ascii symbols) while mochijson3 can parse such strings
-%% without problems.
-%% Current strategy is to use jsonx as the main parser and fall back to
-%% mochijson3 in case of parsing issues.
+%% @doc Decode value specified as Json string according to Avro schema
+%% in Schema. ExtractTypeFun should be provided to retrieve types
+%% specified by their names inside Schema.
+%%
+%% Options:
+%%   json_decoder (optional, default = jsonx)
+%%     jsonx | mochijson3
+%%     jsonx is about 12 times faster than mochijson3 and almost compatible
+%%     with it. The one discovered incompatibility is that jsonx performs more
+%%     strict checks on incoming json strings and can fail on some cases
+%%     (for example, on non-ascii symbols) while mochijson3 can parse such
+%%     strings without problems.
+%%     Current strategy is to use jsonx as the main parser and fall back to
+%%     mochijson3 in case of parsing issues.
+%%  is_wrapped (optional, default = true)
+%%     By default, this function returns #avro_value{} i.e. all values are
+%%     wrapped together with the type info.
+%%     If {is_wrapped, false} is given in Options, it returns unwrapped values
+%%     which is equivalent as calling avro_xxx:to_term/1 recursively
+%%     Unwrapped values for each avro type as in erlang spec:
+%%       null:   'null'.
+%%       int:    integer().
+%%       long:   integer().
+%%       float:  float().
+%%       double: float().
+%%       bytes:  binary().
+%%       string: string().
+%%       enum:   string().
+%%       fixed:  binary().
+%%       union:  unwrapped().
+%%       array:  [unwrapped()].
+%%       map:    [{Key :: string(), Value :: unwrapped()}].
+%%       record: {RecordTypeFullName(), [{FieldName(), unwrapped()}]}
+%%                 when RecordTypeFullName :: string(),
+%%                      FiledName          :: string().
+%% @end
 -spec decode_value(binary(), avro_type_or_name(),
                    fun((string()) -> avro_type()), options()) ->
                       avro_value() | term().
 decode_value(JsonValue, Schema, ExtractTypeFun, Options) ->
   DecodedJson =
-    case lists:keyfind(decoder, Options) of
-      {_, jsonx} ->
+    case lists:keyfind(json_decoder, 1, Options) of
+      {_, mochijson3} ->
+        mochijson3:decode(JsonValue);
+      _ ->
         case jsonx:decode(JsonValue, [{format, struct}]) of
           {error, _Err, _Pos} ->
             mochijson3:decode(JsonValue);
           Decoded ->
             Decoded
-        end;
-      _ ->
-        mochijson3:decode(JsonValue)
+        end
     end,
-  IsWrapped = case lists:keyfind(is_wrapped, Options) of
+  IsWrapped = case lists:keyfind(is_wrapped, 1, Options) of
                 {is_wrapped, V} -> V;
                 false           -> true %% parse to wrapped value by default
               end,
   parse(DecodedJson, Schema, ExtractTypeFun, IsWrapped).
 
-%% Decode value specified as Json string according to Avro schema
-%% in Schema. ExtractTypeFun should be provided to retrieve types
-%% specified by their names inside Schema.
+%% @doc This function is kept for backward compatibility.
+%% it calls decode_value/4 forcing to use mochijson3 as json decoder.
+%% @end
 -spec decode_value(binary(),
                    avro_type_or_name(),
                    fun((string()) -> avro_type()))
                   -> avro_value().
 decode_value(JsonValue, Schema, ExtractTypeFun) ->
-  decode_value(JsonValue, Schema, ExtractTypeFun, [{decoder, mochijson3}]).
+  decode_value(JsonValue, Schema, ExtractTypeFun, [{json_decoder, mochijson3}]).
 
 %%%===================================================================
 %%% Schema parsing
