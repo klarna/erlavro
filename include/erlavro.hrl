@@ -78,7 +78,7 @@
         , namespace = ""      :: string()
         , aliases   = []      :: [string()]
         , doc       = ""      :: string()
-        , symbols   ?REQUIRED :: [string()]
+        , symbols   ?REQUIRED :: gb_trees:tree()
         %% -- service fields --
         , fullname  ?REQUIRED :: string()
         }).
@@ -99,7 +99,7 @@
 -endif.
 
 -record(avro_union_type,
-        { types     ?REQUIRED :: [avro_type_or_name()]
+        { types     ?REQUIRED :: [{non_neg_integer(), avro_type_or_name()}]
           %% Precached dictionary of types inside the union,
           %% helps to speed up types lookups for big unions.
           %% Dictionary is filled only for big unions (>10)
@@ -243,9 +243,10 @@
 
 -define(ERROR_IF_NOT(Cond, Err), ?ERROR_IF(not (Cond), Err)).
 
--type avro_encoding() :: json_binary.
+-type avro_encoding() :: avro_json | avro_binary.
 
 -define(AVRO_ENCODED_VALUE_JSON(Type, Value), ?AVRO_VALUE(Type, {json, Value})).
+-define(AVRO_ENCODED_VALUE_BINARY(Type, Value), ?AVRO_VALUE(Type, {binary, Value})).
 
 %% avro_encoded_value() can be used as a nested inner value of
 %% a parent avor_value(), but can not be used for further update or

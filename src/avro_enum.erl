@@ -30,6 +30,9 @@
 -export([type/3]).
 -export([new/2]).
 -export([get_value/1]).
+-export([get_index/1]).
+-export([get_index/2]).
+-export([get_symbol_from_index/2]).
 -export([cast/2]).
 
 -include("erlavro.hrl").
@@ -76,6 +79,18 @@ new(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
 get_value(Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
 
+get_index(Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
+  Type = ?AVRO_VALUE_TYPE(Value),
+  Symbol = ?AVRO_VALUE_DATA(Value),
+  get_index(Type, Symbol).
+
+get_index(Type, Symbol) ->
+  get_index(Symbol, Type#avro_enum_type.symbols, 0).
+
+get_symbol_from_index(T, Index) when ?AVRO_IS_ENUM_TYPE(T) ->
+  true = (Index < length(T#avro_enum_type.symbols)),
+  lists:nth(Index + 1, T#avro_enum_type.symbols).
+
 %% Enums can be casted from other enums or strings
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
 
@@ -102,12 +117,20 @@ do_cast(Type, Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
      true                              -> {error, type_name_mismatch}
   end;
 do_cast(Type, Value) when is_list(Value) ->
-  case lists:member(Value, Type#avro_enum_type.symbols) of
+  case is_valid_symbol(Type, Value) of
     true  -> {ok, ?AVRO_VALUE(Type, Value)};
     false -> {error, {cast_error, Type, Value}}
   end;
 do_cast(Type, Value) ->
   {error, {cast_error, Type, Value}}.
+
+is_valid_symbol(Type, Symbol) ->
+  lists:member(Symbol, Type#avro_enum_type.symbols).
+
+get_index(Symbol, [Symbol | _Symbols], Index) ->
+  Index;
+get_index(Symbol, [_ | Symbols], Index) ->
+  get_index(Symbol, Symbols, Index + 1).
 
 %%%===================================================================
 %%% Tests

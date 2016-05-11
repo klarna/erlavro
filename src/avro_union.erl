@@ -33,6 +33,9 @@
 -export([type/1]).
 -export([get_types/1]).
 -export([lookup_child_type/2]).
+-export([get_child_type_name/1]).
+-export([get_child_type_index/1]).
+-export([get_child_type_index/2]).
 
 -export([cast/2]).
 -export([to_term/1]).
@@ -53,27 +56,56 @@
 type([]) ->
   erlang:error(avro_union_should_have_at_least_one_type);
 type(Types) when is_list(Types) ->
+  Count = length(Types),
+  IndexedTypes = lists:zip(lists:seq(0, Count - 1), Types),
   TypesDict =
-    case length(Types) > 10 of
-      true  -> build_types_dict(Types);
+    case Count > 10 of
+      true  -> build_types_dict(IndexedTypes);
       false -> undefined
     end,
   #avro_union_type
-  { types      = Types
+  { types      = IndexedTypes
   , types_dict = TypesDict
   }.
 
-get_types(#avro_union_type{types = Types}) -> Types.
+get_types(#avro_union_type{types = IndexedTypes}) ->
+  {_Ids, Types} = lists:unzip(IndexedTypes),
+  Types.
 
 %% Search for a type by its full name through the children types
 %% of the union
--spec lookup_child_type(#avro_union_type{}, string())
-                       -> false | {ok, avro_type()}.
+-spec lookup_child_type(#avro_union_type{}, string()) ->
+        false | {ok, avro_type()}.
+lookup_child_type(Union, TypeId) when is_integer(TypeId)  ->
+  #avro_union_type{types = IndexedTypes} = Union,
+  case lists:keyfind(TypeId, 1, IndexedTypes) of
+    {TypeId, Type} -> {ok, Type};
+    false          -> false
+  end;
+lookup_child_type(Union, TypeName) when is_list(TypeName) ->
+  case lookup(TypeName, Union) of
+    {ok, {_TypeId, Type}} -> {ok, Type};
+    false                 -> false
+  end.
 
-lookup_child_type(Union, TypeName) when ?AVRO_IS_UNION_TYPE(Union) ->
-  case Union#avro_union_type.types_dict of
-    undefined -> lookup_type_direct(TypeName, Union#avro_union_type.types);
-    TypesDict -> lookup_type_in_dict(TypeName, TypesDict)
+-spec get_child_type_index(#avro_value{}) -> non_neg_integer().
+get_child_type_index(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+  UnionType = ?AVRO_VALUE_TYPE(Union),
+  TypeName = get_child_type_name(Union),
+  {ok, Index} = get_child_type_index(UnionType, TypeName),
+  Index.
+
+-spec get_child_type_name(#avro_value{}) -> string().
+get_child_type_name(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+  TypedData = ?AVRO_VALUE_DATA(Union),
+  get_type_fullname_ex(?AVRO_VALUE_TYPE(TypedData)).
+
+-spec get_child_type_index(#avro_union_type{}, string()) ->
+        false | {ok, non_neg_integer()}.
+get_child_type_index(Union, TypeName) when ?AVRO_IS_UNION_TYPE(Union) ->
+  case lookup(TypeName, Union) of
+    {ok, {TypeId, _Type}} -> {ok, TypeId};
+    false                 -> false
   end.
 
 new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
@@ -106,7 +138,6 @@ set_value(Union, Value) when ?AVRO_IS_UNION_VALUE(Union) ->
 %% use such combinations of types at all.
 
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
-
 cast(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
   do_cast(Type, Value).
 
@@ -117,21 +148,13 @@ to_term(Union) -> avro:to_term(get_value(Union)).
 %%% Internal functions
 %%%===================================================================
 
-build_types_dict(Types) ->
+build_types_dict(IndexedTypes) ->
   lists:foldl(
-    fun(Type, D) ->
-        dict:store(get_type_fullname_ex(Type), Type, D)
+    fun({Index, Type}, D) ->
+        dict:store(get_type_fullname_ex(Type), {Index, Type}, D)
     end,
     dict:new(),
-    Types).
-
-lookup_type_direct(_TypeName, []) ->
-  false;
-lookup_type_direct(TypeName, [Type|Rest]) ->
-  CandidateTypeName = get_type_fullname_ex(Type),
-  if TypeName =:= CandidateTypeName -> {ok, Type};
-     true                           -> lookup_type_direct(TypeName, Rest)
-  end.
+    IndexedTypes).
 
 %% If type is specified by its name then return this name,
 %% otherwise return type's full name.
@@ -140,10 +163,20 @@ get_type_fullname_ex(TypeName) when is_list(TypeName) ->
 get_type_fullname_ex(Type) ->
   avro:get_type_fullname(Type).
 
-lookup_type_in_dict(TypeName, Dict) ->
+lookup(TypeName, #avro_union_type{types = Types, types_dict = undefined}) ->
+  scan(TypeName, Types);
+lookup(TypeName, #avro_union_type{types_dict = Dict}) ->
   case dict:find(TypeName, Dict) of
-    {ok, _} = Res -> Res;
-    error         -> false
+    {ok, _IndexedType} = Res -> Res;
+    error                    -> false
+  end.
+
+scan(_TypeName, []) -> false;
+scan(TypeName, [{Id, Type} | Rest]) ->
+  CandidateTypeName = get_type_fullname_ex(Type),
+  case TypeName =:= CandidateTypeName of
+    true  -> {ok, {Id, Type}};
+    false -> scan(TypeName, Rest)
   end.
 
 do_cast(Type, Value) when ?AVRO_IS_UNION_VALUE(Value) ->
@@ -157,12 +190,11 @@ do_cast(Type, Value) ->
   end.
 
 -spec cast_over_types([], _Value) -> {ok, avro_value()} | {error, term()}.
-
 cast_over_types([], _Value) ->
   {error, type_mismatch};
-cast_over_types([T|H], Value) ->
-  case avro:cast(T, Value) of
-    {error, _} -> cast_over_types(H, Value);
+cast_over_types([{_Id,Type} | Rest], Value) ->
+  case avro:cast(Type, Value) of
+    {error, _} -> cast_over_types(Rest, Value);
     R          -> R %% appropriate type found
   end.
 
@@ -193,15 +225,33 @@ new_direct_test() ->
 
 lookup_child_type_from_tiny_union_test() ->
   Type = tiny_union(),
-  ExpectedRec = get_record(2),
-  ?assertEqual({ok, ExpectedRec},
-               lookup_child_type(Type, "com.klarna.test.bix.R2")).
+  ExpectedRec1 = get_record(1),
+  ?assertEqual({ok, ExpectedRec1},
+               lookup_child_type(Type, "com.klarna.test.bix.R1")),
+  ?assertEqual({ok, ExpectedRec1},
+               lookup_child_type(Type, 0)),
+  ExpectedRec2 = get_record(2),
+  ?assertEqual({ok, ExpectedRec2},
+               lookup_child_type(Type, "com.klarna.test.bix.R2")),
+  ?assertEqual({ok, ExpectedRec2},
+               lookup_child_type(Type, 1)).
+
 
 lookup_child_type_from_big_union_test() ->
   Type = big_union(),
   ExpectedRec = get_record(100),
   ?assertEqual({ok, ExpectedRec},
-               lookup_child_type(Type, "com.klarna.test.bix.R100")).
+               lookup_child_type(Type, "com.klarna.test.bix.R100")),
+  ?assertEqual({ok, ExpectedRec},
+               lookup_child_type(Type, 99)).
+
+get_child_type_index_test() ->
+  Type1 = tiny_union(),
+  Type2 = big_union(),
+  ?assertEqual({ok, 2},
+               get_child_type_index(Type1, "com.klarna.test.bix.R3")),
+  ?assertEqual({ok, 42},
+               get_child_type_index(Type2, "com.klarna.test.bix.R43")).
 
 to_term_test() ->
   Type = type([avro_primitive:null_type(), avro_primitive:int_type()]),
