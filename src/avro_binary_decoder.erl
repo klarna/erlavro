@@ -46,8 +46,8 @@ decode(IoData, Type, LookupFun) ->
   {Value, <<>>} = do_decode(IoData, Type, LookupFun),
   Value.
 
-%% @doc Decode the header of a byte stream, return unwrapped value and tail bytes
-%% in a tuple.
+%% @doc Decode the header of a byte stream,
+%% return unwrapped value and tail bytes in a tuple.
 %% @end
 -spec decode_stream(iodata(), string() | avro_type(),
                     fun((string()) -> avro_type())) -> term().
@@ -126,7 +126,7 @@ prim(Bin, "bytes") ->
   bytes(Bin);
 prim(Bin, "string") ->
   {Bytes, Tail} = bytes(Bin),
-  {unicode:characters_to_list(Bytes, utf8), Tail}.
+  {binary_to_list(Bytes), Tail}.
 
 bytes(Bin) ->
   {Size, Rest} = long(Bin),
@@ -237,10 +237,11 @@ decode_string_test() ->
   ?assertEqual(Str, decode_t(Enc, avro_primitive:string_type())).
 
 decode_utf8_string_test() ->
-  Str = "Avro Ã¤r populÃ¤r",
-  Utf8 = xmerl_ucs:to_utf8(Str),
-  Enc = [42, Utf8],
-  ?assertEqual(Str, decode_t(Enc, avro_primitive:string_type())).
+  Str = "Avro är populär",
+  Utf8 = unicode:characters_to_binary(Str, latin1, utf8),
+  Enc = [size(Utf8) * 2, Utf8],
+  ?assertEqual(binary_to_list(Utf8), decode_t(Enc, avro_primitive:string_type())),
+  ?assertEqual(Str, unicode:characters_to_list(Utf8, utf8)).
 
 decode_empty_array_test() ->
   Type = avro_array:type(avro_primitive:int_type()),

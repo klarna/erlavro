@@ -440,7 +440,8 @@ parse_map({struct, Attrs}, Type, ExtractFun, IsWrapped) ->
 parse_union(null = Value, Type, ExtractFun, IsWrapped) ->
   %% Union values specified as null
   parse_union_ex(?AVRO_NULL, Value, Type, ExtractFun, IsWrapped);
-parse_union({struct, [{ValueTypeNameBin, Value}]}, Type, ExtractFun, IsWrapped) ->
+parse_union({struct, [{ValueTypeNameBin, Value}]},
+            Type, ExtractFun, IsWrapped) ->
   %% Union value specified as {"type": <value>}
   ValueTypeName = binary_to_list(ValueTypeNameBin),
   parse_union_ex(ValueTypeName, Value, Type, ExtractFun, IsWrapped);
