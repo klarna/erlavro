@@ -403,8 +403,8 @@ encode_string_with_quoting_test() ->
     ?assertEqual("\"\\\"\\\\\"", to_string(Json)).
 
 encode_utf8_string_test() ->
-    S = xmerl_ucs:to_utf8("Avro är populär"),
-    Json = encode_value(avro_primitive:string(S)),
+    S = unicode:characters_to_binary("Avro är populär", latin1, utf8),
+    Json = encode_value(avro_primitive:string(binary_to_list(S))),
     ?assertEqual("\"Avro " ++ [195,164] ++ "r popul"++ [195,164] ++ "r\"",
                  to_string(Json)).
 

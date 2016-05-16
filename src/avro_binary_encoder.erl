@@ -225,7 +225,8 @@ varint(I) ->
 
 -ifdef(EUNIT).
 
--define(assertBinEq(A,B), ?assertEqual(iolist_to_binary(A),iolist_to_binary(B))).
+-define(assertBinEq(A,B),
+        ?assertEqual(iolist_to_binary(A),iolist_to_binary(B))).
 
 encode_null_test() ->
   BinNull = encode_value(avro_primitive:null()),
@@ -298,10 +299,9 @@ encode_string_with_quoting_test() ->
   ?assertBinEq([4, <<34, 92>>], BinString).
 
 encode_utf8_string_test() ->
-  S = xmerl_ucs:to_utf8("Avro √§r popul√§r"),
-  BinString = encode_value(avro_primitive:string(S)),
-  ?assertBinEq([42, <<65,118,114,111,32,195,131,194,164,114,32,
-                      112,111,112,117,108,195,131,194,164,114>>], BinString).
+  S = unicode:characters_to_binary("Avro ‰r popul‰r", latin1, utf8),
+  BinString = encode_value(avro_primitive:string(binary_to_list(S))),
+  ?assertBinEq([34, "Avro ", [195,164], "r popul", [195,164], "r"], BinString).
 
 encode_record_test() ->
   BinRecord = encode_value(sample_record()),
