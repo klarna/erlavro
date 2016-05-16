@@ -240,7 +240,8 @@ decode_utf8_string_test() ->
   Str = "Avro är populär",
   Utf8 = unicode:characters_to_binary(Str, latin1, utf8),
   Enc = [size(Utf8) * 2, Utf8],
-  ?assertEqual(binary_to_list(Utf8), decode_t(Enc, avro_primitive:string_type())),
+  ?assertEqual(binary_to_list(Utf8),
+               decode_t(Enc, avro_primitive:string_type())),
   ?assertEqual(Str, unicode:characters_to_list(Utf8, utf8)).
 
 decode_empty_array_test() ->
