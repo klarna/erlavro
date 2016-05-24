@@ -110,7 +110,8 @@ get_aliases(#avro_fixed_type{aliases = Aliases})  -> Aliases.
 %%%===================================================================
 %%% API: Reading schema from json file
 %%%===================================================================
--spec read_schema(file:filename()) -> avro_type().
+-spec read_schema(file:filename()) ->
+        {ok, avro_type()} | {error, any()}.
 read_schema(File) ->
   case file:read_file(File) of
     {ok, Data} ->
@@ -211,7 +212,7 @@ cast(Type, _)                       -> {error, {unknown_type, Type}}.
 
 
 %% @doc Convert avro values to erlang term.
--spec to_term(avro_value()) -> {ok, term()} | {error, any()}.
+-spec to_term(avro_value()) -> term().
 to_term(#avro_value{type = T} = V) -> to_term(T, V).
 
 to_term(#avro_primitive_type{}, V) -> avro_primitive:get_value(V);
@@ -221,7 +222,7 @@ to_term(#avro_array_type{}, V)     -> avro_array:to_term(V);
 to_term(#avro_map_type{}, V)       -> avro_map:to_term(V);
 to_term(#avro_union_type{}, V)     -> avro_union:to_term(V);
 to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V);
-to_term(T, _)                      -> {error, {unknown_type, T}}.
+to_term(T, _)                      -> erlang:error({unknown_type, T}).
 
 %%%===================================================================
 %%% Internal functions

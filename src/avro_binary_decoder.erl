@@ -29,29 +29,45 @@
 -module(avro_binary_decoder).
 
 -export([ decode/3
+        , decode/4
         , decode_stream/3
+        , decode_stream/4
         ]).
 
 -include("erlavro.hrl").
 
+-define(DEFAULT_HOOK, fun(__Type, __Data) -> ok end).
+
+-type hook_fun() :: fun((avro_type(), binary()) -> ok).
+-type lkup_fun() :: fun((string()) -> avro_type()).
+
 %%%_* APIs =====================================================================
+
+%% @doc decode/4 equivalent with default hook fun.
+-spec decode(iodata(), string() | avro_type(), lkup_fun()) -> term().
+decode(IoData, Type, Lkup) when is_function(Lkup, 1) ->
+  decode(IoData, Type, Lkup, ?DEFAULT_HOOK).
 
 %% @doc Decode bytes into unwrapped avro value, assuming the input bytes
 %% matches the given schema without tailing bytes.
 %% @end
 -spec decode(iodata(), string() | avro_type(),
-             fun((string()) -> avro_type())) -> term().
-decode(IoData, Type, LookupFun) ->
+             lkup_fun(), hook_fun()) -> term().
+decode(IoData, Type, Lkup, _Hook) ->
   %% return decoded value as raw erlang term directly
-  {Value, <<>>} = do_decode(IoData, Type, LookupFun),
+  {Value, <<>>} = do_decode(IoData, Type, Lkup),
   Value.
 
-%% @doc Decode the header of a byte stream,
-%% return unwrapped value and tail bytes in a tuple.
-%% @end
+%% @doc decode_stream/4 equivalent with default hook fun.
 -spec decode_stream(iodata(), string() | avro_type(),
                     fun((string()) -> avro_type())) -> term().
 decode_stream(IoData, Type, LookupFun) ->
+  decode_stream(IoData, Type, LookupFun, ?DEFAULT_HOOK).
+
+%% @doc Decode the header of a byte stream, return unwrapped value and tail
+%% bytes in a tuple.
+%% @end
+decode_stream(IoData, Type, LookupFun, _Hook) ->
   do_decode(IoData, Type, LookupFun).
 
 %%%_* Internal functions =======================================================
@@ -218,7 +234,8 @@ decode_float_test() ->
   Typed = avro_primitive:float(V_orig),
   Bin = avro_binary_encoder:encode_value(Typed),
   V_dec = decode_t(Bin, Type),
-  ?assert(abs(V_orig - V_dec) < 0.000001).
+  abs(V_orig - V_dec) < 0.000001 orelse
+    erlang:error({V_orig, V_dec}).
 
 decode_double_test() ->
   Type = avro_primitive:double_type(),
@@ -226,7 +243,8 @@ decode_double_test() ->
   Typed = avro_primitive:double(V_orig),
   Bin = avro_binary_encoder:encode_value(Typed),
   V_dec = decode_t(Bin, Type),
-  ?assert(abs(V_orig - V_dec) < 0.000000000001).
+  abs(V_orig - V_dec) < 0.000000000001 orelse
+    erlang:error({V_orig, V_dec}).
 
 decode_empty_bytes_test() ->
   ?assertEqual(<<>>, decode_t(<<0>>, avro_primitive:bytes_type())).

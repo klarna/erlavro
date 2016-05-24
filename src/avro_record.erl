@@ -194,7 +194,7 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
 %% NOTE: unlike avro_value()s, avro_encoded_value() can not be used
 %%       for further update or inner inspection anymore.
 %% @end
--spec new_encoded(#avro_record_type{}, term(), avro_encoding()) ->
+-spec new_encoded(#avro_record_type{}, term(), json_binary | avro_encoding()) ->
         avro_encoded_value().
 new_encoded(Type, Value, json_binary) ->
   %% this clause is for backward compatibility

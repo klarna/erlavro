@@ -11,6 +11,12 @@ Compilation
 
 Dependencies: jsonx and mochijson3 (see rebar.config).
 
+Dialyzer check
+--------------
+
+    # Add {d,'NOTEST'} to erl_opts in rebar.config first
+    make dialyze
+
 Technical information
 ---------------------
 

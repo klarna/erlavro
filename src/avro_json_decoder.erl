@@ -34,21 +34,20 @@
                      | is_wrapped.
 
 -type options() :: [{option_name(), term()}].
+-type lkup_fun() :: fun((string()) -> avro_type()).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
--spec decode_schema(string()) -> avro_type().
+-spec decode_schema(iodata()) -> avro_type().
 decode_schema(Json) ->
-  decode_schema(Json, no_function).
+  decode_schema(Json, fun(_) -> erlang:error(no_function) end).
 
 %% Decode Avro schema specified as Json string.
 %% ExtractTypeFun should be a function returning Avro type by its full name,
 %% it is needed to parse default values.
--spec decode_schema(string(),
-                    fun((string()) -> avro_type()))
-                    -> avro_type().
+-spec decode_schema(iodata(), lkup_fun()) -> avro_type().
 decode_schema(JsonSchema, ExtractTypeFun) ->
   parse_schema(mochijson3:decode(JsonSchema), "", ExtractTypeFun).
 
@@ -89,8 +88,7 @@ decode_schema(JsonSchema, ExtractTypeFun) ->
 %%                      FiledName          :: string().
 %% @end
 -spec decode_value(binary(), avro_type_or_name(),
-                   fun((string()) -> avro_type()), options()) ->
-                      avro_value() | term().
+                   lkup_fun(), options()) -> avro_value() | term().
 decode_value(JsonValue, Schema, ExtractTypeFun, Options) ->
   DecodedJson =
     case lists:keyfind(json_decoder, 1, Options) of
@@ -728,7 +726,6 @@ parse_value_with_extract_type_fun_test() ->
   ?assertEqual(ExpectedType, Type),
   Value = parse_value(ValueJson, Type, ExtractTypeFun),
   [Rec] = avro_array:get(Value),
-  ?assert(?AVRO_IS_RECORD_VALUE(Rec)),
   ?assertEqual("name.space.Test",
                avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
   ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).

@@ -74,7 +74,7 @@ get_types(#avro_union_type{types = IndexedTypes}) ->
 
 %% Search for a type by its full name through the children types
 %% of the union
--spec lookup_child_type(#avro_union_type{}, string()) ->
+-spec lookup_child_type(#avro_union_type{}, string() | integer()) ->
         false | {ok, avro_type()}.
 lookup_child_type(Union, TypeId) when is_integer(TypeId)  ->
   #avro_union_type{types = IndexedTypes} = Union,
