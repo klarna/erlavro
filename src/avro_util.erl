@@ -172,12 +172,13 @@ prf_decode(Type, Json) ->
   prf_decode(Type, Json, 100).
 
 prf_decode(Type, Json, Count) ->
+  Lkup = fun(_Name) -> erlang:error(unexpected) end,
   {Time, _} =
     timer:tc(
       fun() ->
           lists:foreach(
             fun(_) ->
-                avro_json_decoder:decode_value(Json, Type, none)
+                avro_json_decoder:decode_value(Json, Type, Lkup)
             end,
             lists:seq(1,Count))
       end),

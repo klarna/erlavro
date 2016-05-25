@@ -41,6 +41,7 @@
 %%% API
 %%%===================================================================
 
+-spec type(string(), [string()]) -> #avro_enum_type{} | no_return().
 type(Name, Symbols) ->
   type(Name, Symbols, []).
 
@@ -49,6 +50,8 @@ type(Name, Symbols) ->
 %%   doc          :: string()
 %%   aliases      :: [string()]
 %%   enclosing_ns :: string()
+-spec type(string(), [string()], [{atom(), term()}]) ->
+        #avro_enum_type{} | no_return().
 type(Name, Symbols, Opts) ->
   check_symbols(Symbols),
   Ns          = avro_util:get_opt(namespace, Opts, ""),

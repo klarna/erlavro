@@ -47,7 +47,7 @@
 
 -include("erlavro.hrl").
 
--opaque store() :: ets:tid().
+-opaque store() :: ets:tab().
 
 -export_type([store/0]).
 
@@ -58,7 +58,6 @@
 %%%===================================================================
 
 -spec new() -> store().
-
 new() ->
   new([]).
 
@@ -69,11 +68,12 @@ new() ->
 %% IDEA: {storage, ets|plain} - choose where to store the schema,
 %%     in an ets table or directly in the store. Currently only ets is
 %%     supported.
-
+-spec new([proplists:property()]) -> store().
 new(Options) ->
   Access = proplists:get_value(access, Options, private),
   init_ets_store(Access).
 
+-spec close(store()) -> ok.
 close(Store) ->
   destroy_ets_store(Store).
 
@@ -113,11 +113,13 @@ fold(F, Acc0, Store) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec do_add_type(avro_type(), store()) -> store().
 do_add_type(Type, Store) ->
   FullName = avro:get_type_fullname(Type),
   Aliases = avro:get_aliases(Type),
   do_add_type_by_names([FullName|Aliases], Type, Store).
 
+-spec do_add_type_by_names([string()], avro_type(), store()) -> store().
 do_add_type_by_names([], _Type, Store) ->
   Store;
 do_add_type_by_names([Name|Rest], Type, Store) ->
@@ -212,6 +214,7 @@ init_ets_store(Access) when
     Access =:= public ->
   ets:new(?ETS_TABLE_NAME, [Access, {read_concurrency, true}]).
 
+-spec put_type_to_store(string(), avro_type(), store()) -> store().
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
   Json = iolist_to_binary(avro_json_encoder:encode_type(Type)),
