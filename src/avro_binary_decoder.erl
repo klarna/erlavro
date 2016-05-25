@@ -414,10 +414,12 @@ sample_record_type() ->
     , avro_record:define_field("string", avro_primitive:string_type(),
 			       [ {doc, "string f"}
 			       ])
-    , avro_record:define_field("array", avro_array:type(avro_primitive:long_type()),
+    , avro_record:define_field("array",
+             avro_array:type(avro_primitive:long_type()),
 			       [ {doc, "array f"}
 			       ])
-    , avro_record:define_field("map", avro_map:type(avro_primitive:long_type()),
+    , avro_record:define_field("map",
+             avro_map:type(avro_primitive:long_type()),
 			       [ {doc, "map f"}
 			       ])
     ],
