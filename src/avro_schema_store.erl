@@ -38,47 +38,91 @@
 %% API
 -export([ new/0
         , new/1
+        , new/2
         , close/1
         , add_type/2
         , lookup_type/2
         , lookup_type_json/2
         , fold/3
+        , import_file/2
+        , import_files/2
+        , import_schema_json/2
         ]).
 
 -include("erlavro.hrl").
 
 -opaque store() :: ets:tab().
+-type option_key() :: access | name.
+-type filename() :: file:filename_all().
 
 -export_type([store/0]).
 
--define(ETS_TABLE_NAME, ?MODULE).
+-define(IS_STORE(S), (is_integer(S) orelse is_atom(S))).
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+%%%_* APIs =====================================================================
 
+%% @equiv new([]).
 -spec new() -> store().
-new() ->
-  new([]).
+new() -> new([]).
 
+%% @doc Create a new ets table to store avro types.
 %% Options:
 %%   {access, public|protected|private} - has same meaning as access
 %%     mode in ets:new and defines what processes can have access to
-%%     the store. Default value is private.
-%% IDEA: {storage, ets|plain} - choose where to store the schema,
-%%     in an ets table or directly in the store. Currently only ets is
-%%     supported.
--spec new([proplists:property()]) -> store().
+%%   {name, atom()} - used to create a named ets table.
+%% @end
+-spec new([{option_key(), atom()}]) -> store().
 new(Options) ->
-  Access = proplists:get_value(access, Options, private),
-  init_ets_store(Access).
+  Access = avro_util:get_opt(access, Options, public),
+  {Name, EtsOpts} =
+    case avro_util:get_opt(name, Options, undefined) of
+      undefined -> {?MODULE, []};
+      Name_     -> {Name_, [named_table]}
+    end,
+  ets:new(Name, [Access, {read_concurrency, true} | EtsOpts]).
 
+%% @doc Create a new schema store and improt the given schema JSON files.
+-spec new([proplists:property()], [filename()]) -> store().
+new(Options, Files) ->
+  Store = new(Options),
+  import_files(Store, Files).
+
+%% @doc Import avro JSON files into schema store.
+-spec import_files(store() | [filename()], store() | [filename()]) -> store().
+import_files(X, Y) when ?IS_STORE(Y) -> import_files(Y, X);
+import_files(Store, Files) when ?IS_STORE(Store) ->
+  lists:foldl(fun(File, S) -> import_file(S, File) end, Store, Files).
+
+%% @doc Import avro JSON file into schema store.
+-spec import_file(store() | filename(), store() | filename()) -> store().
+import_file(X, Y) when ?IS_STORE(Y) -> import_file(Y, X);
+import_file(Store, File) when ?IS_STORE(Store) ->
+  case file:read_file(File) of
+    {ok, Json} ->
+      import_schema_json(Store, Json);
+    {error, Reason} ->
+      erlang:error({failed_to_read_schema_file, File, Reason})
+  end.
+
+%% @doc Decode avro schema JSON into erlavro records.
+-spec import_schema_json(store() | binary(), store() | binary()) -> store().
+import_schema_json(X, Y) when ?IS_STORE(Y) -> import_schema_json(Y, X);
+import_schema_json(Store, Json) when ?IS_STORE(Store) ->
+  Schema = avro_json_decoder:decode_schema(Json),
+  add_type(Schema, Store).
+
+%% @doc Delete the ets table.
 -spec close(store()) -> ok.
 close(Store) ->
-  destroy_ets_store(Store).
+  ets:delete(Store),
+  ok.
 
--spec add_type(avro_type(), store()) -> store().
-add_type(Type, Store) ->
+%% @doc Add type into the schema store.
+%% NOTE: the type is flattened before inserting into the schema store.
+%% i.e. named types nested in the given type are lifted up to root level.
+-spec add_type(store() | avro_type(), store() | avro_type()) -> store().
+add_type(X, Y) when ?IS_STORE(X) -> add_type(Y, X);
+add_type(Type, Store) when ?IS_STORE(Store) ->
   case avro:is_named_type(Type) of
     true  ->
       {ConvertedType, ExtractedTypes} =
@@ -91,12 +135,18 @@ add_type(Type, Store) ->
       erlang:error({unnamed_type_cant_be_added, Type})
   end.
 
--spec lookup_type(string(), store()) -> {ok, avro_type()} | false.
-lookup_type(FullName, Store) ->
+%% @doc Lookup a type using its full name.
+-spec lookup_type(store() | string(), store() | string()) ->
+        {ok, avro_type()} | false.
+lookup_type(X, Y) when ?IS_STORE(X) -> lookup_type(Y, X);
+lookup_type(FullName, Store) when ?IS_STORE(Store) ->
   get_type_from_store(FullName, Store).
 
--spec lookup_type_json(string(), store()) -> {ok, term()} | false.
-lookup_type_json(FullName, Store) ->
+%% @doc Lookup a type as in JSON (already encoded) format using its full name.
+-spec lookup_type_json(store() | string(), store() | string()) ->
+        {ok, term()} | false.
+lookup_type_json(X, Y) when ?IS_STORE(X) -> lookup_type_json(Y, X);
+lookup_type_json(FullName, Store) when ?IS_STORE(Store) ->
   get_type_json_from_store(FullName, Store).
 
 fold(F, Acc0, Store) ->
@@ -109,9 +159,7 @@ fold(F, Acc0, Store) ->
     Acc0,
     Store).
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+%%%_* Internal Functions =======================================================
 
 -spec do_add_type(avro_type(), store()) -> store().
 do_add_type(Type, Store) ->
@@ -208,12 +256,6 @@ replace_type_with_name(Type) ->
 %%% Low level store access
 %%%===================================================================
 
-init_ets_store(Access) when
-    Access =:= private orelse
-    Access =:= protected orelse
-    Access =:= public ->
-  ets:new(?ETS_TABLE_NAME, [Access, {read_concurrency, true}]).
-
 -spec put_type_to_store(string(), avro_type(), store()) -> store().
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
@@ -232,10 +274,6 @@ get_type_json_from_store(Name, Store) ->
     []                     -> false;
     [{{json, Name}, Json}] -> {ok, Json}
   end.
-
-destroy_ets_store(Store) ->
-  ets:delete(Store),
-  ok.
 
 %%%===================================================================
 %%% Tests
@@ -357,7 +395,7 @@ add_type_test() ->
 
 -endif.
 
-%%%_* Emacs ============================================================
+%%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
 %%% erlang-indent-level: 2
