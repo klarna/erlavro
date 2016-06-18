@@ -47,6 +47,7 @@
         , import_file/2
         , import_files/2
         , import_schema_json/2
+        , to_lookup_fun/1
         ]).
 
 -include("erlavro.hrl").
@@ -85,29 +86,34 @@ new(Options) ->
 -spec new([proplists:property()], [filename()]) -> store().
 new(Options, Files) ->
   Store = new(Options),
-  import_files(Store, Files).
+  import_files(Files, Store).
+
+%% @doc Make a schema lookup function from store.
+-spec to_lookup_fun(store()) -> fun((string()) -> avro_type()).
+to_lookup_fun(Store) ->
+  fun(Name) ->
+    {ok, Type} = ?MODULE:lookup_type(Name, Store),
+    Type
+  end.
 
 %% @doc Import avro JSON files into schema store.
--spec import_files(store() | [filename()], store() | [filename()]) -> store().
-import_files(X, Y) when ?IS_STORE(Y) -> import_files(Y, X);
-import_files(Store, Files) when ?IS_STORE(Store) ->
-  lists:foldl(fun(File, S) -> import_file(S, File) end, Store, Files).
+-spec import_files([filename()], store()) -> store().
+import_files(Files, Store) when ?IS_STORE(Store) ->
+  lists:foldl(fun(File, S) -> import_file(File, S) end, Store, Files).
 
 %% @doc Import avro JSON file into schema store.
--spec import_file(store() | filename(), store() | filename()) -> store().
-import_file(X, Y) when ?IS_STORE(Y) -> import_file(Y, X);
-import_file(Store, File) when ?IS_STORE(Store) ->
+-spec import_file(filename(), store()) -> store().
+import_file(File, Store) when ?IS_STORE(Store) ->
   case file:read_file(File) of
     {ok, Json} ->
-      import_schema_json(Store, Json);
+      import_schema_json(Json, Store);
     {error, Reason} ->
       erlang:error({failed_to_read_schema_file, File, Reason})
   end.
 
 %% @doc Decode avro schema JSON into erlavro records.
--spec import_schema_json(store() | binary(), store() | binary()) -> store().
-import_schema_json(X, Y) when ?IS_STORE(Y) -> import_schema_json(Y, X);
-import_schema_json(Store, Json) when ?IS_STORE(Store) ->
+-spec import_schema_json(binary(), store()) -> store().
+import_schema_json(Json, Store) when ?IS_STORE(Store) ->
   Schema = avro_json_decoder:decode_schema(Json),
   add_type(Schema, Store).
 
@@ -120,8 +126,7 @@ close(Store) ->
 %% @doc Add type into the schema store.
 %% NOTE: the type is flattened before inserting into the schema store.
 %% i.e. named types nested in the given type are lifted up to root level.
--spec add_type(store() | avro_type(), store() | avro_type()) -> store().
-add_type(X, Y) when ?IS_STORE(X) -> add_type(Y, X);
+-spec add_type(avro_type(), store()) -> store().
 add_type(Type, Store) when ?IS_STORE(Store) ->
   case avro:is_named_type(Type) of
     true  ->
@@ -136,16 +141,12 @@ add_type(Type, Store) when ?IS_STORE(Store) ->
   end.
 
 %% @doc Lookup a type using its full name.
--spec lookup_type(store() | string(), store() | string()) ->
-        {ok, avro_type()} | false.
-lookup_type(X, Y) when ?IS_STORE(X) -> lookup_type(Y, X);
+-spec lookup_type(string(), store()) -> {ok, avro_type()} | false.
 lookup_type(FullName, Store) when ?IS_STORE(Store) ->
   get_type_from_store(FullName, Store).
 
 %% @doc Lookup a type as in JSON (already encoded) format using its full name.
--spec lookup_type_json(store() | string(), store() | string()) ->
-        {ok, term()} | false.
-lookup_type_json(X, Y) when ?IS_STORE(X) -> lookup_type_json(Y, X);
+-spec lookup_type_json(string(), store()) -> {ok, term()} | false.
 lookup_type_json(FullName, Store) when ?IS_STORE(Store) ->
   get_type_json_from_store(FullName, Store).
 
@@ -392,6 +393,20 @@ add_type_test() ->
                lookup_type("com.klarna.test.bix.TestSubRecord", Store1)),
   ?assertEqual({ok, extracted_sub_record()},
                lookup_type("com.klarna.test.bix.TestSubRecordAlias", Store1)).
+
+import_test() ->
+  PrivDir = priv_dir(),
+  AvscFile = filename:join([PrivDir, "interop.avsc"]),
+  Store = new([], [AvscFile]),
+  ets:delete(Store),
+  ok.
+
+priv_dir() ->
+  case filelib:is_dir(filename:join(["..", priv])) of
+    true -> filename:join(["..", priv]);
+    _    -> "./priv"
+  end.
+
 
 -endif.
 
