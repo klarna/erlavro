@@ -35,6 +35,7 @@
 -include("erlavro.hrl").
 
 -type lkup_fun() :: fun((string()) -> avro_type()).
+-type schema_store() :: avro_schema_store:store().
 
 %%%_* APIs =====================================================================
 
@@ -68,7 +69,11 @@ encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 %% i.e. data can be recursive, but recursive types are resolved by
 %% schema lookup
 %% @end
--spec encode(lkup_fun(), avro_type_or_name(), term()) -> iodata().
+-spec encode(schema_store() | lkup_fun(), avro_type_or_name(), term()) ->
+        iodata().
+encode(Store, TypeName, Value) when not is_function(Store) ->
+  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  encode(Lkup, TypeName, Value);
 encode(Lkup, TypeName, Value) when is_list(TypeName) ->
   encode(Lkup, Lkup(TypeName), Value);
 encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
@@ -111,20 +116,20 @@ zip_record_field_types_with_value(_Name, [], []) -> [];
 zip_record_field_types_with_value(Name, [{FieldName, FieldType} | Rest],
                                   FieldValues0) ->
   {FieldValue, FieldValues} =
-    take_record_filed_value(Name, FieldName, FieldValues0, []),
+    take_record_field_value(Name, FieldName, FieldValues0, []),
   [ {FieldType, FieldValue}
   | zip_record_field_types_with_value(Name, Rest, FieldValues)
   ].
 
-take_record_filed_value(RecordName, FieldName, [], _) ->
+take_record_field_value(RecordName, FieldName, [], _) ->
   erlang:error({field_value_not_found, RecordName, FieldName});
-take_record_filed_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
+take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
   case Tag =:= FieldName orelse
        (is_atom(Tag) andalso atom_to_list(Tag) =:= FieldName) of
     true ->
       {Value, Tried ++ Rest};
     false ->
-      take_record_filed_value(RecordName, FieldName,
+      take_record_field_value(RecordName, FieldName,
                               Rest, [{Tag, Value} | Tried])
   end.
 

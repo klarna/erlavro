@@ -4,41 +4,89 @@ Current version implements Apache Avro 1.7.5 specification.
 
 License: Apache License 2.0
 
-Compilation
------------
+# Compilation
 
    make
 
 Dependencies: jsonx and mochijson3 (see rebar.config).
 
-Dialyzer check
---------------
+# Examples
 
-    # Add {d,'NOTEST'} to erl_opts in rebar.config first
-    make dialyze
+## Load avro schema file(s) (demonstrating in Erlang shell)
 
-Technical information
----------------------
+See `priv/interop.avsc` for avro schema definition.
 
-Every value is stored together with its type in #avro_value{} record where data
-has different meaning depending on the type. It is recommended to use ?AVRO_VALUE*
-macros defined in erlavro.hrl to work with this record.
+```erlang
+1> Store = avro_schema_store:new([], ["priv/interop.avsc"]).
+16400
+2> Term = hd(element(3, avro_ocf:decode_file("priv/interop.ocf"))).
+[{"intField",12},
+ {"longField",15234324},
+ {"stringField","hey"},
+ {"boolField",true},
+ {"floatField",1234.0},
+ {"doubleField",-1234.0},
+ {"bytesField",<<"12312adf">>},
+ {"nullField",null},
+ {"arrayField",[5.0,0.0,12.0]},
+ {"mapField",
+  [{"a",[{"label","a"}]},{"bee",[{"label","cee"}]}]},
+ {"unionField",12.0},
+ {"enumField","C"},
+ {"fixedField",<<"1019181716151413">>},
+ {"recordField",
+  [{"label","blah"},
+   {"children",[[{"label","inner"},{"children",[]}]]}]}]
+3> Encoded = iolist_to_binary(avro_binary_encoder:encode(Store, "org.apache.avro.Interop", Term)).
+<<24,168,212,195,14,6,104,101,121,1,0,64,154,68,0,0,0,0,0,
+  72,147,192,16,49,50,51,49,50,97,...>>
+4> Term =:= avro_binary_decoder:decode(Encoded, "org.apache.avro.Interop", Store).
+true
+```
 
-Set of macros are used to check types of values or types themselves:
-?AVRO_IS_*_TYPE(T) checks that T is a specified type.
-?AVRO_IS_*_VALUE(V) checks that the value has specified type.
-Such macros can be used in external code to speed up matching.
+## Define avro schema using erlavro APIs
 
-Erlang version doesn't make a difference between float and double values.
+```erlang
+MyRecordType = avro_record:type("MyRecord",
+                                [avro_record:define_field("f1", avro_primitive:int_type()),
+                                 avro_record:define_field("f2", avro_primitive:string_type())],
+                                [{namespace, "my.com"}]),
+Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
+Term = [{"f1", 1},{"f2","my string"}],
+Encoded = avro_binary_encoder:encode(Store, "my.com.MyRecord", Term),
+Term =:= avro_binary_decoder:decode(Encoded, "my.com.MyRecord", Store).
+```
 
-To do
------
+## Cast values for encoding (demonstrating avro JSON encoding/decoding)
+
+```erlang
+MyRecordType = avro_record:type("MyRecord",
+                                [avro_record:define_field("f1", avro_primitive:int_type()),
+                                 avro_record:define_field("f2", avro_primitive:string_type())],
+                                [{namespace, "my.com"}]),
+Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
+Term = [{"f1", 1},{"f2","my string"}],
+{ok, AvroValue} = avro:cast(MyRecordType, Term),
+JSON = avro_json_encoder:encode_value(AvroValue),
+Term =:= avro_json_decoder:decode_value(JSON, "my.com.MyRecord", Store, [{is_wrapped, false}]),
+io:put_chars(user, JSON).
+```
+
+JSON to expect:
+
+```json
+{"f1":1,"f2":"my string"}
+```
+
+## Object container file encoding/decoding
+
+See avro_ocf.erl for details
+
+# TODOs
 
 This version of library supports only subset of all functionality.
 What things should be done:
 
-1. Parsing Canonical Form.
-2. Object (avro_schema) to manage all types included in the schema,
-   with consistency checks, etc. (DONE without consistency checks).
-3. Better coverage of possible operations by modules, so ?AVRO_VALUE*
-   macros are not exposed to external code.
+1. Full support for avro 1.8
+2. Allow inner type reference for JSON encoding (currently only fully constructed #avro_value{} can be used for JSON encoding)
+

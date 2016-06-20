@@ -35,6 +35,7 @@
 
 -type options() :: [{option_name(), term()}].
 -type lkup_fun() :: fun((string()) -> avro_type()).
+-type schema_store() :: avro_schema_store:store().
 
 %%%===================================================================
 %%% API
@@ -47,7 +48,10 @@ decode_schema(Json) ->
 %% Decode Avro schema specified as Json string.
 %% ExtractTypeFun should be a function returning Avro type by its full name,
 %% it is needed to parse default values.
--spec decode_schema(iodata(), lkup_fun()) -> avro_type().
+-spec decode_schema(iodata(), schema_store() | lkup_fun()) -> avro_type().
+decode_schema(JsonSchema, Store) when not is_function(Store) ->
+  ExtractTypeFun = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  decode_schema(JsonSchema, ExtractTypeFun);
 decode_schema(JsonSchema, ExtractTypeFun) ->
   parse_schema(mochijson3:decode(JsonSchema), "", ExtractTypeFun).
 
@@ -83,12 +87,16 @@ decode_schema(JsonSchema, ExtractTypeFun) ->
 %%       union:  unwrapped().
 %%       array:  [unwrapped()].
 %%       map:    [{Key :: string(), Value :: unwrapped()}].
-%%       record: {RecordTypeFullName(), [{FieldName(), unwrapped()}]}
+%%       record: [{FieldName(), unwrapped()}]}
 %%                 when RecordTypeFullName :: string(),
 %%                      FiledName          :: string().
 %% @end
 -spec decode_value(binary(), avro_type_or_name(),
-                   lkup_fun(), options()) -> avro_value() | term().
+                   schema_store() | lkup_fun(),
+                   options()) -> avro_value() | term().
+decode_value(JsonValue, Schema, Store, Options) when not is_function(Store) ->
+  ExtractTypeFun = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  decode_value(JsonValue, Schema, ExtractTypeFun, Options);
 decode_value(JsonValue, Schema, ExtractTypeFun, Options) ->
   DecodedJson =
     case lists:keyfind(json_decoder, 1, Options) of
@@ -113,10 +121,10 @@ decode_value(JsonValue, Schema, ExtractTypeFun, Options) ->
 %% @end
 -spec decode_value(binary(),
                    avro_type_or_name(),
-                   fun((string()) -> avro_type()))
-                  -> avro_value().
-decode_value(JsonValue, Schema, ExtractTypeFun) ->
-  decode_value(JsonValue, Schema, ExtractTypeFun, [{json_decoder, mochijson3}]).
+                   schema_store() | lkup_fun()) -> avro_value().
+decode_value(JsonValue, Schema, StoreOrLkupFun) ->
+  decode_value(JsonValue, Schema, StoreOrLkupFun,
+               [{json_decoder, mochijson3}]).
 
 %%%===================================================================
 %%% Schema parsing
@@ -384,11 +392,8 @@ parse_bytes(_, _) ->
 parse_record({struct, Attrs}, Type, ExtractFun, IsWrapped) ->
   Fields = convert_attrs_to_record_fields(Attrs, Type, ExtractFun, IsWrapped),
   case IsWrapped of
-    true ->
-      avro_record:new(Type, Fields);
-    false ->
-      Name = avro:get_type_fullname(Type),
-      {Name, Fields}
+    true  -> avro_record:new(Type, Fields);
+    false -> Fields
   end;
 parse_record(_, _, _, _) ->
   erlang:error(wrong_record_value).

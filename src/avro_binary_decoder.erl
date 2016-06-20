@@ -80,35 +80,39 @@
         fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
 
 -type lkup_fun() :: fun((string()) -> avro_type()).
+-type schema_store() :: avro_schema_store:store().
 
 %%%_* APIs =====================================================================
 
 %% @doc decode/4 equivalent with default hook fun.
--spec decode(iodata(), string() | avro_type(), lkup_fun()) -> term().
-decode(IoData, Type, Lkup) when is_function(Lkup, 1) ->
-  decode(IoData, Type, Lkup, ?DEFAULT_HOOK).
+-spec decode(iodata(), string() | avro_type(),
+             schema_store() | lkup_fun()) -> term().
+decode(IoData, Type, StoreOrLkupFun) ->
+  decode(IoData, Type, StoreOrLkupFun, ?DEFAULT_HOOK).
 
 %% @doc Decode bytes into unwrapped avro value, assuming the input bytes
 %% matches the given schema without tailing bytes.
 %% @end
 -spec decode(iodata(), string() | avro_type(),
-             lkup_fun(), hook_fun()) -> term().
-decode(IoData, Type, Lkup, Hook) when is_function(Lkup, 1) ->
+             schema_store() | lkup_fun(), hook_fun()) -> term().
+decode(IoData, Type, StoreOrLkupFun, Hook) ->
   %% return decoded value as raw erlang term directly
-  {Value, <<>>} = do_decode(IoData, Type, Lkup, Hook),
+  {Value, <<>>} = do_decode(IoData, Type, StoreOrLkupFun, Hook),
   Value.
 
 %% @doc decode_stream/4 equivalent with default hook fun.
 -spec decode_stream(iodata(), string() | avro_type(),
-                    fun((string()) -> avro_type())) -> term().
-decode_stream(IoData, Type, Lkup) when is_function(Lkup, 1) ->
-  decode_stream(IoData, Type, Lkup, ?DEFAULT_HOOK).
+                    schema_store() | lkup_fun()) -> term().
+decode_stream(IoData, Type, StoreOrLkupFun) ->
+  decode_stream(IoData, Type, StoreOrLkupFun, ?DEFAULT_HOOK).
 
 %% @doc Decode the header of a byte stream, return unwrapped value and tail
 %% bytes in a tuple.
 %% @end
-decode_stream(IoData, Type, Lkup, Hook) when is_function(Lkup, 1) ->
-  do_decode(IoData, Type, Lkup, Hook).
+-spec decode_stream(iodata(), string() | avro_type(),
+                    schema_store() | lkup_fun(), hook_fun()) -> term().
+decode_stream(IoData, Type, StoreOrLkupFun, Hook) ->
+  do_decode(IoData, Type, StoreOrLkupFun, Hook).
 
 %% @doc Return a function to be used as the decode hook.
 %% The hook prints the type tree with indentation, and the leaf values.
@@ -148,6 +152,9 @@ pretty_print_debug_hook() ->
 
 %%%_* Internal functions =======================================================
 
+do_decode(IoList, Type, Store, Hook) when not is_function(Store) ->
+  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  do_decode(IoList, Type, Lkup, Hook);
 do_decode(IoList, Type, Lkup, Hook) when is_list(IoList) ->
   do_decode(iolist_to_binary(IoList), Type, Lkup, Hook);
 do_decode(Bin, TypeName, Lkup, Hook) when is_list(TypeName) ->
@@ -168,8 +175,7 @@ dec(Bin, T, Lkup, Hook) when ?AVRO_IS_RECORD_TYPE(T) ->
         {[{FieldName, Value} | Values], BinOut}
       end, {[], Bin}, FieldTypes),
   FieldValues = lists:reverse(FieldValuesReversed),
-  Name = avro:get_type_fullname(T),
-  {{Name, FieldValues}, Tail};
+  {FieldValues, Tail};
 dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_ENUM_TYPE(T) ->
   {Index, Tail} = int(Bin),
   Hook(T, Index, Tail,
@@ -439,8 +445,7 @@ sample_record_binary() ->
   ].
 
 decode_record_test() ->
-  {Name, Fields} = decode_t(sample_record_binary(), sample_record_type()),
-  ?assertEqual(Name, "com.klarna.test.bix.SampleRecord"),
+  Fields = decode_t(sample_record_binary(), sample_record_type()),
   ?assertMatch([ {"bool",   true}
                , {"int",    100}
                , {"long",   123456789123456789}
@@ -456,8 +461,7 @@ decode_with_hook_test() ->
   Binary = sample_record_binary(),
   Schema = sample_record_type(),
   Lkup = fun(_) -> exit(error) end,
-  {Name, Fields} = decode(Binary, Schema, Lkup, pretty_print_debug_hook()),
-  ?assertEqual(Name, "com.klarna.test.bix.SampleRecord"),
+  Fields = decode(Binary, Schema, Lkup, pretty_print_debug_hook()),
   ?assertMatch([ {"bool",   true}
                , {"int",    100}
                , {"long",   123456789123456789}

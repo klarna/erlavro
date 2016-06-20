@@ -53,10 +53,10 @@
         {header(), avro_type(), [avro_object()]} | no_return().
 decode_file(Filename) ->
   {ok, Bin} = file:read_file(Filename),
-  {{_, [ {"magic", Magic}
-       , {"meta", Meta}
-       , {"sync", Sync}
-       ]}, Tail} = decode_stream(ocf_schema(), Bin),
+  {[ {"magic", Magic}
+   , {"meta", Meta}
+   , {"sync", Sync}
+   ], Tail} = decode_stream(ocf_schema(), Bin),
   {_, SchemaBytes} = lists:keyfind("avro.schema", 1, Meta),
   {_, Codec} = lists:keyfind("avro.codec", 1, Meta),
   <<"null">> = Codec, %% assert, no support for deflate so far
@@ -225,7 +225,6 @@ priv_dir() ->
     true -> filename:join(["..", priv]);
     _    -> "./priv"
   end.
-
 
 -endif.
 %%%_* Emacs ====================================================================
