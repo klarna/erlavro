@@ -31,6 +31,7 @@
 -export([verify_aliases/1]).
 -export([verify_type/1]).
 -export([canonicalize_aliases/4]).
+-export([pretty_print_decoder_hook/0]).
 
 %% Performance testing
 -export([prf_encode/0]).
@@ -92,6 +93,59 @@ canonicalize_aliases(Aliases, Name, Namespace, EnclosingNs) ->
         avro:build_type_fullname(Alias, ProperNs, EnclosingNs)
     end,
     Aliases).
+
+%% @doc Return a function to be used as the decoder hook.
+%% The hook prints the type tree with indentation, and the leaf values.
+%% @end
+-spec pretty_print_decoder_hook() -> decoder_hook_fun().
+pretty_print_decoder_hook() ->
+  fun(T, SubInfo, Data, DecodeFun) ->
+    Name = avro:get_type_fullname(T),
+    Indentation =
+      case get(avro_decoder_pp_indentation) of
+        undefined -> 0;
+        Indentati -> Indentati
+      end,
+    IndentationStr = lists:duplicate(Indentation * 2, $\s),
+    ToPrint =
+      [ IndentationStr
+      , Name
+      , case SubInfo of
+          ""                   -> ": ";
+          I when is_integer(I) -> [$., integer_to_list(I), "\n"];
+          S when is_list(S)    -> [$., S, "\n"];
+          B when is_binary(B)  -> [$., B, "\n"];
+          _                    -> "\n"
+        end
+      ],
+    io:format(user, "~s", [ToPrint]),
+    _ = put(avro_decoder_pp_indentation, Indentation + 1),
+    DecodeResult = DecodeFun(Data),
+    ResultToPrint =
+      case DecodeResult of
+        {Result, Tail} when is_binary(Tail) ->
+          %% binary decode result
+          Result;
+        JsonDecodeResult ->
+          case ?IS_AVRO_VALUE(JsonDecodeResult) of
+            true  -> ?AVRO_VALUE_DATA(JsonDecodeResult);
+            false -> JsonDecodeResult
+          end
+      end,
+    %% print empty array and empty map
+    case SubInfo =/= [] andalso ResultToPrint =:= [] of
+      true  -> io:format(user, "~s  []\n", [IndentationStr]);
+      false -> ok
+    end,
+    %% print the value if it's a leaf in the type tree
+    case SubInfo =:= [] of
+      true  -> io:format(user, "~1000000p\n", [ResultToPrint]);
+      false -> ok
+    end,
+    _ = put(avro_decoder_pp_indentation, Indentation),
+    DecodeResult
+  end.
+
 
 %%%===================================================================
 %%% Internal functions

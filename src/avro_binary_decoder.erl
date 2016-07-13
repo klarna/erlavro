@@ -34,50 +34,9 @@
         , decode_stream/4
         ]).
 
--export([ pretty_print_debug_hook/0
-        ]).
-
 -include("erlavro.hrl").
 
-%% Decoding hook is a function to be evaluated when decoding:
-%% 1. primitives
-%% 2. each field/element of complex types.
-%%
-%% A hook fun can be used to fast skipping undesired data fields of records
-%% or undesired data of big maps etc.
-%% For example, to dig out only the field named "MyField" in "MyRecord", the
-%% hook may probably look like:
-%%
-%% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
-%%      case {avro:get_type_fullname(Type), SubNameOrIndex} of
-%%        {"MyRecord.example.com", "MyField"} ->
-%%          DecodeFun(Data);
-%%        {"MyRecord.example.com", _OtherFields} ->
-%%          ignored;
-%%        _OtherType ->
-%%          DecodeFun(Data)
-%%      end
-%% end.
-%%
-%% A hook fun can be used for debug. For example, blow hook should print
-%% the decoding stack along the decode function traverses through the bytes.
-%%
-%% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
-%%      SubInfo = case is_integer(SubNameOrIndex) of
-%%                  true  -> integer_to_list(SubNameOrIndex);
-%%                  false -> SubNameOrIndex
-%%                end,
-%%      io:format("~s.~s\n", [avro:get_type_name(Type), SubInfo]),
-%%      DecodeFun(Data)
-%% end
-%%
-%% A hook can also be used as a dirty patch to fix some corrupted data.
-%%
--type hook_fun() :: fun((avro_type(), string() | integer(), binary(),
-                        fun((binary()) -> term())) -> term()).
-%% By default, the hook fun does nothing else but calling the decode function.
--define(DEFAULT_HOOK,
-        fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
+-type hook() :: decoder_hook_fun().
 
 -type lkup_fun() :: fun((string()) -> avro_type()).
 -type schema_store() :: avro_schema_store:store().
@@ -88,13 +47,13 @@
 -spec decode(iodata(), string() | avro_type(),
              schema_store() | lkup_fun()) -> term().
 decode(IoData, Type, StoreOrLkupFun) ->
-  decode(IoData, Type, StoreOrLkupFun, ?DEFAULT_HOOK).
+  decode(IoData, Type, StoreOrLkupFun, ?DEFAULT_DECODER_HOOK).
 
 %% @doc Decode bytes into unwrapped avro value, assuming the input bytes
 %% matches the given schema without tailing bytes.
 %% @end
 -spec decode(iodata(), string() | avro_type(),
-             schema_store() | lkup_fun(), hook_fun()) -> term().
+             schema_store() | lkup_fun(), hook()) -> term().
 decode(IoData, Type, StoreOrLkupFun, Hook) ->
   %% return decoded value as raw erlang term directly
   {Value, <<>>} = do_decode(IoData, Type, StoreOrLkupFun, Hook),
@@ -104,51 +63,16 @@ decode(IoData, Type, StoreOrLkupFun, Hook) ->
 -spec decode_stream(iodata(), string() | avro_type(),
                     schema_store() | lkup_fun()) -> term().
 decode_stream(IoData, Type, StoreOrLkupFun) ->
-  decode_stream(IoData, Type, StoreOrLkupFun, ?DEFAULT_HOOK).
+  decode_stream(IoData, Type, StoreOrLkupFun, ?DEFAULT_DECODER_HOOK).
 
 %% @doc Decode the header of a byte stream, return unwrapped value and tail
 %% bytes in a tuple.
 %% @end
 -spec decode_stream(iodata(), string() | avro_type(),
-                    schema_store() | lkup_fun(), hook_fun()) -> term().
+                    schema_store() | lkup_fun(), hook()) -> term().
 decode_stream(IoData, Type, StoreOrLkupFun, Hook) ->
   do_decode(IoData, Type, StoreOrLkupFun, Hook).
 
-%% @doc Return a function to be used as the decode hook.
-%% The hook prints the type tree with indentation, and the leaf values.
-%% @end
--spec pretty_print_debug_hook() -> hook_fun().
-pretty_print_debug_hook() ->
-  fun(T, SubInfo, Data, DecodeFun) ->
-    Name = avro:get_type_fullname(T),
-    Indentation =
-      case get(avro_binary_decoder_pp_indentation) of
-        undefined -> 0;
-        Indentati -> Indentati
-      end,
-    IndentationStr = lists:duplicate(Indentation * 2, $\s),
-    ToPrint =
-      [ IndentationStr
-      , Name
-      , case SubInfo of
-          []                   -> ": ";
-          I when is_integer(I) -> [$., integer_to_list(I), "\n"];
-          S                    -> [$., S, "\n"]
-        end
-      ],
-    io:format("~s", [ToPrint]),
-    _ = put(avro_binary_decoder_pp_indentation, Indentation + 1),
-    {Result, Tail} = DecodeFun(Data),
-    %% print empty array and empty map
-    case SubInfo =/= [] andalso Result =:= [] of
-      true  -> io:format("~s  []\n", [IndentationStr]);
-      false -> ok
-    end,
-    %% print the value if it's a leaf in the type tree
-    _ = SubInfo =:= [] andalso io:format("~1000000p\n", [Result]),
-    _ = put(avro_binary_decoder_pp_indentation, Indentation),
-    {Result, Tail}
-  end.
 
 %%%_* Internal functions =======================================================
 
@@ -165,17 +89,7 @@ do_decode(Bin, Type, Lkup, Hook) when is_function(Hook, 4) ->
 dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_PRIMITIVE_TYPE(T) ->
   Hook(T, "", Bin, fun(B) -> prim(B, T#avro_primitive_type.name) end);
 dec(Bin, T, Lkup, Hook) when ?AVRO_IS_RECORD_TYPE(T) ->
-  FieldTypes = avro_record:get_all_field_types(T),
-  {FieldValuesReversed, Tail} =
-    lists:foldl(
-      fun({FieldName, FieldTypeOrName}, {Values, BinIn}) ->
-        {Value, BinOut} =
-          Hook(T, FieldName, BinIn,
-               fun(B) -> do_decode(B, FieldTypeOrName, Lkup, Hook) end),
-        {[{FieldName, Value} | Values], BinOut}
-      end, {[], Bin}, FieldTypes),
-  FieldValues = lists:reverse(FieldValuesReversed),
-  {FieldValues, Tail};
+  Hook(T, none, Bin, fun(B) -> dec_record(B, T, Lkup, Hook) end);
 dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_ENUM_TYPE(T) ->
   {Index, Tail} = int(Bin),
   Hook(T, Index, Tail,
@@ -214,6 +128,19 @@ dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_FIXED_TYPE(T) ->
           <<Value:Size/binary, Tail/binary>> = B,
           {Value, Tail}
        end).
+
+dec_record(Bin, T, Lkup, Hook) ->
+  FieldTypes = avro_record:get_all_field_types(T),
+  {FieldValuesReversed, Tail} =
+    lists:foldl(
+      fun({FieldName, FieldTypeOrName}, {Values, BinIn}) ->
+        {Value, BinOut} =
+          Hook(T, FieldName, BinIn,
+               fun(B) -> do_decode(B, FieldTypeOrName, Lkup, Hook) end),
+        {[{FieldName, Value} | Values], BinOut}
+      end, {[], Bin}, FieldTypes),
+  FieldValues = lists:reverse(FieldValuesReversed),
+  {FieldValues, Tail}.
 
 %% @private Decode primitive values.
 %% NOTE: keep all binary decoding exceptions to error:{badmatch, _}
@@ -461,7 +388,8 @@ decode_with_hook_test() ->
   Binary = sample_record_binary(),
   Schema = sample_record_type(),
   Lkup = fun(_) -> exit(error) end,
-  Fields = decode(Binary, Schema, Lkup, pretty_print_debug_hook()),
+  Hook = avro_util:pretty_print_decoder_hook(),
+  Fields = decode(Binary, Schema, Lkup, Hook),
   ?assertMatch([ {"bool",   true}
                , {"int",    100}
                , {"long",   123456789123456789}
