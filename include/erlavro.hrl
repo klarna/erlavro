@@ -262,4 +262,49 @@
 
 -define(AVRO_SCHEMA_LOOKUP_FUN(Store), avro_schema_store:to_lookup_fun(Store)).
 
+%% Decoder hook is a function to be evaluated when decoding:
+%% 1. primitives
+%% 2. each field/element of complex types.
+%%
+%% A hook fun can be used to fast skipping undesired data fields of records
+%% or undesired data of big maps etc.
+%% For example, to dig out only the field named "MyField" in "MyRecord", the
+%% hook may probably look like:
+%%
+%% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
+%%      case {avro:get_type_fullname(Type), SubNameOrIndex} of
+%%        {"MyRecord.example.com", "MyField"} ->
+%%          DecodeFun(Data);
+%%        {"MyRecord.example.com", _OtherFields} ->
+%%          ignored;
+%%        _OtherType ->
+%%          DecodeFun(Data)
+%%      end
+%% end.
+%%
+%% A hook fun can be used for debug. For example, below hook should print
+%% the decoding stack along the decode function traverses through the bytes.
+%%
+%% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
+%%      SubInfo = case is_integer(SubNameOrIndex) of
+%%                  true  -> integer_to_list(SubNameOrIndex);
+%%                  false -> SubNameOrIndex
+%%                end,
+%%      io:format("~s.~s\n", [avro:get_type_name(Type), SubInfo]),
+%%      DecodeFun(Data)
+%% end
+%%
+%% A hook can also be used as a dirty patch to fix some corrupted data.
+-type dec_in() :: term(). %% binary() | decoded json struct / raw value
+-type dec_out() :: term(). %% decoded raw value or #avro_value{}
+
+-type decoder_hook_fun() ::
+        fun((avro_type(), string() | integer(), dec_in(),
+            fun((dec_in()) -> dec_out())) -> dec_out()).
+
+%% By default, the hook fun does nothing else but calling the decode function.
+-define(DEFAULT_DECODER_HOOK,
+        fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
+
+
 -endif.
