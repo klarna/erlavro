@@ -131,7 +131,7 @@ make_header(Type) ->
 %%%_* Internal functions =======================================================
 
 -spec generate_sync_bytes() -> binary().
-generate_sync_bytes() -> crypto:rand_bytes(16).
+generate_sync_bytes() -> crypto:strong_rand_bytes(16).
 
 -spec decode_stream(avro_type(), binary()) -> {term(), binary()}.
 decode_stream(Type, Bin) when is_binary(Bin) ->
