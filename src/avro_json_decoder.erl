@@ -483,7 +483,8 @@ parse_union({struct, [{ValueTypeNameBin, Value}]},
 parse_union(_, _, _, _, _) ->
   erlang:error(wrong_union_value).
 
-parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun, IsWrapped, Hook) ->
+parse_union_ex(ValueTypeName, Value, UnionType,
+               ExtractFun, IsWrapped, Hook) ->
   case avro_union:lookup_child_type(UnionType, ValueTypeName) of
     {ok, ValueType} ->
       ParsedValue = parse(Value, ValueType, ExtractFun, IsWrapped, Hook),

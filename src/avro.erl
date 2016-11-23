@@ -40,6 +40,21 @@
 
 -export([to_term/1]).
 
+-export_type([ enum_symbol/0
+             , fullname/0
+             , name/0
+             , namespace/0
+             , typedoc/0
+             , union_index/0
+             ]).
+
+-type name() :: string().
+-type namespace() :: string().
+-type fullname() :: string().
+-type typedoc() :: string().
+-type enum_symbol() :: string().
+-type union_index() :: non_neg_integer().
+
 -include("erlavro.hrl").
 
 %%%===================================================================
