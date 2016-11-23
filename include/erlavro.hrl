@@ -49,38 +49,45 @@
 %% 'fullname' contains qualified full name of the type.
 %% Should always present, a type without fullname can't be considered as valid.
 
+-ifndef(otp_17_or_above).
+-type avro_types_dict() :: undefined | dict(). %% avro:fullname() -> avro_type()
+-else.
+-type dict() :: dict:dict().
+-type avro_types_dict() :: undefined | dict:dict(avro:fullname(), avro_type()).
+-endif.
+
 -record(avro_record_field,
-        { name      ?REQUIRED :: string()
-        , doc       = ""      :: string()
+        { name      ?REQUIRED :: avro:name()
+        , doc       = ""      :: avro:typedoc()
         , type      ?REQUIRED :: avro_type_or_name()
         , default             :: avro_value() | undefined
         , order  = ascending  :: avro_ordering()
-        , aliases   = []      :: [string()]
+        , aliases   = []      :: [avro:name()]
         }).
 
 %% fullname of a primitive types is always equal to its name
 -record(avro_primitive_type,
-        { name      ?REQUIRED :: string()
+        { name      ?REQUIRED :: avro:name()
         }).
 
 -record(avro_record_type,
-        { name      ?REQUIRED :: string()
-        , namespace = ""      :: string()
-        , doc       = ""      :: string()
-        , aliases   = []      :: [string()]
+        { name      ?REQUIRED :: avro:name()
+        , namespace = ""      :: avro:namespace()
+        , doc       = ""      :: avro:typedoc()
+        , aliases   = []      :: [avro:name()]
         , fields    ?REQUIRED :: [#avro_record_field{}]
         %% -- service fields --
-        , fullname  ?REQUIRED :: string()
+        , fullname  ?REQUIRED :: avro:fullname()
         }).
 
 -record(avro_enum_type,
-        { name      ?REQUIRED :: string()
-        , namespace = ""      :: string()
-        , aliases   = []      :: [string()]
-        , doc       = ""      :: string()
-        , symbols   ?REQUIRED :: [string()]
+        { name      ?REQUIRED :: avro:name()
+        , namespace = ""      :: avro:namespace()
+        , aliases   = []      :: [avro:name()]
+        , doc       = ""      :: avro:typedoc()
+        , symbols   ?REQUIRED :: [avro:enum_symbol()]
         %% -- service fields --
-        , fullname  ?REQUIRED :: string()
+        , fullname  ?REQUIRED :: avro:fullname()
         }).
 
 -record(avro_array_type,
@@ -91,15 +98,8 @@
         { type      ?REQUIRED :: avro_type_or_name()
         }).
 
--ifndef(otp_17_or_above).
--type avro_types_dict() :: undefined | dict(). %% string() -> avro_type()
--else.
--type dict() :: dict:dict().
--type avro_types_dict() :: undefined | dict:dict(string(), avro_type()).
--endif.
-
 -record(avro_union_type,
-        { types     ?REQUIRED :: [{non_neg_integer(), avro_type_or_name()}]
+        { types     ?REQUIRED :: [{avro:union_index(), avro_type_or_name()}]
           %% Precached dictionary of types inside the union,
           %% helps to speed up types lookups for big unions.
           %% Dictionary is filled only for big unions (>10)
@@ -110,12 +110,12 @@
         }).
 
 -record(avro_fixed_type,
-        { name      ?REQUIRED :: string()
-        , namespace = ""      :: string()
-        , aliases   = []      :: [string()]
+        { name      ?REQUIRED :: avro:name()
+        , namespace = ""      :: avro:namespace()
+        , aliases   = []      :: [avro:name()]
         , size      ?REQUIRED :: integer()
         %% -- service fields --
-        , fullname  ?REQUIRED :: string()
+        , fullname  ?REQUIRED :: avro:fullname()
         }).
 
 -record(avro_value,
@@ -131,7 +131,7 @@
                       #avro_union_type{}  |
                       #avro_fixed_type{}.
 
--type avro_type_or_name() :: avro_type() | string().
+-type avro_type_or_name() :: avro_type() | avro:fullname().
 
 -type avro_value() :: #avro_value{}.
 
@@ -299,12 +299,11 @@
 -type dec_out() :: term(). %% decoded raw value or #avro_value{}
 
 -type decoder_hook_fun() ::
-        fun((avro_type(), string() | integer(), dec_in(),
+        fun((avro_type(), avro:name() | integer(), dec_in(),
             fun((dec_in()) -> dec_out())) -> dec_out()).
 
 %% By default, the hook fun does nothing else but calling the decode function.
 -define(DEFAULT_DECODER_HOOK,
         fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
-
 
 -endif.

@@ -35,20 +35,32 @@
 %%%-------------------------------------------------------------------
 -module(avro_schema_store).
 
-%% API
+%% Init/Terminate
 -export([ new/0
         , new/1
         , new/2
         , close/1
-        , add_type/2
-        , lookup_type/2
-        , lookup_type_json/2
-        , fold/3
-        , import_file/2
+        ]).
+
+%% Import
+-export([ import_file/2
         , import_files/2
         , import_schema_json/2
+        ]).
+
+%% Add/Lookup
+-export([ add_type/2
+        , lookup_type/2
         , to_lookup_fun/1
         ]).
+
+%% deprecated
+-export([ fold/3
+        , lookup_type_json/2
+        ]).
+
+-deprecated({fold, 3, eventually}).
+-deprecated({lookup_type_json, 2, eventually}).
 
 -include("erlavro.hrl").
 
@@ -59,6 +71,8 @@
 -export_type([store/0]).
 
 -define(IS_STORE(S), (is_integer(S) orelse is_atom(S))).
+
+-type fullname() :: avro:fullname().
 
 %%%_* APIs =====================================================================
 
@@ -89,7 +103,7 @@ new(Options, Files) ->
   import_files(Files, Store).
 
 %% @doc Make a schema lookup function from store.
--spec to_lookup_fun(store()) -> fun((string()) -> avro_type()).
+-spec to_lookup_fun(store()) -> fun((fullname()) -> avro_type()).
 to_lookup_fun(Store) ->
   fun(Name) ->
     {ok, Type} = ?MODULE:lookup_type(Name, Store),
@@ -141,15 +155,18 @@ add_type(Type, Store) when ?IS_STORE(Store) ->
   end.
 
 %% @doc Lookup a type using its full name.
--spec lookup_type(string(), store()) -> {ok, avro_type()} | false.
+-spec lookup_type(fullname(), store()) -> {ok, avro_type()} | false.
 lookup_type(FullName, Store) when ?IS_STORE(Store) ->
   get_type_from_store(FullName, Store).
 
-%% @doc Lookup a type as in JSON (already encoded) format using its full name.
--spec lookup_type_json(string(), store()) -> {ok, term()} | false.
+%% @deprecated Lookup a type as in JSON (already encoded)
+%% format using its full name.
+%% @end
+-spec lookup_type_json(fullname(), store()) -> {ok, term()} | false.
 lookup_type_json(FullName, Store) when ?IS_STORE(Store) ->
   get_type_json_from_store(FullName, Store).
 
+%% @deprecated
 fold(F, Acc0, Store) ->
   ets:foldl(
     fun({{json, _FullName}, _JSON}, Acc) ->
@@ -168,7 +185,7 @@ do_add_type(Type, Store) ->
   Aliases = avro:get_aliases(Type),
   do_add_type_by_names([FullName|Aliases], Type, Store).
 
--spec do_add_type_by_names([string()], avro_type(), store()) -> store().
+-spec do_add_type_by_names([fullname()], avro_type(), store()) -> store().
 do_add_type_by_names([], _Type, Store) ->
   Store;
 do_add_type_by_names([Name|Rest], Type, Store) ->
@@ -257,7 +274,7 @@ replace_type_with_name(Type) ->
 %%% Low level store access
 %%%===================================================================
 
--spec put_type_to_store(string(), avro_type(), store()) -> store().
+-spec put_type_to_store(fullname(), avro_type(), store()) -> store().
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
   Json = iolist_to_binary(avro_json_encoder:encode_type(Type)),
@@ -406,7 +423,6 @@ priv_dir() ->
     true -> filename:join(["..", priv]);
     _    -> "./priv"
   end.
-
 
 -endif.
 
