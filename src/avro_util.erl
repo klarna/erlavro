@@ -23,23 +23,25 @@
 -module(avro_util).
 
 %% API
--export([get_opt/2]).
--export([get_opt/3]).
--export([verify_name/1]).
--export([verify_names/1]).
--export([verify_dotted_name/1]).
--export([verify_aliases/1]).
--export([verify_type/1]).
--export([canonicalize_aliases/4]).
--export([pretty_print_decoder_hook/0]).
+-export([ canonicalize_aliases/4
+        , get_opt/2
+        , get_opt/3
+        , pretty_print_decoder_hook/0
+        , verify_name/1
+        , verify_names/1
+        , verify_dotted_name/1
+        , verify_aliases/1
+        , verify_type/1
+        ]).
 
 %% Performance testing
--export([prf_encode/0]).
--export([prf_encode/2]).
--export([prf_decode/2]).
--export([prf_decode/3]).
+-export([ prf_encode/0
+        , prf_encode/2
+        , prf_decode/2
+        , prf_decode/3
+        ]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 %%%===================================================================
 %%% API
@@ -77,7 +79,6 @@ verify_aliases(Aliases) ->
 %% Verify overall type definition for correctness. Error is thrown
 %% when issues are found.
 -spec verify_type(avro_type()) -> ok.
-
 verify_type(Type) ->
   case avro:is_named_type(Type) of
     true  -> verify_type_name(Type);
@@ -146,10 +147,10 @@ pretty_print_decoder_hook() ->
     DecodeResult
   end.
 
-
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
 
 %% Check correctness of the name portion of type names, record field names and
 %% enums symbols (everything where dots should not present in).
@@ -163,7 +164,6 @@ is_correct_name([H|T]) -> is_correct_first_symbol(H) andalso
 %% Check correctness of type name or namespace (where name parts can be splitted
 %% with dots).
 -spec is_correct_dotted_name(string()) -> boolean().
-
 is_correct_dotted_name(DottedName) ->
   Names = tokens_ex(DottedName, $.),
   Names =/= [] andalso lists:all(fun is_correct_name/1, Names).
@@ -190,7 +190,7 @@ verify_type_name(Type) ->
   Fullname = avro:get_type_fullname(Type),
   verify_dotted_name(Name),
   %% Verify namespace only if it is non-empty (empty namespaces are allowed)
-  Ns =:= "" orelse verify_dotted_name(Ns),
+  Ns =:= ?NAMESPACE_NONE orelse verify_dotted_name(Ns),
   verify_dotted_name(Fullname),
   %% We are not interested in the namespace here, so we can ignore
   %% EnclosingExtension value.
@@ -290,8 +290,7 @@ prf_record_type(RN, FieldsCount) ->
 -ifdef(EUNIT).
 
 get_test_type(Name, Namespace) ->
-  avro_fixed:type(Name, 16,
-                  [{namespace, Namespace}]).
+  avro_fixed:type(Name, 16, [{namespace, Namespace}]).
 
 tokens_ex_test() ->
   ?assertEqual([""], tokens_ex("", $.)),
@@ -344,7 +343,6 @@ canonizalize_aliases_test() ->
                                     "name.space.Bee",
                                     "bla.bla",
                                     "enc.losing")).
-
 -endif.
 
 %%%_* Emacs ============================================================

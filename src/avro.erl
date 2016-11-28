@@ -21,11 +21,13 @@
 %%%-------------------------------------------------------------------
 -module(avro).
 
--export([ is_named_type/1
+-export([ expand_type/2
+        , flatten_type/1
         , get_type_name/1
         , get_type_namespace/1
         , get_type_fullname/1
         , get_aliases/1
+        , is_named_type/1
         ]).
 
 -export([ split_type_name/2
@@ -48,14 +50,7 @@
              , union_index/0
              ]).
 
--type name() :: string().
--type namespace() :: string().
--type fullname() :: string().
--type typedoc() :: string().
--type enum_symbol() :: string().
--type union_index() :: non_neg_integer().
-
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 %%%===================================================================
 %%% API: Accessing types properties
@@ -109,11 +104,9 @@ get_type_fullname(#avro_map_type{})                   -> ?AVRO_MAP;
 get_type_fullname(#avro_union_type{})                 -> ?AVRO_UNION;
 get_type_fullname(#avro_fixed_type{fullname = Name})  -> Name.
 
-
 %% Returns aliases for the type (types without aliases are considered to
 %% have empty alias list).
 -spec get_aliases(avro_type()) -> [string()].
-
 get_aliases(#avro_primitive_type{})               -> [];
 get_aliases(#avro_record_type{aliases = Aliases}) -> Aliases;
 get_aliases(#avro_enum_type{aliases = Aliases})   -> Aliases;
@@ -121,6 +114,18 @@ get_aliases(#avro_array_type{})                   -> [];
 get_aliases(#avro_map_type{})                     -> [];
 get_aliases(#avro_union_type{})                   -> [];
 get_aliases(#avro_fixed_type{aliases = Aliases})  -> Aliases.
+
+%% @see avro_schema_store:flatten_type/1
+-spec flatten_type(avro_type()) ->
+        {avro_type() | fullname(), [avro_type()]} | none().
+flatten_type(Type) ->
+  avro_schema_store:flatten_type(Type).
+
+%% @see avro_schema_store:expand_type/2
+-spec expand_type(fullname() | avro_type(), avro_schema_store:store()) ->
+        avro_type() | none().
+expand_type(Type, Store) ->
+  avro_schema_store:expand_type(Type, Store).
 
 %%%===================================================================
 %%% API: Reading schema from json file
@@ -140,8 +145,8 @@ read_schema(File) ->
 %%%===================================================================
 
 %% Splits type's name parts to its canonical short name and namespace.
--spec split_type_name(string(), string(), string()) -> {string(), string()}.
-
+-spec split_type_name(name() | fullname(), namespace(), namespace()) ->
+        {name(), namespace()}.
 split_type_name(TypeName, Namespace, EnclosingNamespace) ->
   case split_fullname(TypeName) of
     {_, _} = N ->
@@ -149,15 +154,18 @@ split_type_name(TypeName, Namespace, EnclosingNamespace) ->
       N;
     false ->
       %% TypeName is a name without namespace, choose proper namespace
-      ProperNs = if Namespace =:= "" -> EnclosingNamespace;
-                    true             -> Namespace
-                 end,
+      ProperNs =
+        case Namespace =:= ?NAMESPACE_NONE of
+          true  -> EnclosingNamespace;
+          false -> Namespace
+        end,
       {TypeName, ProperNs}
   end.
 
 %% Same thing as before, but uses name and namespace from the specified type.
 -spec split_type_name(avro_type(), string()) -> {string(), string()}.
-
+split_type_name(Name, EnclosingNamespace) when ?IS_NAME(Name) ->
+  split_type_name(Name, ?NAMESPACE_NONE, EnclosingNamespace);
 split_type_name(Type, EnclosingNamespace) ->
   split_type_name(get_type_name(Type),
                   get_type_namespace(Type),
@@ -243,9 +251,10 @@ to_term(T, _)                      -> erlang:error({unknown_type, T}).
 %%% Internal functions
 %%%===================================================================
 
-%% Splits FullName to {Name, Namespace} or returns false
+%% @private Splits FullName to {Name, Namespace} or returns false
 %% if FullName is not a full name.
--spec split_fullname(string()) -> {string(), string()} | false.
+%% @end
+-spec split_fullname(string()) -> {name(), namespace()} | false.
 split_fullname(FullName) ->
     case string:rchr(FullName, $.) of
         0 ->

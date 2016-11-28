@@ -33,7 +33,7 @@
 -export([encode_value/1]).
 -export([encode_value/2]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 %%%===================================================================
 %%% API
@@ -44,7 +44,7 @@
 %% @end
 -spec encode_type(avro_type()) -> iodata().
 encode_type(Type) ->
-  jsonx:encode(do_encode_type(Type)).
+  jsonx:encode(do_encode_type(Type, _Namespace = ?NAMESPACE_NONE)).
 
 %% @doc Encode avro value in JSON format, use jsonx as default encoder.
 %% fallback to mochijson3 in case of failure
@@ -72,78 +72,77 @@ encode_value(Value, mochijson3) ->
 optional_field(_Key, Default, Default, _MappingFun) -> [];
 optional_field(Key, Value, _Default, MappingFun) -> [{Key, MappingFun(Value)}].
 
-do_encode_type(Name) when is_list(Name) ->
+do_encode_type(Name, EnclosingNamespace) when ?IS_NAME(Name) ->
+  MaybeShortName =
+    case avro:split_type_name(Name, EnclosingNamespace) of
+      {ShortName, EnclosingNamespace} -> ShortName;
+      {_ShortName, _AnotherNamespace} -> Name
+    end,
+  encode_string(MaybeShortName);
+do_encode_type(#avro_primitive_type{name = Name}, _Namespace) ->
   encode_string(Name);
-
-do_encode_type(#avro_primitive_type{name = Name}) ->
-  encode_string(Name);
-
-do_encode_type(#avro_record_type{} = T) ->
+do_encode_type(#avro_record_type{} = T, EnclosingNamespace) ->
   #avro_record_type{ name      = Name
                    , namespace = Namespace
                    , doc       = Doc
                    , aliases   = Aliases
                    , fields    = Fields
                    } = T,
-  { struct
-  , [ {type,   encode_string("record")}
+  {_, NewNs} = avro:split_type_name(T, EnclosingNamespace),
+  SchemaObjectFields =
+    [ optional_field(namespace, Namespace, "", fun encode_string/1)
+    , {type,   encode_string("record")}
     , {name,   encode_string(Name)}
-    , {fields, lists:map(fun encode_field/1, Fields)}
-    ]
-    ++ optional_field(namespace, Namespace, "", fun encode_string/1)
-    ++ optional_field(doc,       Doc,       "", fun encode_string/1)
-    ++ optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
-  };
-
-do_encode_type(#avro_enum_type{} = T) ->
+    , optional_field(doc,       Doc,       "", fun encode_string/1)
+    , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
+    , {fields, lists:map(fun(F) -> encode_field(F, NewNs) end, Fields)}
+    ],
+  {struct, lists:flatten(SchemaObjectFields)};
+do_encode_type(#avro_enum_type{} = T, _EnclosingNamespace) ->
   #avro_enum_type{ name      = Name
                  , namespace = Namespace
                  , aliases   = Aliases
                  , doc       = Doc
                  , symbols   = Symbols} = T,
-  { struct
-  , [ {type,    encode_string("enum")}
+  SchemaObjectFields =
+    [ optional_field(namespace, Namespace, "", fun encode_string/1)
+    , {type,    encode_string("enum")}
     , {name,    encode_string(Name)}
+    , optional_field(doc,       Doc,       "", fun encode_string/1)
+    , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
     , {symbols, lists:map(fun encode_string/1, Symbols)}
-    ]
-    ++ optional_field(namespace, Namespace, "", fun encode_string/1)
-    ++ optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
-    ++ optional_field(doc,       Doc,       "", fun encode_string/1)
-  };
-
-do_encode_type(#avro_array_type{type = Type}) ->
+    ],
+  {struct, lists:flatten(SchemaObjectFields)};
+do_encode_type(#avro_array_type{type = Type}, EnclosingNamespace) ->
   { struct
   , [ {type,  encode_string("array")}
-    , {items, do_encode_type(Type)}
+    , {items, do_encode_type(Type, EnclosingNamespace)}
     ]
   };
-
-do_encode_type(#avro_map_type{type = Type}) ->
+do_encode_type(#avro_map_type{type = Type}, EnclosingNamespace) ->
   { struct
   , [ {type,   encode_string("map")}
-    , {values, do_encode_type(Type)}
+    , {values, do_encode_type(Type, EnclosingNamespace)}
     ]
   };
-
-do_encode_type(#avro_union_type{types = Types}) ->
-  F = fun({_Index, Type}) -> do_encode_type(Type) end,
+do_encode_type(#avro_union_type{types = Types}, EnclosingNamespace) ->
+  F = fun({_Index, Type}) -> do_encode_type(Type, EnclosingNamespace) end,
   lists:map(F, Types);
-
-do_encode_type(#avro_fixed_type{} = T) ->
+do_encode_type(#avro_fixed_type{} = T, _EnclosingNamespace) ->
   #avro_fixed_type{ name = Name
                   , namespace = Namespace
                   , aliases = Aliases
                   , size = Size} = T,
-  { struct
-  , [ {type, encode_string("fixed")}
+  SchemaObjectFields =
+    [ optional_field(namespace, Namespace, "", fun encode_string/1)
+    , {type, encode_string("fixed")}
     , {name, encode_string(Name)}
     , {size, encode_integer(Size)}
-    ]
-    ++ optional_field(namespace, Namespace, "", fun encode_string/1)
-    ++ optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
-  }.
+    , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
+    ],
+  {struct, lists:flatten(SchemaObjectFields)}.
 
-encode_field(Field) ->
+encode_field(Field, EnclosingNamespace) ->
   #avro_record_field{ name    = Name
                     , doc     = Doc
                     , type    = Type
@@ -152,7 +151,7 @@ encode_field(Field) ->
                     , aliases = Aliases} = Field,
   { struct
   , [ {name, encode_string(Name)}
-    , {type, do_encode_type(Type)}
+    , {type, do_encode_type(Type, EnclosingNamespace)}
     ]
     ++ optional_field(default, Default, undefined, fun do_encode_value/1)
     ++ optional_field(doc,     Doc,     "",        fun encode_string/1)
@@ -175,51 +174,38 @@ encode_order(ignore)     -> <<"ignore">>.
 
 do_encode_value(?AVRO_ENCODED_VALUE_JSON(_Type, _Value = Encoded)) ->
   {json, Encoded};
-
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
   null;
-
 do_encode_value(Value) when ?AVRO_IS_BOOLEAN_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value);
-
 do_encode_value(Value) when ?AVRO_IS_INT_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value);
-
 do_encode_value(Value) when ?AVRO_IS_LONG_VALUE(Value) ->
   %% mochijson3 encodes more than 4-bytes integers as floats
   {json, integer_to_list(?AVRO_VALUE_DATA(Value))};
-
 do_encode_value(Value) when ?AVRO_IS_FLOAT_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value);
-
 do_encode_value(Value) when ?AVRO_IS_DOUBLE_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value);
-
 do_encode_value(Value) when ?AVRO_IS_BYTES_VALUE(Value) ->
   %% mochijson3 doesn't support Avro style of encoding binaries
   {json, encode_binary(?AVRO_VALUE_DATA(Value))};
-
 do_encode_value(Value) when ?AVRO_IS_STRING_VALUE(Value) ->
   encode_string(?AVRO_VALUE_DATA(Value));
-
 do_encode_value(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   FieldsAndValues = avro_record:to_list(Record),
   { struct
   , lists:map(fun encode_field_with_value/1, FieldsAndValues)
   };
-
 do_encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
   encode_string(?AVRO_VALUE_DATA(Enum));
-
 do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
-
 do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
   L = dict:to_list(avro_map:to_dict(Map)),
   { struct
   , lists:map(fun encode_field_with_value/1, L)
   };
-
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   Data = avro_union:get_value(Union),
   case ?AVRO_IS_NULL_VALUE(Data) of
@@ -230,7 +216,6 @@ do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
           do_encode_value(Data)}]
       }
   end;
-
 do_encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
   %% mochijson3 doesn't support Avro style of encoding binaries
   {json, encode_binary(?AVRO_VALUE_DATA(Fixed))}.
@@ -410,8 +395,11 @@ encode_utf8_string_test() ->
 
 encode_record_type_test() ->
     Json = encode_type(sample_record_type()),
-    ?assertEqual("{\"type\":\"record\","
+    ?assertEqual("{"
+                  "\"namespace\":\"com.klarna.test.bix\","
+                  "\"type\":\"record\","
                   "\"name\":\"SampleRecord\","
+                  "\"doc\":\"Record documentation\","
                   "\"fields\":["
                     "{\"name\":\"bool\","
                     "\"type\":\"boolean\","
@@ -439,9 +427,8 @@ encode_record_type_test() ->
                     "{\"name\":\"string\","
                     "\"type\":\"string\","
                     "\"default\":\"string value\","
-                    "\"doc\":\"string f\"}],"
-                  "\"namespace\":\"com.klarna.test.bix\","
-                  "\"doc\":\"Record documentation\"}",
+                    "\"doc\":\"string f\"}]"
+                  "}",
                  to_string(Json)).
 
 encode_record_test() ->
@@ -464,10 +451,12 @@ encode_enum_type_test() ->
                    ["A", "B", "C"],
                    [{namespace, "com.klarna.test.bix"}]),
   EnumTypeJson = encode_type(EnumType),
-  ?assertEqual("{\"type\":\"enum\","
+  ?assertEqual("{"
+               "\"namespace\":\"com.klarna.test.bix\","
+               "\"type\":\"enum\","
                "\"name\":\"Enum\","
-               "\"symbols\":[\"A\",\"B\",\"C\"],"
-               "\"namespace\":\"com.klarna.test.bix\"}",
+               "\"symbols\":[\"A\",\"B\",\"C\"]"
+               "}",
                to_string(EnumTypeJson)).
 
 encode_enum_test() ->
@@ -536,10 +525,11 @@ encode_fixed_type_test() ->
                          , {aliases, ["Alias1", "Alias2"]}
                          ]),
   Json = encode_type(Type),
-  ?assertEqual("{\"type\":\"fixed\","
+  ?assertEqual("{"
+               "\"namespace\":\"name.space\","
+               "\"type\":\"fixed\","
                "\"name\":\"FooBar\","
                "\"size\":2,"
-               "\"namespace\":\"name.space\","
                "\"aliases\":[\"name.space.Alias1\",\"name.space.Alias2\"]}",
                to_string(Json)).
 
