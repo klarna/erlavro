@@ -88,24 +88,27 @@ do_encode_type(#avro_record_type{} = T, EnclosingNamespace) ->
                    , aliases   = Aliases
                    , fields    = Fields
                    } = T,
-  {_, NewNs} = avro:split_type_name(T, EnclosingNamespace),
+  {Name, NewEnclosingNamespace} = avro:split_type_name(T, EnclosingNamespace),
   SchemaObjectFields =
-    [ optional_field(namespace, Namespace, "", fun encode_string/1)
+    [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
+                     ?NAMESPACE_NONE, fun encode_string/1)
     , {type,   encode_string("record")}
     , {name,   encode_string(Name)}
     , optional_field(doc,       Doc,       "", fun encode_string/1)
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
-    , {fields, lists:map(fun(F) -> encode_field(F, NewNs) end, Fields)}
+    , {fields, lists:map(fun(F) -> encode_field(F, NewEnclosingNamespace) end,
+                         Fields)}
     ],
   {struct, lists:flatten(SchemaObjectFields)};
-do_encode_type(#avro_enum_type{} = T, _EnclosingNamespace) ->
+do_encode_type(#avro_enum_type{} = T, EnclosingNamespace) ->
   #avro_enum_type{ name      = Name
                  , namespace = Namespace
                  , aliases   = Aliases
                  , doc       = Doc
                  , symbols   = Symbols} = T,
   SchemaObjectFields =
-    [ optional_field(namespace, Namespace, "", fun encode_string/1)
+    [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
+                     ?NAMESPACE_NONE, fun encode_string/1)
     , {type,    encode_string("enum")}
     , {name,    encode_string(Name)}
     , optional_field(doc,       Doc,       "", fun encode_string/1)
@@ -128,13 +131,14 @@ do_encode_type(#avro_map_type{type = Type}, EnclosingNamespace) ->
 do_encode_type(#avro_union_type{types = Types}, EnclosingNamespace) ->
   F = fun({_Index, Type}) -> do_encode_type(Type, EnclosingNamespace) end,
   lists:map(F, Types);
-do_encode_type(#avro_fixed_type{} = T, _EnclosingNamespace) ->
+do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace) ->
   #avro_fixed_type{ name = Name
                   , namespace = Namespace
                   , aliases = Aliases
                   , size = Size} = T,
   SchemaObjectFields =
-    [ optional_field(namespace, Namespace, "", fun encode_string/1)
+    [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
+                     ?NAMESPACE_NONE, fun encode_string/1)
     , {type, encode_string("fixed")}
     , {name, encode_string(Name)}
     , {size, encode_integer(Size)}
@@ -158,6 +162,13 @@ encode_field(Field, EnclosingNamespace) ->
     ++ optional_field(order,   Order,   ascending, fun encode_order/1)
     ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1)
   }.
+
+%% @private Get namespace to encode.
+%% Ignore namespace to encode if it is the same as enclosing namesapce
+%% @end
+-spec ns(namespace(), namespace()) -> namespace().
+ns(Namespace, Namespace)           -> ?NAMESPACE_NONE;
+ns(Namespace, _EnclosingNamespace) -> Namespace.
 
 encode_string(String) ->
   erlang:list_to_binary(String).
