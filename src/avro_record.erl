@@ -306,6 +306,7 @@ to_term(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 %% Try to find a value for a field specified by list of its names
 %% (including direct name and aliases)
 lookup_value_by_name([], _Values) ->
@@ -316,6 +317,7 @@ lookup_value_by_name([FieldName|Rest], Values) ->
     false      -> lookup_value_by_name(Rest, Values)
   end.
 
+%% @private
 lookup_value_from_list(FieldDef, Values) ->
   #avro_record_field
   { name = FieldName
@@ -327,6 +329,7 @@ lookup_value_from_list(FieldDef, Values) ->
     false       -> Default
   end.
 
+%% @private
 cast_fields([], _Values, Acc) ->
   lists:reverse(Acc);
 cast_fields([FieldDef|Rest], Values, Acc) ->
@@ -346,6 +349,7 @@ cast_fields([FieldDef|Rest], Values, Acc) ->
       end
   end.
 
+%% @private
 do_cast(Type, Value) when ?AVRO_IS_RECORD_VALUE(Value) ->
   %% When casting from other record only equality of full names
   %% is checked.
@@ -367,6 +371,7 @@ do_cast(Type, Proplist) when is_list(Proplist) ->
     _                -> {ok, ?AVRO_VALUE(Type, FieldsWithValues)}
   end.
 
+%% @private
 get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
   case lists:keyfind(FieldName, #avro_record_field.name, Fields) of
     #avro_record_field{} = Def -> {ok, Def};
@@ -376,6 +381,7 @@ get_field_def(FieldName, #avro_record_type{fields = Fields}) ->
       get_field_def_by_alias(FieldName, Fields)
   end.
 
+%% @private
 get_field_def_by_alias(_Alias, []) ->
   false;
 get_field_def_by_alias(Alias, [FieldDef|Rest]) ->

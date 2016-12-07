@@ -116,6 +116,8 @@ encode(Lkup, Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
   try_encode_union_loop(Lkup, Type, MemberTypes, Value, 0).
 
 %%%_* Internal functions =======================================================
+
+%% @private
 zip_record_field_types_with_value(_Name, [], []) -> [];
 zip_record_field_types_with_value(Name, [{FieldName, FieldType} | Rest],
                                   FieldValues0) ->
@@ -125,6 +127,7 @@ zip_record_field_types_with_value(Name, [{FieldName, FieldType} | Rest],
   | zip_record_field_types_with_value(Name, Rest, FieldValues)
   ].
 
+%% @private
 take_record_field_value(RecordName, FieldName, [], _) ->
   erlang:error({field_value_not_found, RecordName, FieldName});
 take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
@@ -137,6 +140,7 @@ take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
                               Rest, [{Tag, Value} | Tried])
   end.
 
+%% @private
 try_encode_union_loop(_Lkup, UnionType, [], Value, _Index) ->
   erlang:error({failed_to_encode_union, UnionType, Value});
 try_encode_union_loop(Lkup, UnionType, [MemberT | Rest], Value, Index) ->
@@ -146,6 +150,7 @@ try_encode_union_loop(Lkup, UnionType, [MemberT | Rest], Value, Index) ->
     try_encode_union_loop(Lkup, UnionType, Rest, Value, Index + 1)
   end.
 
+%% @private
 encode_prim(T, _) when ?AVRO_IS_NULL_TYPE(T)    -> null();
 encode_prim(T, V) when ?AVRO_IS_BOOLEAN_TYPE(T) -> bool(V);
 encode_prim(T, V) when ?AVRO_IS_INT_TYPE(T)     -> int(V);
@@ -184,40 +189,49 @@ block(Count, Payload) when is_binary(Payload) ->
 block(Count, Payload) ->
   block(Count, iolist_to_binary(Payload)).
 
+%% @private
 null() -> <<>>.
 
+%% @private
 bool(false) -> <<0>>;
 bool(true)  -> <<1>>.
 
+%% @private
 int(Int) ->
   Zz_int = zigzag(int, Int),
   varint(Zz_int).
 
+%% @private
 long(Long) ->
   Zz_long = zigzag(long, Long),
   varint(Zz_long).
 
+%% @private
 -compile({no_auto_import,[float/1]}).
 float(Float) when is_float(Float) ->
   <<Float:32/little-float>>.
 
+%% @private
 double(Double) when is_float(Double) ->
   <<Double:64/little-float>>.
 
+%% @private
 bytes(Data) when is_binary(Data) ->
   [long(byte_size(Data)), Data].
 
+%% @private
 string(Data) when is_list(Data) ->
   [long(length(Data)), list_to_binary(Data)].
 
+%% @private
 %% ZigZag encode/decode
 %% https://developers.google.com/protocol-buffers/docs/encoding?&csw=1#types
 zigzag(int, Int)  -> (Int bsl 1) bxor (Int bsr 31);
 zigzag(long, Int) -> (Int bsl 1) bxor (Int bsr 63).
 
+%% @private
 %% Variable-length format
 %% http://lucene.apache.org/core/3_5_0/fileformats.html#VInt
-
 varint(I) ->
   H = I bsr 7,
   L = I band 127,

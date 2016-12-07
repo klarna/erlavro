@@ -148,6 +148,7 @@ to_term(Union) -> avro:to_term(get_value(Union)).
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 build_types_dict(IndexedTypes) ->
   lists:foldl(
     fun({Index, Type}, D) ->
@@ -156,6 +157,7 @@ build_types_dict(IndexedTypes) ->
     dict:new(),
     IndexedTypes).
 
+%% @private
 %% If type is specified by its name then return this name,
 %% otherwise return type's full name.
 get_type_fullname_ex(TypeName) when is_list(TypeName) ->
@@ -163,6 +165,7 @@ get_type_fullname_ex(TypeName) when is_list(TypeName) ->
 get_type_fullname_ex(Type) ->
   avro:get_type_fullname(Type).
 
+%% @private
 lookup(TypeName, #avro_union_type{types = Types, types_dict = undefined}) ->
   scan(TypeName, Types);
 lookup(TypeName, #avro_union_type{types_dict = Dict}) ->
@@ -171,6 +174,7 @@ lookup(TypeName, #avro_union_type{types_dict = Dict}) ->
     error                    -> false
   end.
 
+%% @private
 scan(_TypeName, []) -> false;
 scan(TypeName, [{Id, Type} | Rest]) ->
   CandidateTypeName = get_type_fullname_ex(Type),
@@ -179,6 +183,7 @@ scan(TypeName, [{Id, Type} | Rest]) ->
     false -> scan(TypeName, Rest)
   end.
 
+%% @private
 do_cast(Type, Value) when ?AVRO_IS_UNION_VALUE(Value) ->
   %% Unions can't have other unions as their subtypes, so in this case
   %% we cast the value of the source union, not the union itself.
@@ -189,6 +194,7 @@ do_cast(Type, Value) ->
     Err     -> Err
   end.
 
+%% @private
 -spec cast_over_types([], _Value) -> {ok, avro_value()} | {error, term()}.
 cast_over_types([], _Value) ->
   {error, type_mismatch};

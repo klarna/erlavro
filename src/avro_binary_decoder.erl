@@ -80,6 +80,7 @@ decode_stream(IoData, Type, StoreOrLkupFun, Hook) ->
 
 %%%_* Internal functions =======================================================
 
+%% @private
 do_decode(IoList, Type, Store, Hook) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   do_decode(IoList, Type, Lkup, Hook);
@@ -90,6 +91,7 @@ do_decode(Bin, TypeName, Lkup, Hook) when is_list(TypeName) ->
 do_decode(Bin, Type, Lkup, Hook) when is_function(Hook, 4) ->
   dec(Bin, Type, Lkup, Hook).
 
+%% @private
 dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_PRIMITIVE_TYPE(T) ->
   Hook(T, "", Bin, fun(B) -> prim(B, T#avro_primitive_type.name) end);
 dec(Bin, T, Lkup, Hook) when ?AVRO_IS_RECORD_TYPE(T) ->
@@ -133,6 +135,7 @@ dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_FIXED_TYPE(T) ->
           {Value, Tail}
        end).
 
+%% @private
 dec_record(Bin, T, Lkup, Hook) ->
   FieldTypes = avro_record:get_all_field_types(T),
   {FieldValuesReversed, Tail} =
@@ -171,14 +174,17 @@ prim(Bin, "string") ->
   {Bytes, Tail} = bytes(Bin),
   {binary_to_list(Bytes), Tail}.
 
+%% @private
 bytes(Bin) ->
   {Size, Rest} = long(Bin),
   <<Bytes:Size/binary, Tail/binary>> = Rest,
   {Bytes, Tail}.
 
+%% @private
 blocks(Bin, ItemDecodeFun) ->
   blocks(Bin, ItemDecodeFun, _Index = 1, _Acc = []).
 
+%% @private
 blocks(Bin, ItemDecodeFun, Index, Acc) ->
   {Count0, Rest} = long(Bin),
   case Count0 =:= 0 of
@@ -200,18 +206,24 @@ blocks(Bin, ItemDecodeFun, Index, Acc) ->
       block(Tail0, ItemDecodeFun, Index, Acc, Count)
   end.
 
+%% @private
 block(Bin, ItemDecodeFun, Index, Acc, 0) ->
   blocks(Bin, ItemDecodeFun, Index, Acc);
 block(Bin, ItemDecodeFun, Index, Acc, Count) ->
   {Item, Tail} = ItemDecodeFun(Index, Bin),
   block(Tail, ItemDecodeFun, Index+1, [Item | Acc], Count-1).
 
+%% @private
 int(Bin) -> zigzag(varint(Bin, 0, 0, 32)).
+
+%% @private
 long(Bin) -> zigzag(varint(Bin, 0, 0, 64)).
 
+%% @private
 zigzag({Int, TailBin}) -> {zigzag(Int), TailBin};
 zigzag(Int)            -> (Int bsr 1) bxor -(Int band 1).
 
+%% @private
 varint(Bin, Acc, AccBits, MaxBits) ->
   <<Tag:1, Value:7, Tail/binary>> = Bin,
   true = (AccBits < MaxBits), %% assert

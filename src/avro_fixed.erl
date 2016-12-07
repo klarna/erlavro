@@ -95,12 +95,14 @@ cast(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 integer_to_fixed(Size, Integer) ->
   Bin = binary:encode_unsigned(Integer),
   true = (Size >= size(Bin)),
   PadSize = (Size - size(Bin))*8,
   <<0:PadSize, Bin/binary>>.
 
+%% @private
 do_cast(Type, Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
   TargetTypeName = Type#avro_fixed_type.fullname,
   SourceTypeName = (?AVRO_VALUE_TYPE(Value))#avro_fixed_type.fullname,

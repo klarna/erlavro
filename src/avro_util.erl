@@ -155,6 +155,7 @@ pretty_print_decoder_hook() ->
 %%%===================================================================
 
 
+%% @private
 %% Check correctness of the name portion of type names, record field names and
 %% enums symbols (everything where dots should not present in).
 -spec is_correct_name(string()) -> boolean().
@@ -164,6 +165,7 @@ is_correct_name([H])   -> is_correct_first_symbol(H);
 is_correct_name([H|T]) -> is_correct_first_symbol(H) andalso
                           is_correct_name_tail(T).
 
+%% @private
 %% Check correctness of type name or namespace (where name parts can be splitted
 %% with dots).
 -spec is_correct_dotted_name(string()) -> boolean().
@@ -171,22 +173,27 @@ is_correct_dotted_name(DottedName) ->
   Names = tokens_ex(DottedName, $.),
   Names =/= [] andalso lists:all(fun is_correct_name/1, Names).
 
+%% @private
 reserved_type_names() ->
   [?AVRO_NULL, ?AVRO_BOOLEAN, ?AVRO_INT, ?AVRO_LONG, ?AVRO_FLOAT,
    ?AVRO_DOUBLE, ?AVRO_BYTES, ?AVRO_STRING, ?AVRO_RECORD, ?AVRO_ENUM,
    ?AVRO_ARRAY, ?AVRO_MAP, ?AVRO_UNION, ?AVRO_FIXED].
 
+%% @private
 is_correct_first_symbol(S) -> (S >= $A andalso S =< $Z) orelse
                               (S >= $a andalso S =< $z) orelse
                               S =:= $_.
 
+%% @private
 is_correct_symbol(S) -> is_correct_first_symbol(S) orelse
                         (S >= $0 andalso S =< $9).
 
+%% @private
 is_correct_name_tail([])    -> true;
 is_correct_name_tail([H|T]) -> is_correct_symbol(H) andalso
                                is_correct_name_tail(T).
 
+%% @private
 verify_type_name(Type) ->
   Name = avro:get_type_name(Type),
   Ns = avro:get_type_namespace(Type),
@@ -201,6 +208,7 @@ verify_type_name(Type) ->
   ?ERROR_IF(lists:member(CanonicalName, reserved_type_names()),
             reserved_name_is_used_for_type_name).
 
+%% @private
 %% Splits string to tokens but doesn't count consecutive delimiters as
 %% a single delimiter. So tokens_ex("a...b", $.) produces ["a","","","b"].
 tokens_ex([], _Delimiter) ->
@@ -241,6 +249,7 @@ prf_decode(Type, Json, Count) ->
       end),
   Time.
 
+%% @private
 prf_prepare_type(RecordsCount, FieldsCount) ->
   avro_array:type(
     avro_union:type(
@@ -249,6 +258,7 @@ prf_prepare_type(RecordsCount, FieldsCount) ->
         lists:seq(1, RecordsCount))
      )).
 
+%% @private
 prf_prepare_data(Type, RecordsCount, FieldsCount) ->
   Records =
     lists:map(
@@ -263,12 +273,15 @@ prf_prepare_data(Type, RecordsCount, FieldsCount) ->
       lists:seq(1, RecordsCount)),
   avro_array:new(Type, Records).
 
+%% @private
 prf_get_record_name(RN) ->
   "MyRecord" ++ integer_to_list(RN).
 
+%% @private
 prf_get_field_name(RN, FN) ->
   "Field" ++ integer_to_list(RN) ++ "_" ++ integer_to_list(FN).
 
+%% @private
 prf_record_type(RN, FieldsCount) ->
   Fields =
     lists:map(
