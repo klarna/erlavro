@@ -9,7 +9,7 @@
 -module(avro_ocf_tests).
 -author("tihon").
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 interop_test() ->
