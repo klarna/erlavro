@@ -41,7 +41,7 @@
 -define(INT8_MIN, -9223372036854775808).
 -define(INT8_MAX,  9223372036854775807).
 
--define(REQUIRED, =erlang:error({required_field_missed, ?MODULE, ?LINE})).
+-define(REQUIRED, erlang:error({required_field_missed, ?MODULE, ?LINE})).
 
 -type avro_ordering() :: ascending | descending | ignore.
 
@@ -57,9 +57,9 @@
 -endif.
 
 -record(avro_record_field,
-        { name      ?REQUIRED :: avro:name()
+        { name      = ?REQUIRED :: avro:name()
         , doc       = ""      :: avro:typedoc()
-        , type      ?REQUIRED :: avro_type_or_name()
+        , type      = ?REQUIRED :: avro_type_or_name()
         , default             :: avro_value() | undefined
         , order  = ascending  :: avro_ordering()
         , aliases   = []      :: [avro:name()]
@@ -67,39 +67,39 @@
 
 %% fullname of a primitive types is always equal to its name
 -record(avro_primitive_type,
-        { name      ?REQUIRED :: avro:name()
+        { name      = ?REQUIRED :: avro:name()
         }).
 
 -record(avro_record_type,
-        { name      ?REQUIRED :: avro:name()
+        { name      = ?REQUIRED :: avro:name()
         , namespace = ""      :: avro:namespace()
         , doc       = ""      :: avro:typedoc()
         , aliases   = []      :: [avro:name()]
-        , fields    ?REQUIRED :: [#avro_record_field{}]
+        , fields    = ?REQUIRED :: [#avro_record_field{}]
         %% -- service fields --
-        , fullname  ?REQUIRED :: avro:fullname()
+        , fullname  = ?REQUIRED :: avro:fullname()
         }).
 
 -record(avro_enum_type,
-        { name      ?REQUIRED :: avro:name()
+        { name      = ?REQUIRED :: avro:name()
         , namespace = ""      :: avro:namespace()
         , aliases   = []      :: [avro:name()]
         , doc       = ""      :: avro:typedoc()
-        , symbols   ?REQUIRED :: [avro:enum_symbol()]
+        , symbols   = ?REQUIRED :: [avro:enum_symbol()]
         %% -- service fields --
-        , fullname  ?REQUIRED :: avro:fullname()
+        , fullname  = ?REQUIRED :: avro:fullname()
         }).
 
 -record(avro_array_type,
-        { type      ?REQUIRED :: avro_type_or_name()
+        { type      = ?REQUIRED :: avro_type_or_name()
         }).
 
 -record(avro_map_type,
-        { type      ?REQUIRED :: avro_type_or_name()
+        { type      = ?REQUIRED :: avro_type_or_name()
         }).
 
 -record(avro_union_type,
-        { types     ?REQUIRED :: [{avro:union_index(), avro_type_or_name()}]
+        { types     = ?REQUIRED :: [{avro:union_index(), avro_type_or_name()}]
           %% Precached dictionary of types inside the union,
           %% helps to speed up types lookups for big unions.
           %% Dictionary is filled only for big unions (>10)
@@ -110,12 +110,12 @@
         }).
 
 -record(avro_fixed_type,
-        { name      ?REQUIRED :: avro:name()
+        { name      = ?REQUIRED :: avro:name()
         , namespace = ""      :: avro:namespace()
         , aliases   = []      :: [avro:name()]
-        , size      ?REQUIRED :: integer()
+        , size      = ?REQUIRED :: integer()
         %% -- service fields --
-        , fullname  ?REQUIRED :: avro:fullname()
+        , fullname  = ?REQUIRED :: avro:fullname()
         }).
 
 -record(avro_value,
