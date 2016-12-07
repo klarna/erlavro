@@ -33,13 +33,11 @@
         ]).
 
 -include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 -ifdef(TEST).
 -compile(export_all).
 -endif.
-
--type lkup_fun() :: fun((string()) -> avro_type()).
--type schema_store() :: avro_schema_store:store().
 
 %%%_* APIs =====================================================================
 

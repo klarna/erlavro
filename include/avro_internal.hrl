@@ -29,6 +29,13 @@
 -type typedoc() :: string().
 -type enum_symbol() :: string().
 -type union_index() :: non_neg_integer().
+-type lkup_fun() :: fun((string()) -> avro_type()).
+-type schema_store() :: avro_schema_store:store().
+
+-record(header, { magic
+  , meta
+  , sync
+}).
 
 -endif.
 

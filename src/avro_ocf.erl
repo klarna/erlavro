@@ -33,14 +33,13 @@
 -export_type([ header/0
              ]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 -ifdef(TEST).
 -compile(export_all).
 -endif.
 
 -type avro_object() :: term().
--type schema_store() :: avro_schema_store:store().
 -type filename() :: file:filename_all().
 
 -opaque header() :: #header{}.

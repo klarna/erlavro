@@ -306,3 +306,61 @@ encode_fixed_value_test() ->
   Value = avro_fixed:new(Type, <<1,127>>),
   Json = avro_json_encoder:encode_value(Value),
   ?assertEqual("\"\\u0001\\u007f\"", to_string(Json)).
+
+check_json_encode_record_properly_test() ->
+  MyRecordType = avro_record:type("MyRecord",
+    [avro_record:define_field("f1", avro_primitive:int_type()),
+      avro_record:define_field("f2", avro_primitive:string_type())],
+    [{namespace, "my.com"}]),
+  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
+  Term = [{"f1", 1},{"f2","my string"}],
+  {ok, AvroValue} = avro:cast(MyRecordType, Term),
+  JSON = avro_json_encoder:encode_value(AvroValue),
+  Encoded = avro_json_encoder:encode(Store, "my.com.MyRecord", Term),
+  ?assertEqual(JSON, jsonx:encode(Encoded)),
+  ?assertEqual(Term,
+    avro_json_decoder:decode_value(JSON, "my.com.MyRecord", Store, [{is_wrapped, false}])).
+
+check_json_encode_enum_properly_test() ->
+  EnumType =
+    avro_enum:type("Enum",
+      ["A", "B", "C"],
+      [{namespace, "com.klarna.test.bix"}]),
+  Store = avro_schema_store:add_type(EnumType, avro_schema_store:new([])),
+  EnumValue = ?AVRO_VALUE(EnumType, "B"),
+  EnumValueJson = avro_json_encoder:encode_value(EnumValue),
+  Encoded = avro_json_encoder:encode(Store, "com.klarna.test.bix.Enum", "B"),
+  ?assertEqual(EnumValueJson, jsonx:encode(Encoded)).
+
+check_json_encode_array_properly_test() ->
+  Type = avro_array:type(avro_primitive:string_type()),
+  Value = avro_array:new(Type,
+    [ avro_primitive:string("a")
+    , avro_primitive:string("b")]),
+  Json = avro_json_encoder:encode_value(Value),
+  Encoded = avro_json_encoder:encode(fun(_) -> Type end, "some_array", ["a", "b"]),
+  ?assertEqual(Json, jsonx:encode(Encoded)).
+
+check_json_encode_map_properly_test() ->
+  MapType = avro_map:type(avro_union:type(
+    [avro_primitive:int_type(),
+      avro_primitive:null_type()])),
+  MapValue = avro_map:new(MapType, [{"v1", 1}, {"v2", null}, {"v3", 2}]),
+  Json = avro_json_encoder:encode_value(MapValue),
+  ct:pal("json ~p", [Json]),
+  Encoded = avro_json_encoder:encode(
+    fun(_) -> MapType end, "some_map", dict:from_list([{"v1", 1}, {"v2", null}, {"v3", 2}])),
+  ct:pal("got ~p  --> ~p", [Encoded, jsonx:encode(Encoded)]),
+  ?assertEqual(Json, jsonx:encode(Encoded)).
+
+check_json_encode_union_properly_test() ->
+  UnionType = avro_union:type([ avro_primitive:string_type()
+                              , avro_primitive:null_type()]),
+  Value1 = avro_union:new(UnionType, avro_primitive:null()),
+  Value2 = avro_union:new(UnionType, avro_primitive:string("bar")),
+  Json1 = avro_json_encoder:encode_value(Value1),
+  Json2 = avro_json_encoder:encode_value(Value2),
+  Encoded1 = avro_json_encoder:encode(fun(_) -> UnionType end, "some_union", null),
+  Encoded2 = avro_json_encoder:encode(fun(_) -> UnionType end, "some_union", "bar"),
+  ?assertEqual(Json1, jsonx:encode(Encoded1)),
+  ?assertEqual(Json2, jsonx:encode(Encoded2)).

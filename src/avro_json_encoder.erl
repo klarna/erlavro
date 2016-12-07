@@ -32,7 +32,9 @@
 -export([encode_type/1]).
 -export([encode_value/1]).
 -export([encode_value/2]).
+-export([encode/3]).
 
+-include("erlavro.hrl").
 -include("avro_internal.hrl").
 
 %%%===================================================================
@@ -65,9 +67,102 @@ encode_value(Value, mochijson3) ->
   Encoder = mochijson3:encoder([{utf8, true}]),
   Encoder(do_encode_value(Value)).
 
+%% @doc Encode unwrapped (raw) values directly without (possibilly
+%% recursive) type info wrapped with values.
+%% i.e. data can be recursive, but recursive types are resolved by
+%% schema lookup
+%% @end
+-spec encode(schema_store() | lkup_fun(), avro_type_or_name(), term()) ->
+  iodata().
+encode(Store, TypeName, Value) when not is_function(Store) ->
+  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  encode(Lkup, TypeName, Value);
+encode(Lkup, TypeName, Value) when is_list(TypeName) ->
+  encode(Lkup, Lkup(TypeName), Value);
+encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
+  {ok, AvroValue} = avro_primitive:cast(Type, Value),
+  do_encode_value(AvroValue);
+encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+  FieldTypes = avro_record:get_all_field_types(Type),
+  TypeFullName = avro:get_type_fullname(Type),
+  FieldValues =
+    case Value of
+      {TypeFullName_, FieldValues_} ->
+        TypeFullName_ = TypeFullName, %% assert
+        FieldValues_;
+      L when is_list(L) ->
+        L
+    end,
+  TypeAndValueList =
+    zip_record_field_types_with_key_value(TypeFullName, FieldTypes, FieldValues),
+  { struct
+  , lists:map(fun({FieldName, FT, FV}) -> {encode_string(FieldName), encode(Lkup, FT, FV)} end, TypeAndValueList)
+  };
+encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
+  encode_string(Value);
+encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+  lists:map(fun(Element) -> encode(Lkup, avro_array:get_items_type(Type), Element) end, Value);
+encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
+  L = dict:to_list(Value),
+  ct:pal("L ~p, T ~p", [L, avro_map:type(Type)]),
+  { struct
+  , lists:map(fun({Caption, Element}) ->
+    ct:pal("ELMNT ~p, Type ~p", [Element, avro_map:get_items_type(Type)]),
+    {Caption,
+    encode(Lkup, avro_map:get_items_type(Type), Element)} end, L)
+  };
+encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
+  ct:pal("avro is fixed type ~p ~p", [Type, Value]),
+  %% force binary size check for the value
+  encode_value(avro_fixed:new(Type, Value));
+encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
+  ct:pal("avro is union type ~p ~p types ~p", [Type, Union, avro_union:get_types(Type)]),
+  MemberTypes = avro_union:get_types(Type),
+  ct:pal("types ~p, value ~p", [MemberTypes, Union]),
+  case Union of
+    null  -> null; %% Nulls don't need a type to be specified
+    _ ->
+      { struct
+      , [try_encode_union_loop(Lkup, Type, MemberTypes, Union, 0)]
+      }
+  end.
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @private
+try_encode_union_loop(_Lkup, UnionType, [], Value, _Index) ->
+  erlang:error({failed_to_encode_union, UnionType, Value});
+try_encode_union_loop(Lkup, UnionType, [MemberT | Rest], Value, Index) ->
+  try
+    {encode_string(avro:get_type_fullname(MemberT)), encode(Lkup, MemberT, Value)}
+  catch _ : _ ->
+    try_encode_union_loop(Lkup, UnionType, Rest, Value, Index + 1)
+  end.
+
+%% @private
+zip_record_field_types_with_key_value(_Name, [], []) -> [];
+zip_record_field_types_with_key_value(Name, [{FieldName, FieldType} | Rest],
+    FieldValues0) ->
+  {FieldValue, FieldValues} =
+    take_record_field_value(Name, FieldName, FieldValues0, []),
+  [{FieldName, FieldType, FieldValue}
+    | zip_record_field_types_with_key_value(Name, Rest, FieldValues)
+  ].
+
+%% @private
+take_record_field_value(RecordName, FieldName, [], _) ->
+  erlang:error({field_value_not_found, RecordName, FieldName});
+take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
+  case Tag =:= FieldName orelse
+    (is_atom(Tag) andalso atom_to_list(Tag) =:= FieldName) of
+    true ->
+      {Value, Tried ++ Rest};
+    false ->
+      take_record_field_value(RecordName, FieldName,
+        Rest, [{Tag, Value} | Tried])
+  end.
 
 %% @private
 optional_field(_Key, Default, Default, _MappingFun) -> [];
@@ -222,6 +317,7 @@ do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
 do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
   L = dict:to_list(avro_map:to_dict(Map)),
+  ct:pal("MAP ~p L ~p", [Map, L]),
   { struct
   , lists:map(fun encode_field_with_value/1, L)
   };

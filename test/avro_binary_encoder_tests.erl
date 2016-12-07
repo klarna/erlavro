@@ -195,3 +195,26 @@ encode_fixed_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value = avro_fixed:new(Type, <<1,127>>),
   ?assertBinEq(<<1, 127>>, avro_binary_encoder:encode_value(Value)).
+
+encode_binary_properly_test() ->
+  MyRecordType = avro_record:type("MyRecord",
+    [avro_record:define_field("f1", avro_primitive:int_type()),
+      avro_record:define_field("f2", avro_primitive:string_type())],
+    [{namespace, "my.com"}]),
+  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
+  Term = [{"f1", 1}, {"f2", "my string"}],
+  Encoded = avro_binary_encoder:encode(Store, "my.com.MyRecord", Term),
+  {ok, AvroValue} = avro:cast(MyRecordType, Term),
+  EncodedValue = avro_binary_encoder:encode_value(AvroValue),
+  ?assertEqual(Encoded, EncodedValue).
+
+encode_enum_properly_test() ->
+  UnionType = avro_union:type([avro_primitive:string_type(), avro_primitive:null_type()]),
+  Value1 = avro_union:new(UnionType, avro_primitive:null()),
+  Value2 = avro_union:new(UnionType, avro_primitive:string("bar")),
+  EncodedValue1 = avro_binary_encoder:encode_value(Value1),
+  EncodedValue2 = avro_binary_encoder:encode_value(Value2),
+  Encoded1 = avro_binary_encoder:encode(fun(_) -> UnionType end, "some_union", null),
+  Encoded2 = avro_binary_encoder:encode(fun(_) -> UnionType end, "some_union", "bar"),
+  ?assertEqual(EncodedValue1, Encoded1),
+  ?assertEqual(EncodedValue2, Encoded2).
