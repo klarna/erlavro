@@ -35,14 +35,13 @@
 
 -include("erlavro.hrl").
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 -type avro_object() :: term().
 -type schema_store() :: avro_schema_store:store().
 -type filename() :: file:filename_all().
-
--record(header, { magic
-                , meta
-                , sync
-                }).
 
 -opaque header() :: #header{}.
 
@@ -194,39 +193,7 @@ init_schema_store(Schema) ->
   Store = avro_schema_store:new([]),
   avro_schema_store:add_type(Schema, Store).
 
-%%%_* Tests ====================================================================
 
--include_lib("eunit/include/eunit.hrl").
-
--ifdef(EUNIT).
-
-interop_test() ->
-  PrivDir = priv_dir(),
-  InteropOcfFile = filename:join([PrivDir, "interop.ocf"]),
-  {Header, Schema, Objects} = decode_file(InteropOcfFile),
-  SchemaStore = init_schema_store(Schema),
-  MyFile = filename:join([PrivDir, "interop.ocf.test"]),
-  ok = write_header(MyFile, Header),
-  {ok, Fd} = file:open(MyFile, [write, append]),
-  try
-    ok = append_file(Fd, Header, SchemaStore, Schema, Objects)
-  after
-    file:close(Fd)
-  end,
-  {Header1, Schema1, Objects1} = decode_file(MyFile),
-  ?assertEqual(Header#header{meta = []}, Header1#header{meta = []}),
-  ?assertEqual(lists:keysort(1, Header#header.meta),
-               lists:keysort(1, Header1#header.meta)),
-  ?assertEqual(Schema, Schema1),
-  ?assertEqual(Objects, Objects1).
-
-priv_dir() ->
-  case filelib:is_dir(filename:join(["..", priv])) of
-    true -> filename:join(["..", priv]);
-    _    -> "./priv"
-  end.
-
--endif.
 %%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t

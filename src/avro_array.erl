@@ -111,44 +111,6 @@ cast_items(TargetType, [Item|H], Acc) ->
     Err         -> Err
   end.
 
-%%%===================================================================
-%%% Tests
-%%%===================================================================
-
--include_lib("eunit/include/eunit.hrl").
-
--ifdef(EUNIT).
-
-to_term_test() ->
-  ArrayType = type(avro_primitive:int_type()),
-  {ok, Array} = cast(ArrayType, [1, 2]),
-  ?assertEqual([1, 2], avro:to_term(Array)).
-
-cast_test() ->
-  ArrayType = type(avro_primitive:string_type()),
-  {ok, Array} = cast(ArrayType, ["a", "b"]),
-  ?assertEqual(ArrayType, ?AVRO_VALUE_TYPE(Array)),
-  ?assertEqual([avro_primitive:string("a"), avro_primitive:string("b")],
-              ?AVRO_VALUE_DATA(Array)).
-
-prepend_test() ->
-  ArrayType = type(avro_primitive:string_type()),
-  {ok, Array} = cast(ArrayType, ["b", "a"]),
-  NewArray = prepend(["d", "c"], Array),
-  ExpectedValues = [avro_primitive:string(S) || S <- ["d", "c", "b", "a"]],
-  ?assertEqual(ExpectedValues, ?AVRO_VALUE_DATA(NewArray)).
-
-new_direct_test() ->
-  Type = type(avro_primitive:int_type()),
-  NewVersion = new(Type, [1,2,3]),
-  DirectVersion = new_direct(Type,
-                             [ avro_primitive:int(1)
-                             , avro_primitive:int(2)
-                             , avro_primitive:int(3)
-                             ]),
-  ?assertEqual(NewVersion, DirectVersion).
-
--endif.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

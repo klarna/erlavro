@@ -123,6 +123,11 @@
         , data :: term()
         }).
 
+-record(header, { magic
+  , meta
+  , sync
+}).
+
 -type avro_type()  :: #avro_primitive_type{} |
                       #avro_record_type{} |
                       #avro_enum_type{}   |
