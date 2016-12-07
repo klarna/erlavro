@@ -4,3 +4,7 @@ ebin/*.beam
 /lib/
 /.rebar/
 doc/
+.idea/
+ebin/
+erlavro.iml
+out/

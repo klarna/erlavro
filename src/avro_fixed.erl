@@ -124,66 +124,6 @@ do_cast(Type, Value) when is_binary(Value) ->
 do_cast(Type, Value) ->
   {error, {cast_error, Type, Value}}.
 
-%%%===================================================================
-%%% Tests
-%%%===================================================================
-
--include_lib("eunit/include/eunit.hrl").
-
--ifdef(EUNIT).
-
-neg_size_test() ->
-  ?assertError(invalid_size, type("FooBar", -1)).
-
-short_create_test() ->
-  Type = type("FooBar", 16),
-  ?assertEqual("FooBar", avro:get_type_fullname(Type)),
-  ?assertEqual(16, get_size(Type)).
-
-full_create_test() ->
-  Type = type("FooBar", 16,
-              [ {namespace, "name.space"}
-              , {aliases, ["Zoo", "Bee"]}
-              , {enclosing_ns, "enc.losing"}
-              ]),
-  ?assertEqual("name.space.FooBar", avro:get_type_fullname(Type)),
-  ?assertEqual(16, get_size(Type)).
-
-incorrect_cast_from_fixed_test() ->
-  SourceType = type("FooBar", 2),
-  SourceValue = new(SourceType, <<1,2>>),
-  TargetType = type("BarFoo", 2),
-  ?assertEqual({error, type_name_mismatch}, cast(TargetType, SourceValue)).
-
-correct_cast_from_fixed_test() ->
-  SourceType = type("FooBar", 2),
-  SourceValue = new(SourceType, <<1,2>>),
-  TargetType = type("FooBar", 2),
-  ?assertEqual({ok, SourceValue}, cast(TargetType, SourceValue)).
-
-incorrect_cast_from_binary_test() ->
-  Type = type("FooBar", 2),
-  ?assertEqual({error, wrong_binary_size}, cast(Type, <<1,2,3>>)),
-  ?assertEqual({error, wrong_binary_size}, cast(Type, <<1>>)).
-
-correct_cast_from_binary_test() ->
-  Type = type("FooBar", 2),
-  Bin = <<1,2>>,
-  ?assertEqual({ok, ?AVRO_VALUE(Type, Bin)}, cast(Type, Bin)).
-
-integer_cast_test() ->
-  Type = type("FooBar", 2),
-  Value1 = new(Type, 67),   %% 1 byte
-  Value2 = new(Type, 1017), %% 2 bytes
-  ?assertEqual(67, to_integer(Value1)),
-  ?assertEqual(1017, to_integer(Value2)).
-
-get_value_test() ->
-  Type = type("FooBar", 2),
-  Value = new(Type, <<1,2>>),
-  ?assertEqual(<<1,2>>, get_value(Value)).
-
--endif.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

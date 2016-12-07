@@ -99,42 +99,6 @@ cast_from_dict(ItemsType, Dict) ->
     dict:new(),
     Dict).
 
-%%%===================================================================
-%%% Tests
-%%%===================================================================
-
--include_lib("eunit/include/eunit.hrl").
-
--ifdef(EUNIT).
-
-cast_test() ->
-  Type = type(avro_primitive:int_type()),
-  Value = cast(Type, [{"v1", 1}, {"v2", 2}, {"v3", 3}]),
-  Expected = ?AVRO_VALUE(Type, dict:from_list(
-                                 [{"v1", avro_primitive:int(1)}
-                                 ,{"v2", avro_primitive:int(2)}
-                                 ,{"v3", avro_primitive:int(3)}])),
-  ?assertEqual({ok, Expected}, Value).
-
-to_dict_test() ->
-  Type = type(avro_primitive:int_type()),
-  Value = new(Type, [{"v1", 1}, {"v2", 2}, {"v3", 3}]),
-  Expected = dict:from_list(
-               [{"v1", avro_primitive:int(1)}
-               ,{"v2", avro_primitive:int(2)}
-               ,{"v3", avro_primitive:int(3)}]),
-  ?assertEqual(Expected,
-               to_dict(Value)).
-
-to_term_test() ->
-  Type = type(avro_primitive:int_type()),
-  ExpectedMappings = [{"v1", 1}, {"v2", 2}, {"v3", 3}],
-  Value = new(Type, ExpectedMappings),
-  Mappings = avro:to_term(Value),
-  ?assertEqual(ExpectedMappings, lists:keysort(1, Mappings)).
-
--endif.
-
 %%%_* Emacs ============================================================
 %%% Local Variables:
 %%% allout-layout: t

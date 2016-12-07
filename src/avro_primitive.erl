@@ -175,16 +175,6 @@ get_value(Value) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
 from_cast({ok, Value})  -> Value;
 from_cast({error, Err}) -> erlang:error(Err).
 
-%%%===================================================================
-%%% Tests
-%%%===================================================================
-
--include_lib("eunit/include/eunit.hrl").
-
--ifdef(EUNIT).
-
--endif.
-
 %%%_* Emacs ============================================================
 %%% Local Variables:
 %%% allout-layout: t

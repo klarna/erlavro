@@ -288,44 +288,6 @@ type_from_name(?AVRO_BYTES)  -> avro_primitive:bytes_type();
 type_from_name(?AVRO_STRING) -> avro_primitive:string_type();
 type_from_name(_)            -> undefined.
 
-%%%===================================================================
-%%% Tests
-%%%===================================================================
-
--include_lib("eunit/include/eunit.hrl").
-
--ifdef(EUNIT).
-
--define(PRIMITIVE_VALUE(Name, Value),
-        #avro_value{ type = #avro_primitive_type{name = Name}
-                   , data = Value}).
-
-get_test_type(Name, Namespace) ->
-  avro_fixed:type(Name, 16, [{namespace, Namespace}]).
-
-split_type_name_test() ->
-  ?assertEqual({"tname", ""},
-               split_type_name("tname", "", "")),
-  ?assertEqual({"tname", "name.space"},
-               split_type_name("tname", "name.space", "enc.losing")),
-  ?assertEqual({"tname", "name.space"},
-               split_type_name("name.space.tname", "", "name1.space1")),
-  ?assertEqual({"tname", "enc.losing"},
-               split_type_name("tname", "", "enc.losing")).
-
-get_type_fullname_test() ->
-  ?assertEqual("name.space.tname",
-               get_type_fullname(get_test_type("tname", "name.space"))),
-  ?assertEqual("int",
-               get_type_fullname(avro_primitive:int_type())).
-
-cast_primitive_test() ->
-  ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_STRING, "abc")},
-               cast(avro_primitive:string_type(), "abc")),
-  ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_INT, 1)}, cast("int", 1)),
-  ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_LONG, 1)}, cast("long", 1)).
-
--endif.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:
