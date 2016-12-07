@@ -139,6 +139,7 @@ decode_value(JsonValue, Schema, StoreOrLkupFun, Options) ->
 %%% Schema parsing
 %%%===================================================================
 
+%% @private
 parse_schema({struct, Attrs}, EnclosingNs, ExtractTypeFun) ->
   %% Json object: this is a type definition (except for unions)
   parse_type(Attrs, EnclosingNs, ExtractTypeFun);
@@ -160,6 +161,7 @@ parse_schema(_, _EnclosingNs, _ExtractTypeFun) ->
   %% Other Json value
   erlang:error(unexpected_element_in_schema).
 
+%% @private
 parse_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   TypeAttr = avro_util:get_opt(<<"type">>, Attrs),
   case TypeAttr of
@@ -174,6 +176,7 @@ parse_type(Attrs, EnclosingNs, ExtractTypeFun) ->
                         end
   end.
 
+%% @private
 parse_record_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
   NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
@@ -194,6 +197,7 @@ parse_record_type(Attrs, EnclosingNs, ExtractTypeFun) ->
                    , {enclosing_ns, EnclosingNs}
                    ]).
 
+%% @private
 parse_record_fields(Fields, EnclosingNs, ExtractTypeFun) ->
   lists:map(fun({struct, FieldAttrs}) ->
                 parse_record_field(FieldAttrs, EnclosingNs, ExtractTypeFun);
@@ -202,6 +206,7 @@ parse_record_fields(Fields, EnclosingNs, ExtractTypeFun) ->
             end,
             Fields).
 
+%% @private
 parse_record_field(Attrs, EnclosingNs, ExtractTypeFun) ->
   Name      = avro_util:get_opt(<<"name">>,    Attrs),
   Doc       = avro_util:get_opt(<<"doc">>,     Attrs, <<"">>),
@@ -219,6 +224,7 @@ parse_record_field(Attrs, EnclosingNs, ExtractTypeFun) ->
   , aliases = parse_aliases(Aliases)
   }.
 
+%% @private
 parse_default_value(undefined, _FieldType, _ExtractTypeFun) ->
   undefined;
 parse_default_value(Value, FieldType, ExtractTypeFun)
@@ -231,11 +237,13 @@ parse_default_value(Value, FieldType, ExtractTypeFun)
 parse_default_value(Value, FieldType, ExtractTypeFun) ->
   parse_value(Value, FieldType, ExtractTypeFun).
 
+%% @private
 parse_order(<<"ascending">>)  -> ascending;
 parse_order(<<"descending">>) -> ascending;
 parse_order(<<"ignore">>)     -> ignore;
 parse_order(Order)            -> erlang:error({unknown_sort_order, Order}).
 
+%% @private
 parse_enum_type(Attrs, EnclosingNs) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
   NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
@@ -250,6 +258,7 @@ parse_enum_type(Attrs, EnclosingNs) ->
                  , {enclosing_ns, EnclosingNs}
                  ]).
 
+%% @private
 parse_enum_symbols(SymbolsArray) when is_list(SymbolsArray) ->
   lists:map(
     fun(SymBin) when is_binary(SymBin) ->
@@ -261,14 +270,17 @@ parse_enum_symbols(SymbolsArray) when is_list(SymbolsArray) ->
 parse_enum_symbols(_) ->
   erlang:error(wrong_enum_symbols_specification).
 
+%% @private
 parse_array_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   Items = avro_util:get_opt(<<"items">>, Attrs),
   avro_array:type(parse_schema(Items, EnclosingNs, ExtractTypeFun)).
 
+%% @private
 parse_map_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   Values = avro_util:get_opt(<<"values">>, Attrs),
   avro_map:type(parse_schema(Values, EnclosingNs, ExtractTypeFun)).
 
+%% @private
 parse_fixed_type(Attrs, EnclosingNs) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
   NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
@@ -281,11 +293,13 @@ parse_fixed_type(Attrs, EnclosingNs) ->
                   , {enclosing_ns, EnclosingNs}
                   ]).
 
+%% @private
 parse_fixed_size(N) when is_integer(N) andalso N > 0 ->
   N;
 parse_fixed_size(_) ->
   erlang:error(wrong_fixed_size_specification).
 
+%% @private
 parse_union_type(Attrs, EnclosingNs, ExtractTypeFun) ->
   Types = lists:map(
             fun(Schema) ->
@@ -294,6 +308,7 @@ parse_union_type(Attrs, EnclosingNs, ExtractTypeFun) ->
             Attrs),
   avro_union:type(Types).
 
+%% @private
 parse_aliases(AliasesArray) when is_list(AliasesArray) ->
   lists:map(
     fun(AliasBin) when is_binary(AliasBin) ->
@@ -307,6 +322,7 @@ parse_aliases(AliasesArray) when is_list(AliasesArray) ->
 parse_aliases(_) ->
   erlang:error(wrong_aliases_specification).
 
+%% @private
 %% Primitive types can be specified as their names
 type_from_name(<<?AVRO_NULL>>)    -> avro_primitive:null_type();
 type_from_name(<<?AVRO_BOOLEAN>>) -> avro_primitive:boolean_type();
@@ -322,9 +338,11 @@ type_from_name(_)                 -> undefined.
 %%% Values parsing
 %%%===================================================================
 
+%% @private
 parse_value(Value, Type, ExtractFun) ->
   parse(Value, Type, ExtractFun, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
 
+%% @private
 parse(Value, TypeName, ExtractFun, IsWrapped, Hook) when is_list(TypeName) ->
   %% Type is defined by its name
   Type = ExtractFun(TypeName),
@@ -367,6 +385,7 @@ parse(V, Type, ExtractFun, IsWrapped, Hook) when ?AVRO_IS_UNION_TYPE(Type) ->
 parse(Value, Type, _ExtractFun, _IsWrapped, _Hook) ->
   erlang:error({value_does_not_correspond_to_schema, Type, Value}).
 
+%% @private
 %% Parse primitive values, return wrapped value.
 parse_prim(null, Type) when ?AVRO_IS_NULL_TYPE(Type) ->
   avro_primitive:null();
@@ -396,10 +415,11 @@ parse_prim(V, Type) when ?AVRO_IS_STRING_TYPE(Type) andalso
                          is_binary(V) ->
   avro_primitive:string(binary_to_list(V)).
 
-
+%% @private
 parse_bytes(BytesStr) ->
   list_to_binary(parse_bytes(BytesStr, [])).
 
+%% @private
 parse_bytes(<<>>, Acc) ->
   lists:reverse(Acc);
 parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
@@ -408,6 +428,7 @@ parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
 parse_bytes(_, _) ->
   erlang:error(wrong_bytes_string).
 
+%% @private
 parse_record({struct, Attrs}, Type, ExtractFun, IsWrapped, Hook) ->
   Hook(Type, none, Attrs,
        fun(JsonValues) ->
@@ -421,6 +442,7 @@ parse_record({struct, Attrs}, Type, ExtractFun, IsWrapped, Hook) ->
 parse_record(_, _, _, _, _) ->
   erlang:error(wrong_record_value).
 
+%% @private
 convert_attrs_to_record_fields(Attrs, Type, ExtractFun, IsWrapped, Hook) ->
   lists:map(
     fun({FieldNameBin, Value}) ->
@@ -435,6 +457,7 @@ convert_attrs_to_record_fields(Attrs, Type, ExtractFun, IsWrapped, Hook) ->
     end,
     Attrs).
 
+%% @private
 parse_array(V, Type, ExtractFun, IsWrapped, Hook) when is_list(V) ->
   ItemsType = avro_array:get_items_type(Type),
   {_Index, ParsedArray} =
@@ -459,6 +482,7 @@ parse_array(V, Type, ExtractFun, IsWrapped, Hook) when is_list(V) ->
 parse_array(_, _, _, _, _) ->
   erlang:error(wrong_array_value).
 
+%% @private
 parse_map({struct, Attrs}, Type, ExtractFun, IsWrapped, Hook) ->
   ItemsType = avro_map:get_items_type(Type),
   D = lists:foldl(
@@ -476,6 +500,7 @@ parse_map({struct, Attrs}, Type, ExtractFun, IsWrapped, Hook) ->
     false -> dict:to_list(D)
   end.
 
+%% @private
 parse_union(null = Value, Type, ExtractFun, IsWrapped, Hook) ->
   %% Union values specified as null
   parse_union_ex(?AVRO_NULL, Value, Type, ExtractFun, IsWrapped, Hook);
@@ -487,6 +512,7 @@ parse_union({struct, [{ValueTypeNameBin, Value}]},
 parse_union(_, _, _, _, _) ->
   erlang:error(wrong_union_value).
 
+%% @private
 parse_union_ex(ValueTypeName, Value, UnionType,
                ExtractFun, IsWrapped, Hook) ->
   case avro_union:lookup_child_type(UnionType, ValueTypeName) of

@@ -89,6 +89,7 @@ to_term(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 -spec do_cast(#avro_array_type{}, avro_value() | [term()])
              -> {ok, avro_value()} | {error, term()}.
 
@@ -103,6 +104,7 @@ do_cast(Type, Items) when is_list(Items) ->
     Err                             -> Err
   end.
 
+%% @private
 cast_items(_TargetType, [], Acc) ->
   lists:reverse(Acc);
 cast_items(TargetType, [Item|H], Acc) ->

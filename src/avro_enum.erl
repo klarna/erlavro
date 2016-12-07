@@ -104,6 +104,7 @@ cast(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 check_symbols(Symbols) ->
   SymLen = length(Symbols),
   ?ERROR_IF(SymLen =:= 0,
@@ -112,6 +113,7 @@ check_symbols(Symbols) ->
             non_unique_symbols),
   lists:foreach(fun(S) -> avro_util:verify_name(S) end, Symbols).
 
+%% @private
 do_cast(Type, Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
   %% When casting from other enums only equality of type names is checked
   TargetTypeName = Type#avro_enum_type.fullname,
@@ -127,25 +129,15 @@ do_cast(Type, Value) when is_list(Value) ->
 do_cast(Type, Value) ->
   {error, {cast_error, Type, Value}}.
 
+%% @private
 is_valid_symbol(Type, Symbol) ->
   lists:member(Symbol, Type#avro_enum_type.symbols).
 
+%% @private
 get_index(Symbol, [Symbol | _Symbols], Index) ->
   Index;
 get_index(Symbol, [_ | Symbols], Index) ->
   get_index(Symbol, Symbols, Index + 1).
-
-%%%===================================================================
-%%% Tests
-%%%===================================================================
-
--include_lib("eunit/include/eunit.hrl").
-
--ifdef(EUNIT).
-
-
-
--endif.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

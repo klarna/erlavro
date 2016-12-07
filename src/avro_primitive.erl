@@ -172,6 +172,7 @@ get_value(Value) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 from_cast({ok, Value})  -> Value;
 from_cast({error, Err}) -> erlang:error(Err).
 

@@ -234,6 +234,7 @@ flatten_type(Type) when ?IS_AVRO_TYPE(Type) ->
 
 %%%_* Internal Functions =======================================================
 
+%% @private
 -spec do_expand_type(fullname(), store()) ->
         fullname() | avro_type() | no_return().
 do_expand_type(Fullname, Store) when ?IS_NAME(Fullname) ->
@@ -251,6 +252,7 @@ do_expand_type(Fullname, Store) when ?IS_NAME(Fullname) ->
       expand(T, Store)
   end.
 
+%% @private
 -spec expand(avro_type(), store()) -> avro_type() | no_return().
 expand(#avro_record_type{fields = Fields} = T, Store) ->
   ResolvedFields =
@@ -279,6 +281,7 @@ expand(Fullname, Store) when ?IS_NAME(Fullname) ->
 expand(T, _Store) when ?IS_AVRO_TYPE(T) ->
   T.
 
+%% @private
 -spec do_add_type(avro_type(), store()) -> store().
 do_add_type(Type, Store) ->
   FullName = avro:get_type_fullname(Type),
@@ -343,6 +346,7 @@ extract_children_types(Union) when ?AVRO_IS_UNION_TYPE(Union) ->
 %%% Low level store access
 %%%===================================================================
 
+%% @private
 -spec put_type_to_store(fullname(), avro_type(), store()) -> store().
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
@@ -350,12 +354,14 @@ put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {{json, Name}, Json}),
   Store.
 
+%% @private
 get_type_from_store(Name, Store) ->
   case ets:lookup(Store, Name) of
     []             -> false;
     [{Name, Type}] -> {ok, Type}
   end.
 
+%% @private
 get_type_json_from_store(Name, Store) ->
   case ets:lookup(Store, {json, Name}) of
     []                     -> false;

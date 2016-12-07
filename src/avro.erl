@@ -238,6 +238,7 @@ cast(Type, _)                       -> {error, {unknown_type, Type}}.
 -spec to_term(avro_value()) -> term().
 to_term(#avro_value{type = T} = V) -> to_term(T, V).
 
+%% @private
 to_term(#avro_primitive_type{}, V) -> avro_primitive:get_value(V);
 to_term(#avro_record_type{}, V)    -> avro_record:to_term(V);
 to_term(#avro_enum_type{}, V)      -> avro_enum:get_value(V);
@@ -266,6 +267,7 @@ split_fullname(FullName) ->
             }
     end.
 
+%% @private
 make_fullname(Name, "") ->
   Name;
 make_fullname(Name, Namespace) ->
@@ -275,10 +277,12 @@ make_fullname(Name, Namespace) ->
 %%% Internal functions: casting
 %%%===================================================================
 
+%% @private
 %% Checks if the type has specified full name
 has_fullname(Type, FullName) ->
   is_named_type(Type) andalso get_type_fullname(Type) =:= FullName.
 
+%% @private
 type_from_name(?AVRO_NULL)   -> avro_primitive:null_type();
 type_from_name(?AVRO_INT)    -> avro_primitive:int_type();
 type_from_name(?AVRO_LONG)   -> avro_primitive:long_type();

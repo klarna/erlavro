@@ -69,9 +69,11 @@ encode_value(Value, mochijson3) ->
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 optional_field(_Key, Default, Default, _MappingFun) -> [];
 optional_field(Key, Value, _Default, MappingFun) -> [{Key, MappingFun(Value)}].
 
+%% @private
 do_encode_type(Name, EnclosingNamespace) when ?IS_NAME(Name) ->
   MaybeShortName =
     case avro:split_type_name(Name, EnclosingNamespace) of
@@ -146,6 +148,7 @@ do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace) ->
     ],
   {struct, lists:flatten(SchemaObjectFields)}.
 
+%% @private
 encode_field(Field, EnclosingNamespace) ->
   #avro_record_field{ name    = Name
                     , doc     = Doc
@@ -170,19 +173,24 @@ encode_field(Field, EnclosingNamespace) ->
 ns(Namespace, Namespace)           -> ?NAMESPACE_NONE;
 ns(Namespace, _EnclosingNamespace) -> Namespace.
 
+%% @private
 encode_string(String) ->
   erlang:list_to_binary(String).
 
+%% @private
 encode_integer(Int) when is_integer(Int) ->
   Int.
 
+%% @private
 encode_aliases(Aliases) ->
   lists:map(fun encode_string/1, Aliases).
 
+%% @private
 encode_order(ascending)  -> <<"ascending">>;
 encode_order(descending) -> <<"descending">>;
 encode_order(ignore)     -> <<"ignore">>.
 
+%% @private
 do_encode_value(?AVRO_ENCODED_VALUE_JSON(_Type, _Value = Encoded)) ->
   {json, Encoded};
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
@@ -231,17 +239,21 @@ do_encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
   %% mochijson3 doesn't support Avro style of encoding binaries
   {json, encode_binary(?AVRO_VALUE_DATA(Fixed))}.
 
+%% @private
 encode_field_with_value({FieldName, Value}) ->
   {encode_string(FieldName), do_encode_value(Value)}.
 
+%% @private
 encode_binary(Bin) ->
   [$", encode_binary_body(Bin), $"].
 
+%% @private
 encode_binary_body(<<>>) ->
   "";
 encode_binary_body(<<H1:4, H2:4, Rest/binary>>) ->
   [$\\, $u, $0, $0, to_hex(H1), to_hex(H2) |encode_binary_body(Rest)].
 
+%% @private
 to_hex(D) when D >= 0 andalso D =< 9 ->
   D + $0;
 to_hex(D) when D >= 10 andalso D =< 15 ->

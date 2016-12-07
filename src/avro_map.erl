@@ -69,6 +69,7 @@ to_term(Map) ->
 %%% Internal functions
 %%%===================================================================
 
+%% @private
 do_cast(Type, Value) when ?AVRO_IS_MAP_VALUE(Value) ->
   %% Just cast data of the source map
   do_cast(Type, ?AVRO_VALUE_DATA(Value));
@@ -82,6 +83,7 @@ do_cast(Type, Dict) ->
     NewDict          -> {ok, ?AVRO_VALUE(Type, NewDict)}
   end.
 
+%% @private
 cast_from_dict(ItemsType, Dict) ->
   dict:fold(
     fun(_Key, _Value, {error, _} = Acc) ->

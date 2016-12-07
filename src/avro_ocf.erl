@@ -116,7 +116,6 @@ append_file(Fd, Header, SchemaStore, Schema, Objects) ->
            ],
   ok = file:write(Fd, IoData).
 
-%% @private Make ocf file header.
 -spec make_header(avro_type()) -> header().
 make_header(Type) ->
   TypeJson = avro_json_encoder:encode_type(Type),
@@ -129,14 +128,17 @@ make_header(Type) ->
 
 %%%_* Internal functions =======================================================
 
+%% @private
 -spec generate_sync_bytes() -> binary().
 generate_sync_bytes() -> crypto:strong_rand_bytes(16).
 
+%% @private
 -spec decode_stream(avro_type(), binary()) -> {term(), binary()}.
 decode_stream(Type, Bin) when is_binary(Bin) ->
   Lkup = fun(_) -> erlang:error(unexpected) end,
   avro_binary_decoder:decode_stream(Bin, Type, Lkup).
 
+%% @private
 -spec decode_stream(schema_store(), avro_type(), binary()) ->
         {term(), binary()} | no_return().
 decode_stream(SchemaStore, Type, Bin) when is_binary(Bin) ->
@@ -148,6 +150,7 @@ decode_stream(SchemaStore, Type, Bin) when is_binary(Bin) ->
         end,
   avro_binary_decoder:decode_stream(Bin, Type, Lkup).
 
+%% @private
 -spec decode_blocks(schema_store(), avro_type(),
                     binary(), binary(), [term()]) -> [term()].
 decode_blocks(_Store, _Type, _Sync, <<>>, Acc) ->
@@ -160,6 +163,7 @@ decode_blocks(Store, Type, Sync, Bin0, Acc) ->
   NewAcc = decode_block(Store, Type, Block, Count, Acc),
   decode_blocks(Store, Type, Sync, Tail, NewAcc).
 
+%% @private
 -spec decode_block(schema_store(), avro_type(),
                    binary(), integer(), [term()]) -> [term()].
 decode_block(_Store, _Type, <<>>, 0, Acc) -> Acc;
