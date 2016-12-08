@@ -306,7 +306,8 @@ encode(Type, Value, EncodeFun) ->
   FieldTypes = get_all_field_types(Type),
   TypeFullName = avro:get_type_fullname(Type),
   FieldValues = get_values_for_encode(Value, TypeFullName),
-  TypeAndValueList = zip_record_field_types_with_key_value(TypeFullName, FieldTypes, FieldValues),
+  TypeAndValueList = zip_record_field_types_with_key_value(
+    TypeFullName, FieldTypes, FieldValues),
   lists:map(EncodeFun, TypeAndValueList).
 
 %%%===================================================================
@@ -328,7 +329,8 @@ zip_record_field_types_with_key_value(Name, [{FieldName, FieldType} | Rest],
   ].
 
 %% @private
--spec take_record_field_value(string(), string(), proplists:proplist(), list()) -> tuple().
+-spec take_record_field_value(string(), string(), proplists:proplist(), list()) ->
+  tuple().
 take_record_field_value(RecordName, FieldName, [], _) ->
   erlang:error({field_value_not_found, RecordName, FieldName});
 take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
