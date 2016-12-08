@@ -34,7 +34,6 @@
 -export([encode_value/2]).
 -export([encode/3]).
 
--include("erlavro.hrl").
 -include("avro_internal.hrl").
 
 -define(ENCODE_ARRAY_FUN(L),

@@ -12,6 +12,12 @@
 -include("erlavro.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-ifndef(otp_17_or_above).
+-define(TO_STRING(S), unicode:characters_to_list(S)).
+-else.
+-define(TO_STRING(S), binary_to_list(iolist_to_binary(S))).
+-endif.
+
 -define(assertBinEq(A,B),
   ?assertEqual(iolist_to_binary(A),iolist_to_binary(B))).
 
@@ -87,7 +93,7 @@ encode_string_with_quoting_test() ->
 
 encode_utf8_string_test() ->
   S = unicode:characters_to_binary("Avro är populär", latin1, utf8),
-  BinString = avro_binary_encoder:encode_value(avro_primitive:string(binary_to_list(S))),
+  BinString = avro_binary_encoder:encode_value(avro_primitive:string(?TO_STRING(S))),
   ?assertBinEq([34, "Avro ", [195,164], "r popul", [195,164], "r"], BinString).
 
 encode_record_test() ->
@@ -111,50 +117,6 @@ encode_enum_test() ->
   EnumValue = ?AVRO_VALUE(EnumType, "SYMBOL_4"),
   BynaryEnum = avro_binary_encoder:encode_value(EnumValue),
   ?assertBinEq([8], BynaryEnum).
-
-sample_record_type() ->
-  avro_record:type(
-    "SampleRecord",
-    [ avro_record:define_field("bool", avro_primitive:boolean_type(),
-      [ {doc, "bool f"}
-        , {default, avro_primitive:boolean(false)}
-      ])
-      , avro_record:define_field("int", avro_primitive:int_type(),
-      [ {doc, "int f"}
-        , {default, avro_primitive:int(0)}
-      ])
-      , avro_record:define_field("long", avro_primitive:long_type(),
-      [ {doc, "long f"}
-        , {default, avro_primitive:long(42)}
-      ])
-      , avro_record:define_field("float", avro_primitive:float_type(),
-      [ {doc, "float f"}
-        , {default, avro_primitive:float(3.14)}
-      ])
-      , avro_record:define_field("double", avro_primitive:double_type(),
-      [ {doc, "double f"}
-        , {default, avro_primitive:double(6.67221937)}
-      ])
-      , avro_record:define_field("bytes", avro_primitive:bytes_type(),
-      [ {doc, "bytes f"}
-      ])
-      , avro_record:define_field("string", avro_primitive:string_type(),
-      [ {doc, "string f"}
-      ])
-    ],
-    [ {namespace, "com.klarna.test.bix"}
-      , {doc, "Record documentation"}]).
-
-sample_record() ->
-  avro_record:new(sample_record_type(),
-    [ {"string", "string"}
-      , {"double", 3.14159265358}
-      , {"long",   123456789123456789}
-      , {"bool",   true}
-      , {"int",    100}
-      , {"float",  2.718281828}
-      , {"bytes",  <<"bytes value">>}
-    ]).
 
 encode_empty_array_test() ->
   Type = avro_array:type(avro_primitive:int_type()),
@@ -224,3 +186,50 @@ encode_map_properly_test() ->
   TypedValue = avro_map:new(Type, [{"a", 3}, {"b", 27}]),
   Encoded = avro_binary_encoder:encode(fun(_) -> Type end, "some map", [{"a", 3}, {"b", 27}]),
   ?assertBinEq(avro_binary_encoder:encode_value(TypedValue), Encoded).
+
+
+%% @private
+sample_record_type() ->
+  avro_record:type(
+    "SampleRecord",
+    [ avro_record:define_field("bool", avro_primitive:boolean_type(),
+      [ {doc, "bool f"}
+      , {default, avro_primitive:boolean(false)}
+      ])
+    , avro_record:define_field("int", avro_primitive:int_type(),
+      [ {doc, "int f"}
+      , {default, avro_primitive:int(0)}
+      ])
+    , avro_record:define_field("long", avro_primitive:long_type(),
+      [ {doc, "long f"}
+      , {default, avro_primitive:long(42)}
+      ])
+    , avro_record:define_field("float", avro_primitive:float_type(),
+      [ {doc, "float f"}
+      , {default, avro_primitive:float(3.14)}
+      ])
+    , avro_record:define_field("double", avro_primitive:double_type(),
+      [ {doc, "double f"}
+      , {default, avro_primitive:double(6.67221937)}
+      ])
+    , avro_record:define_field("bytes", avro_primitive:bytes_type(),
+      [ {doc, "bytes f"}
+      ])
+    , avro_record:define_field("string", avro_primitive:string_type(),
+      [ {doc, "string f"}
+      ])
+    ],
+    [ {namespace, "com.klarna.test.bix"}
+    , {doc, "Record documentation"}]).
+
+%% @private
+sample_record() ->
+  avro_record:new(sample_record_type(),
+    [ {"string", "string"}
+    , {"double", 3.14159265358}
+    , {"long",   123456789123456789}
+    , {"bool",   true}
+    , {"int",    100}
+    , {"float",  2.718281828}
+    , {"bytes",  <<"bytes value">>}
+    ]).
