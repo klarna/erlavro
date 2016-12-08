@@ -101,7 +101,10 @@ encode(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
 encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
   Encoded = avro_union:encode(Type, Union,
     fun(MemberT, Value, _) ->
-      {encode_string(avro:get_type_fullname(MemberT)), encode(Lkup, MemberT, Value)}
+      {
+        encode_string(avro:get_type_fullname(MemberT)),
+        encode(Lkup, MemberT, Value)
+      }
     end),
   { struct, [Encoded] }.
 

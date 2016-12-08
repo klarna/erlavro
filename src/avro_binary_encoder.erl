@@ -100,7 +100,9 @@ encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   encode_value(avro_fixed:new(Type, Value));
 encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
   avro_union:encode(Type, Union,
-    fun(MemberT, Value, Index) -> [long(Index), encode(Lkup, MemberT, Value)] end).
+    fun(MemberT, Value, Index) ->
+      [long(Index), encode(Lkup, MemberT, Value)]
+    end).
 
 %%%_* Internal functions =======================================================
 
