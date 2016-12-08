@@ -72,45 +72,50 @@ encode_value(Value, mochijson3) ->
 %% schema lookup
 %% @end
 -spec encode(schema_store() | lkup_fun(), avro_type_or_name(), term()) ->
-  term().
-encode(Store, TypeName, Value) when not is_function(Store) ->
+  iodata().
+encode(Store, TypeOrName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  encode(Lkup, TypeName, Value);
-encode(Lkup, TypeName, Value) when ?IS_NAME(TypeName) ->
-  encode(Lkup, Lkup(TypeName), Value);
-encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
-  {ok, AvroValue} = avro_primitive:cast(Type, Value),
-  do_encode_value(AvroValue);
-encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
-  Encoded = avro_record:encode(Type, Value,
-    fun({FN, FT, FV}) -> {encode_string(FN), encode(Lkup, FT, FV)} end),
-  { struct, Encoded };
-encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
-  encode_string(Value);
-encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
-  avro_array:encode(Type, Value,
-    fun(IType, Item) -> encode(Lkup, IType, Item) end);
-encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
-  Encoded = avro_map:encode(Type, Value,
-    fun(IType, K, V) -> {encode_string(K), encode(Lkup, IType, V)} end),
-  { struct, Encoded };
-encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
-  {json, encode_binary(Value)};
-encode(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
-  null; %do not encode null
-encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
-  Encoded = avro_union:encode(Type, Union,
-    fun(MemberT, Value, _) ->
-      {
-        encode_string(avro:get_type_fullname(MemberT)),
-        encode(Lkup, MemberT, Value)
-      }
-    end),
-  { struct, [Encoded] }.
+  encode(Lkup, TypeOrName, Value);
+encode(Lkup, TypeOrName, Value) ->
+  Encoder = mochijson3:encoder([{utf8, true}]),
+  Encoder(do_encode(Lkup, TypeOrName, Value)).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @private
+do_encode(Lkup, TypeName, Value) when ?IS_NAME(TypeName) ->
+  do_encode(Lkup, Lkup(TypeName), Value);
+do_encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
+  {ok, AvroValue} = avro_primitive:cast(Type, Value),
+  do_encode_value(AvroValue);
+do_encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+  Encoded = avro_record:encode(Type, Value,
+    fun({FN, FT, FV}) -> {encode_string(FN), do_encode(Lkup, FT, FV)} end),
+  { struct, Encoded };
+do_encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
+  encode_string(Value);
+do_encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+  avro_array:encode(Type, Value,
+    fun(IType, Item) -> do_encode(Lkup, IType, Item) end);
+do_encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
+  Encoded = avro_map:encode(Type, Value,
+    fun(IType, K, V) -> {encode_string(K), do_encode(Lkup, IType, V)} end),
+  { struct, Encoded };
+do_encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
+  {json, encode_binary(Value)};
+do_encode(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
+  null; %do not encode null
+do_encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
+  Encoded = avro_union:encode(Type, Union,
+    fun(MemberT, Value, _) ->
+      {
+        encode_string(avro:get_type_fullname(MemberT)),
+        do_encode(Lkup, MemberT, Value)
+      }
+    end),
+  { struct, [Encoded] }.
 
 %% @private
 optional_field(_Key, Default, Default, _MappingFun) -> [];
