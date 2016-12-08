@@ -38,15 +38,6 @@
 -compile(export_all).
 -endif.
 
--define(ENCODE_ARRAY_FUN(L),
-  fun(IType, Item) -> encode(L, IType, Item) end).
--define(ENCODE_RECORD_FUN(L),
-  fun({_, FT, FV}) -> encode(L, FT, FV) end).
--define(ENCODE_MAP_FUN(L),
-  fun(IType, K, V) -> [string(K), encode(L, IType, V)] end).
--define(ENCODE_UNION_FUN(L),
-  fun(MemberT, Value, Index) -> [long(Index), encode(L, MemberT, Value)] end).
-
 %%%_* APIs =====================================================================
 
 %% @doc Encode avro value in binary format.
@@ -90,22 +81,26 @@ encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro:cast(Type, Value),
   encode_value(AvroValue);
 encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
-  avro_record:encode(Type, Value, ?ENCODE_RECORD_FUN(Lkup));
+  avro_record:encode(Type, Value,
+    fun({_, FT, FV}) -> encode(Lkup, FT, FV) end);
 encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   int(avro_enum:get_index(Type, Value));
 encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   Count = length(Value),
-  Encoded = avro_array:encode(Type, Value, ?ENCODE_ARRAY_FUN(Lkup)),
+  Encoded = avro_array:encode(Type, Value,
+    fun(IType, Item) -> encode(Lkup, IType, Item) end),
   block(Count, Encoded);
 encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
-  Encoded = avro_map:encode(Type, Value, ?ENCODE_MAP_FUN(Lkup)),
+  Encoded = avro_map:encode(Type, Value,
+    fun(IType, K, V) -> [string(K), encode(Lkup, IType, V)] end),
   Count = length(Value),
   block(Count, Encoded);
 encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   %% force binary size check for the value
   encode_value(avro_fixed:new(Type, Value));
 encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
-  avro_union:encode(Type, Union, ?ENCODE_UNION_FUN(Lkup)).
+  avro_union:encode(Type, Union,
+    fun(MemberT, Value, Index) -> [long(Index), encode(Lkup, MemberT, Value)] end).
 
 %%%_* Internal functions =======================================================
 

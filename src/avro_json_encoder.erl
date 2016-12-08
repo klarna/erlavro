@@ -36,17 +36,6 @@
 
 -include("avro_internal.hrl").
 
--define(ENCODE_ARRAY_FUN(L),
-  fun(IType, Item) -> encode(L, IType, Item) end).
--define(ENCODE_RECORD_FUN(L),
-  fun({FN, FT, FV}) -> {encode_string(FN), encode(L, FT, FV)} end).
--define(ENCODE_MAP_FUN(L),
-  fun(IType, K, V) -> {encode_string(K), encode(L, IType, V)} end).
--define(ENCODE_UNION_FUN(L),
-  fun(MemberT, Value, _) ->
-    {encode_string(avro:get_type_fullname(MemberT)), encode(L, MemberT, Value)}
-  end).
-
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -93,21 +82,27 @@ encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro_primitive:cast(Type, Value),
   do_encode_value(AvroValue);
 encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
-  Encoded = avro_record:encode(Type, Value, ?ENCODE_RECORD_FUN(Lkup)),
+  Encoded = avro_record:encode(Type, Value,
+    fun({FN, FT, FV}) -> {encode_string(FN), encode(Lkup, FT, FV)} end),
   { struct, Encoded };
 encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   encode_string(Value);
 encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
-  avro_array:encode(Type, Value, ?ENCODE_ARRAY_FUN(Lkup));
+  avro_array:encode(Type, Value,
+    fun(IType, Item) -> encode(Lkup, IType, Item) end);
 encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
-  Encoded = avro_map:encode(Type, Value, ?ENCODE_MAP_FUN(Lkup)),
+  Encoded = avro_map:encode(Type, Value,
+    fun(IType, K, V) -> {encode_string(K), encode(Lkup, IType, V)} end),
   { struct, Encoded };
 encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   {json, encode_binary(Value)};
 encode(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
   null; %do not encode null
 encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
-  Encoded = avro_union:encode(Type, Union, ?ENCODE_UNION_FUN(Lkup)),
+  Encoded = avro_union:encode(Type, Union,
+    fun(MemberT, Value, _) ->
+      {encode_string(avro:get_type_fullname(MemberT)), encode(Lkup, MemberT, Value)}
+    end),
   { struct, [Encoded] }.
 
 %%%===================================================================
