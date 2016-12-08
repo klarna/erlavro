@@ -75,7 +75,7 @@ encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 encode(Store, TypeName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeName, Value);
-encode(Lkup, TypeName, Value) when is_list(TypeName) ->
+encode(Lkup, TypeName, Value) when ?IS_NAME(TypeName) ->
   encode(Lkup, Lkup(TypeName), Value);
 encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro:cast(Type, Value),

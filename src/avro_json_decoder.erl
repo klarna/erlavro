@@ -29,7 +29,7 @@
         , decode_value/5
         ]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 -ifdef(TEST).
 -compile(export_all).
@@ -39,8 +39,6 @@
                      | is_wrapped.
 
 -type options() :: [{option_name(), term()}].
--type lkup_fun() :: fun((string()) -> avro_type()).
--type schema_store() :: avro_schema_store:store().
 -type hook() :: decoder_hook_fun().
 
 %%%===================================================================
@@ -343,7 +341,7 @@ parse_value(Value, Type, ExtractFun) ->
   parse(Value, Type, ExtractFun, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
 
 %% @private
-parse(Value, TypeName, ExtractFun, IsWrapped, Hook) when is_list(TypeName) ->
+parse(Value, TypeName, ExtractFun, IsWrapped, Hook) when ?IS_NAME(TypeName) ->
   %% Type is defined by its name
   Type = ExtractFun(TypeName),
   parse(Value, Type, ExtractFun, IsWrapped, Hook);

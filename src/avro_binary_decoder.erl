@@ -34,16 +34,13 @@
         , decode_stream/4
         ]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 -ifdef(TEST).
 -compile(export_all).
 -endif.
 
 -type hook() :: decoder_hook_fun().
-
--type lkup_fun() :: fun((string()) -> avro_type()).
--type schema_store() :: avro_schema_store:store().
 
 %%%_* APIs =====================================================================
 
@@ -86,7 +83,7 @@ do_decode(IoList, Type, Store, Hook) when not is_function(Store) ->
   do_decode(IoList, Type, Lkup, Hook);
 do_decode(IoList, Type, Lkup, Hook) when is_list(IoList) ->
   do_decode(iolist_to_binary(IoList), Type, Lkup, Hook);
-do_decode(Bin, TypeName, Lkup, Hook) when is_list(TypeName) ->
+do_decode(Bin, TypeName, Lkup, Hook) when ?IS_NAME(TypeName) ->
   do_decode(Bin, Lkup(TypeName), Lkup, Hook);
 do_decode(Bin, Type, Lkup, Hook) when is_function(Hook, 4) ->
   dec(Bin, Type, Lkup, Hook).
