@@ -32,7 +32,6 @@
         , encode/3
         ]).
 
--include("erlavro.hrl").
 -include("avro_internal.hrl").
 
 -ifdef(TEST).

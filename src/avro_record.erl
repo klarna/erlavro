@@ -305,7 +305,7 @@ to_term(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
 
 -spec encode(avro_type_or_name(), term(), fun()) -> list().
 encode(Type, Value, EncodeFun) ->
-  FieldTypes = avro_record:get_all_field_types(Type),
+  FieldTypes = get_all_field_types(Type),
   TypeFullName = avro:get_type_fullname(Type),
   FieldValues = get_values_for_encode(Value, TypeFullName),
   TypeAndValueList = zip_record_field_types_with_key_value(TypeFullName, FieldTypes, FieldValues),
