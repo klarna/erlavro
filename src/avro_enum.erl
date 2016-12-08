@@ -34,6 +34,7 @@
 -export([get_index/2]).
 -export([get_symbol_from_index/2]).
 -export([cast/2]).
+-export([uncast/2]).
 
 -include("erlavro.hrl").
 
@@ -99,6 +100,10 @@ get_symbol_from_index(T, Index) when ?AVRO_IS_ENUM_TYPE(T) ->
 
 cast(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   do_cast(Type, Value).
+
+-spec uncast(avro_type(), avro_value()) -> {ok, term()} | {error, term()}.
+uncast(_Type, Value) ->
+  {ok, Value}.
 
 %%%===================================================================
 %%% Internal functions

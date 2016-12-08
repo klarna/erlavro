@@ -162,8 +162,30 @@ new_encoded_test() ->
     avro_record:update("any", fun()-> "care not" end, Rec)),
   ?assertException(throw, {value_already_encoded, _}, avro_record:to_list(Rec)).
 
-%%%_* Emacs ====================================================================
-%%% Local Variables:
-%%% allout-layout: t
-%%% erlang-indent-level: 2
-%%% End:
+cast_uncast_simple_test() ->
+  RecordType = avro_record:type("Record",
+    [ avro_record:define_field("a", avro_primitive:string_type())
+    , avro_record:define_field("b", avro_primitive:int_type())
+    ],
+    [ {namespace, "name.space"}
+    ]),
+  {ok, AvroValue} = avro:cast(RecordType, [{"b", 1}, {"a", "foo"}]),
+  {ok, Uncasted} = avro:uncast(AvroValue),
+  ?assertEqual([{"b", 1}, {"a", "foo"}], Uncasted).
+
+cast_uncast_complex_test() ->
+  InnerType2 = avro_record:type("Inner", [ avro_record:define_field("one", avro_primitive:int_type())
+                                        , avro_record:define_field("two", avro_primitive:int_type())
+                                        ]),
+  InnerType = avro_record:type("Inner", [ avro_record:define_field("1", avro_primitive:string_type())
+                                        , avro_record:define_field("2", InnerType2)
+                                        ]),
+  RecordType = avro_record:type("Record",
+    [ avro_record:define_field("a", InnerType)
+    , avro_record:define_field("b", avro_primitive:int_type())
+    ],
+    [ {namespace, "name.space"}
+    ]),
+  {ok, AvroValue} = avro:cast(RecordType, [{"b", 1}, {"a", [{"1", "hello"}, {"2", [{"one", 1}, {"two", 2}]}]}]),
+  {ok, Uncasted} = avro:uncast(AvroValue),
+  ?assertEqual([{"b", 1}, {"a", [{"1", "hello"}, {"2", [{"one", 1}, {"two", 2}]}]}], Uncasted).

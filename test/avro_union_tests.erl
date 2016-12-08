@@ -76,8 +76,12 @@ to_term_test() ->
   ?assertEqual(null, avro:to_term(Value1)),
   ?assertEqual(1,    avro:to_term(Value2)).
 
-%%%_* Emacs ====================================================================
-%%% Local Variables:
-%%% allout-layout: t
-%%% erlang-indent-level: 2
-%%% End:
+cast_uncast_test() ->
+  UnionType = avro_union:type([ avro_primitive:string_type()
+                              , avro_primitive:null_type()]),
+  {ok, Value1} = avro:cast(UnionType, null),
+  {ok, Value2} = avro:cast(UnionType, "bar"),
+  {ok, Union1} = avro:uncast(Value1),
+  {ok, Union2} = avro:uncast(Value2),
+  ?assertEqual(null, Union1),
+  ?assertEqual("bar", Union2).

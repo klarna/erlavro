@@ -39,6 +39,7 @@
 -export([read_schema/1]).
 
 -export([cast/2]).
+-export([uncast/1]).
 
 -export([to_term/1]).
 
@@ -233,6 +234,16 @@ cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
 cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V);
 cast(Type, _)                       -> {error, {unknown_type, Type}}.
 
+-spec uncast(avro_value()) -> {ok, term()} | {error, term()}.
+uncast(#avro_value{type = Type, data = Value}) when ?AVRO_IS_PRIMITIVE_TYPE(Type) -> avro_primitive:uncast(Type, Value);
+uncast(#avro_value{type = Type, data = Value}) when ?AVRO_IS_RECORD_TYPE(Type)    -> avro_record:uncast(Type, Value);
+uncast(#avro_value{type = Type, data = Value}) when ?AVRO_IS_ENUM_TYPE(Type)      -> avro_enum:uncast(Type, Value);
+uncast(#avro_value{type = Type, data = Value}) when ?AVRO_IS_ARRAY_TYPE(Type)     -> avro_array:uncast(Type, Value);
+uncast(#avro_value{type = Type, data = Value}) when ?AVRO_IS_MAP_TYPE(Type)       -> avro_map:uncast(Type, Value);
+uncast(#avro_value{type = Type, data = Value}) when ?AVRO_IS_UNION_TYPE(Type)     -> avro_union:uncast(Type, Value);
+uncast(#avro_value{type = Type, data = Value}) when ?AVRO_IS_FIXED_TYPE(Type)     -> avro_fixed:uncast(Type, Value);
+uncast(Type)                                                                      -> {error, {unknown_type, Type}}.
+
 
 %% @doc Convert avro values to erlang term.
 -spec to_term(avro_value()) -> term().
@@ -288,6 +299,7 @@ type_from_name(?AVRO_INT)    -> avro_primitive:int_type();
 type_from_name(?AVRO_LONG)   -> avro_primitive:long_type();
 type_from_name(?AVRO_FLOAT)  -> avro_primitive:float_type();
 type_from_name(?AVRO_DOUBLE) -> avro_primitive:double_type();
+type_from_name(?AVRO_BOOLEAN) -> avro_primitive:boolean_type();
 type_from_name(?AVRO_BYTES)  -> avro_primitive:bytes_type();
 type_from_name(?AVRO_STRING) -> avro_primitive:string_type();
 type_from_name(_)            -> undefined.

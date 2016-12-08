@@ -35,6 +35,7 @@
 -export([get_all_field_types/1]).
 
 -export([cast/2]).
+-export([uncast/2]).
 
 -export([new/2]).
 -export([new_encoded/3]).
@@ -182,6 +183,10 @@ get_all_field_types(Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
 
 cast(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
   do_cast(Type, Value).
+
+-spec uncast(avro_type(), avro_value()) -> {ok, term()} | {error, term()}.
+uncast(_Type, Value) ->
+  uncast_fields(Value, []).
 
 %%%===================================================================
 %%% API
@@ -384,6 +389,19 @@ cast_fields([FieldDef | Rest], Values, Acc) ->
         {error, Reason} ->
           {error, {FieldName, Reason}}
       end
+  end.
+
+%% @private
+uncast_fields([], Acc) ->
+  {ok, Acc};
+uncast_fields([{Key, Value} | Rest], Acc) ->
+  case avro:uncast(Value) of
+    {ok, V} when ?AVRO_IS_RECORD_VALUE(Value) ->
+      uncast_fields(Rest, [{Key, lists:reverse(V)} | Acc]);
+    {ok, V} ->
+      uncast_fields(Rest, [{Key, V} | Acc]);
+    Err ->
+      Err
   end.
 
 %% @private

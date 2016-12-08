@@ -33,6 +33,7 @@
 -export([string_type/0]).
 
 -export([cast/2]).
+-export([uncast/2]).
 
 -export([null/0]).
 -export([boolean/1]).
@@ -143,6 +144,9 @@ cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
   {ok, ?AVRO_VALUE(Type, ?AVRO_VALUE_DATA(Value))};
 
 cast(Type, Value) -> {error, {type_mismatch, Type, Value}}.
+
+-spec uncast(avro_type(), avro_value()) -> {ok, term()} | {error, term()}.
+uncast(_, Value) -> {ok, Value}.
 
 %%%===================================================================
 %%% API: Helpers
