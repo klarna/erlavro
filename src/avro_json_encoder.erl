@@ -307,8 +307,7 @@ to_hex(D) when D >= 0 andalso D =< 9 ->
 to_hex(D) when D >= 10 andalso D =< 15 ->
   D - 10 + $a.
 
-
-%%%_* Emacs ============================================================
+%%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
 %%% erlang-indent-level: 2

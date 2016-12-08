@@ -40,13 +40,16 @@ add_type_test() ->
   Store = avro_schema_store:new(),
   Store1 = avro_schema_store:add_type(test_record(), Store),
   ?assertEqual({ok, extracted_test_record()},
-    avro_schema_store:lookup_type("com.klarna.test.bix.TestRecord", Store1)),
+    lookup("com.klarna.test.bix.TestRecord", Store1)),
   ?assertEqual({ok, extracted_test_record()},
-    avro_schema_store:lookup_type("com.klarna.test.bix.TestRecordAlias1", Store1)),
+    lookup("com.klarna.test.bix.TestRecordAlias1", Store1)),
   ?assertEqual({ok, extracted_sub_record()},
-    avro_schema_store:lookup_type("com.klarna.test.bix.TestSubRecord", Store1)),
+    lookup("com.klarna.test.bix.TestSubRecord", Store1)),
   ?assertEqual({ok, extracted_sub_record()},
-    avro_schema_store:lookup_type("com.klarna.test.bix.TestSubRecordAlias", Store1)).
+    lookup("com.klarna.test.bix.TestSubRecordAlias", Store1)).
+
+lookup(Name, Store) ->
+  avro_schema_store:lookup_type(Name, Store).
 
 import_test() ->
   PrivDir = priv_dir(),
@@ -150,3 +153,9 @@ extracted_test_record() ->
       , {doc, "Some doc"}
       , {aliases, ["TestRecordAlias1", "TestRecordAlias2"]}
     ]).
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

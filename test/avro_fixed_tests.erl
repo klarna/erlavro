@@ -33,7 +33,8 @@ incorrect_cast_from_fixed_test() ->
   SourceType = avro_fixed:type("FooBar", 2),
   SourceValue = avro_fixed:new(SourceType, <<1,2>>),
   TargetType = avro_fixed:type("BarFoo", 2),
-  ?assertEqual({error, type_name_mismatch}, avro_fixed:cast(TargetType, SourceValue)).
+  ?assertEqual({error, type_name_mismatch},
+               avro_fixed:cast(TargetType, SourceValue)).
 
 correct_cast_from_fixed_test() ->
   SourceType = avro_fixed:type("FooBar", 2),
@@ -62,3 +63,9 @@ get_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value = avro_fixed:new(Type, <<1,2>>),
   ?assertEqual(<<1,2>>, avro_fixed:get_value(Value)).
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

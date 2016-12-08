@@ -37,3 +37,9 @@ to_term_test() ->
   Value = avro_map:new(Type, ExpectedMappings),
   Mappings = avro:to_term(Value),
   ?assertEqual(ExpectedMappings, lists:keysort(1, Mappings)).
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

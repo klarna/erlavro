@@ -40,3 +40,9 @@ new_direct_test() ->
       , avro_primitive:int(3)
     ]),
   ?assertEqual(NewVersion, DirectVersion).
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

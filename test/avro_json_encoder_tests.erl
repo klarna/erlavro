@@ -9,6 +9,11 @@
 -module(avro_json_encoder_tests).
 -author("tihon").
 
+-import(avro_json_encoder, [ encode_type/1
+                           , encode_value/1
+                           , encode_value/2
+                           ]).
+
 -include("erlavro.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
@@ -19,107 +24,107 @@
 -endif.
 
 encode_null_type_test() ->
-  Json = avro_json_encoder:encode_type(avro_primitive:null_type()),
+  Json = encode_type(avro_primitive:null_type()),
   ?assertEqual("\"null\"", ?TO_STRING(Json)).
 
 encode_null_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:null()),
+  Json = encode_value(avro_primitive:null()),
   ?assertEqual("null", ?TO_STRING(Json)).
 
 encode_boolean_type_test() ->
-  Json = avro_json_encoder:encode_type(avro_primitive:boolean_type()),
+  Json = encode_type(avro_primitive:boolean_type()),
   ?assertEqual("\"boolean\"", ?TO_STRING(Json)).
 
 encode_boolean_test() ->
-  JsonTrue = avro_json_encoder:encode_value(avro_primitive:boolean(true)),
-  JsonFalse = avro_json_encoder:encode_value(avro_primitive:boolean(false)),
+  JsonTrue = encode_value(avro_primitive:boolean(true)),
+  JsonFalse = encode_value(avro_primitive:boolean(false)),
   ?assertEqual("true", ?TO_STRING(JsonTrue)),
   ?assertEqual("false", ?TO_STRING(JsonFalse)).
 
 encode_int_type_test() ->
-  Json = avro_json_encoder:encode_type(avro_primitive:int_type()),
+  Json = encode_type(avro_primitive:int_type()),
   ?assertEqual("\"int\"", ?TO_STRING(Json)).
 
 encode_int_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:int(1)),
+  Json = encode_value(avro_primitive:int(1)),
   ?assertEqual("1", ?TO_STRING(Json)).
 
 encode_long_type_test() ->
-  Json = avro_json_encoder:encode_type(avro_primitive:long_type()),
+  Json = encode_type(avro_primitive:long_type()),
   ?assertEqual("\"long\"", ?TO_STRING(Json)).
 
 encode_long_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:long(12345678901)),
+  Json = encode_value(avro_primitive:long(12345678901)),
   ?assertEqual("12345678901", ?TO_STRING(Json)).
 
 encode_float_type_test() ->
-  Json = avro_json_encoder:encode_type(avro_primitive:float_type()),
+  Json = encode_type(avro_primitive:float_type()),
   ?assertEqual("\"float\"", ?TO_STRING(Json)).
 
 encode_float_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:float(3.14159265358)),
+  Json = encode_value(avro_primitive:float(3.14159265358)),
   ?assertEqual("3.14159265358", ?TO_STRING(Json)).
 
 encode_float_precision_lost_test() ->
   %% Warning: implementation of doubles in erlang loses
   %% precision on such numbers.
   ?assertEqual(<<"1e+16">>,
-    avro_json_encoder:encode_value(avro_primitive:float(10000000000000001), jsonx)),
+    encode_value(avro_primitive:float(10000000000000001), jsonx)),
   ?assertEqual("1.0e+16",
-    avro_json_encoder:encode_value(avro_primitive:float(10000000000000001), mochijson3)).
+    encode_value(avro_primitive:float(10000000000000001), mochijson3)).
 
 encode_integer_float_test() ->
   ?assertEqual(<<"314159265358">>,
-    avro_json_encoder:encode_value(avro_primitive:float(314159265358), jsonx)),
+    encode_value(avro_primitive:float(314159265358), jsonx)),
   ?assertEqual("314159265358.0",
-    avro_json_encoder:encode_value(avro_primitive:float(314159265358), mochijson3)).
+    encode_value(avro_primitive:float(314159265358), mochijson3)).
 
 encode_double_type_test() ->
-  Json = avro_json_encoder:encode_type(avro_primitive:double_type()),
+  Json = encode_type(avro_primitive:double_type()),
   ?assertEqual("\"double\"", ?TO_STRING(Json)).
 
 encode_double_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:double(3.14159265358)),
+  Json = encode_value(avro_primitive:double(3.14159265358)),
   ?assertEqual("3.14159265358", ?TO_STRING(Json)).
 
 encode_integer_double_test() ->
   ?assertEqual(<<"314159265358">>,
-    avro_json_encoder:encode_value(avro_primitive:double(314159265358), jsonx)),
+    encode_value(avro_primitive:double(314159265358), jsonx)),
   ?assertEqual("314159265358.0",
-    avro_json_encoder:encode_value(avro_primitive:double(314159265358), mochijson3)).
+    encode_value(avro_primitive:double(314159265358), mochijson3)).
 
 encode_bytes_type_test() ->
-  Json = avro_json_encoder:encode_type(avro_primitive:bytes_type()),
+  Json = encode_type(avro_primitive:bytes_type()),
   ?assertEqual("\"bytes\"", ?TO_STRING(Json)).
 
 encode_empty_bytes_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:bytes(<<>>)),
+  Json = encode_value(avro_primitive:bytes(<<>>)),
   ?assertEqual("\"\"", ?TO_STRING(Json)).
 
 encode_bytes_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:bytes(<<0,1,100,255>>)),
+  Json = encode_value(avro_primitive:bytes(<<0,1,100,255>>)),
   ?assertEqual("\"\\u0000\\u0001\\u0064\\u00ff\"", ?TO_STRING(Json)).
 
 encode_string_type_test() ->
-  Json = avro_json_encoder:encode_type(avro_primitive:string_type()),
+  Json = encode_type(avro_primitive:string_type()),
   ?assertEqual("\"string\"", ?TO_STRING(Json)).
 
 encode_string_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:string("Hello, Avro!")),
+  Json = encode_value(avro_primitive:string("Hello, Avro!")),
   ?assertEqual("\"Hello, Avro!\"", ?TO_STRING(Json)).
 
 encode_string_with_quoting_test() ->
-  Json = avro_json_encoder:encode_value(avro_primitive:string("\"\\")),
+  Json = encode_value(avro_primitive:string("\"\\")),
   ?assertEqual("\"\\\"\\\\\"", ?TO_STRING(Json)).
 
 encode_utf8_string_test() ->
   S = unicode:characters_to_binary("Avro är populär", latin1, utf8),
-  Json = avro_json_encoder:encode_value(avro_primitive:string(binary_to_list(S))),
+  Json = encode_value(avro_primitive:string(binary_to_list(S))),
   ?assertEqual("\"Avro " ++ [195,164] ++ "r popul"++ [195,164] ++ "r\"",
     ?TO_STRING(Json)).
 
 encode_record_type_test() ->
-  Json = avro_json_encoder:encode_type(sample_record_type()),
+  Json = encode_type(sample_record_type()),
   ?assertEqual("{"
   "\"namespace\":\"com.klarna.test.bix\","
   "\"type\":\"record\","
@@ -157,7 +162,7 @@ encode_record_type_test() ->
     ?TO_STRING(Json)).
 
 encode_record_test() ->
-  Json = avro_json_encoder:encode_value(sample_record()),
+  Json = encode_value(sample_record()),
   Expected = "{"
   "\"bool\":true,"
   "\"int\":100,"
@@ -175,7 +180,7 @@ encode_enum_type_test() ->
     avro_enum:type("Enum",
       ["A", "B", "C"],
       [{namespace, "com.klarna.test.bix"}]),
-  EnumTypeJson = avro_json_encoder:encode_type(EnumType),
+  EnumTypeJson = encode_type(EnumType),
   ?assertEqual("{"
   "\"namespace\":\"com.klarna.test.bix\","
   "\"type\":\"enum\","
@@ -190,32 +195,32 @@ encode_enum_test() ->
       ["A", "B", "C"],
       [{namespace, "com.klarna.test.bix"}]),
   EnumValue = ?AVRO_VALUE(EnumType, "B"),
-  EnumValueJson = avro_json_encoder:encode_value(EnumValue),
+  EnumValueJson = encode_value(EnumValue),
   ?assertEqual("\"B\"", ?TO_STRING(EnumValueJson)).
 
 encode_union_type_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
-    , avro_primitive:int_type()]),
-  Json = avro_json_encoder:encode_type(UnionType),
+                              , avro_primitive:int_type()]),
+  Json = encode_type(UnionType),
   ?assertEqual("[\"string\",\"int\"]", ?TO_STRING(Json)).
 
 encode_union_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
     , avro_primitive:int_type()]),
   Value = avro_union:new(UnionType, avro_primitive:int(10)),
-  Json = avro_json_encoder:encode_value(Value),
+  Json = encode_value(Value),
   ?assertEqual("{\"int\":10}", ?TO_STRING(Json)).
 
 encode_union_with_null_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
     , avro_primitive:null_type()]),
   Value = avro_union:new(UnionType, avro_primitive:null()),
-  Json = avro_json_encoder:encode_value(Value),
+  Json = encode_value(Value),
   ?assertEqual("null", ?TO_STRING(Json)).
 
 encode_array_type_test() ->
   Type = avro_array:type(avro_primitive:string_type()),
-  Json = avro_json_encoder:encode_type(Type),
+  Json = encode_type(Type),
   ?assertEqual("{\"type\":\"array\",\"items\":\"string\"}", ?TO_STRING(Json)).
 
 encode_array_test() ->
@@ -223,14 +228,14 @@ encode_array_test() ->
   Value = avro_array:new(Type,
     [ avro_primitive:string("a")
       , avro_primitive:string("b")]),
-  Json = avro_json_encoder:encode_value(Value),
+  Json = encode_value(Value),
   ?assertEqual("[\"a\",\"b\"]", ?TO_STRING(Json)).
 
 encode_map_type_test() ->
   MapType = avro_map:type(avro_union:type(
     [avro_primitive:int_type(),
       avro_primitive:null_type()])),
-  Json = avro_json_encoder:encode_type(MapType),
+  Json = encode_type(MapType),
   ?assertEqual("{\"type\":\"map\",\"values\":[\"int\",\"null\"]}",
     ?TO_STRING(Json)).
 
@@ -240,7 +245,7 @@ encode_map_test() ->
       avro_primitive:null_type()])),
   MapValue = avro_map:new(MapType,
     [{"v1", 1}, {"v2", null}, {"v3", 2}]),
-  Json = avro_json_encoder:encode_value(MapValue),
+  Json = encode_value(MapValue),
   ?assertEqual("{\"v3\":{\"int\":2},\"v1\":{\"int\":1},\"v2\":null}",
     ?TO_STRING(Json)).
 
@@ -249,7 +254,7 @@ encode_fixed_type_test() ->
     [ {namespace, "name.space"}
       , {aliases, ["Alias1", "Alias2"]}
     ]),
-  Json = avro_json_encoder:encode_type(Type),
+  Json = encode_type(Type),
   ?assertEqual("{"
   "\"namespace\":\"name.space\","
   "\"type\":\"fixed\","
@@ -261,7 +266,7 @@ encode_fixed_type_test() ->
 encode_fixed_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value = avro_fixed:new(Type, <<1,127>>),
-  Json = avro_json_encoder:encode_value(Value),
+  Json = encode_value(Value),
   ?assertEqual("\"\\u0001\\u007f\"", ?TO_STRING(Json)).
 
 check_json_encode_record_properly_test() ->
@@ -272,7 +277,7 @@ check_json_encode_record_properly_test() ->
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Term = [{"f1", 1},{"f2","my string"}],
   {ok, AvroValue} = avro:cast(MyRecordType, Term),
-  ExpectedJSON = avro_json_encoder:encode_value(AvroValue),
+  ExpectedJSON = encode_value(AvroValue),
   JSON = encode(Store, "my.com.MyRecord", Term),
   ?assertEqual(ExpectedJSON, JSON),
   ?assertEqual(Term,
@@ -286,7 +291,7 @@ check_json_encode_enum_properly_test() ->
       [{namespace, "com.klarna.test.bix"}]),
   Store = avro_schema_store:add_type(EnumType, avro_schema_store:new([])),
   EnumValue = ?AVRO_VALUE(EnumType, "B"),
-  EnumValueJson = avro_json_encoder:encode_value(EnumValue),
+  EnumValueJson = encode_value(EnumValue),
   Encoded = encode(Store, "com.klarna.test.bix.Enum", "B"),
   ?assertEqual(EnumValueJson, Encoded).
 
@@ -295,7 +300,7 @@ check_json_encode_array_properly_test() ->
   Value = avro_array:new(Type,
     [ avro_primitive:string("a")
     , avro_primitive:string("b")]),
-  ExpectedJSON = avro_json_encoder:encode_value(Value),
+  ExpectedJSON = encode_value(Value),
   JSON = encode(fun(_) -> Type end, "some_array", ["a", "b"]),
   ?assertEqual(ExpectedJSON, JSON).
 
@@ -305,7 +310,7 @@ check_json_encode_map_properly_test() ->
       avro_primitive:null_type()])),
   Value = [{"v1", 1}, {"v2", null}, {"v3", 2}],
   MapValue = avro_map:new(MapType, Value),
-  JSON1 = avro_json_encoder:encode_value(MapValue),
+  JSON1 = encode_value(MapValue),
   JSON2 = encode(fun(_) -> MapType end, "some_map", Value),
   DecodeF = fun(JSON) ->
               avro_json_decoder:decode_value(JSON, MapType, none,
@@ -319,8 +324,8 @@ check_json_encode_union_properly_test() ->
                               , avro_primitive:null_type()]),
   Value1 = avro_union:new(UnionType, avro_primitive:null()),
   Value2 = avro_union:new(UnionType, avro_primitive:string("bar")),
-  Json1 = avro_json_encoder:encode_value(Value1),
-  Json2 = avro_json_encoder:encode_value(Value2),
+  Json1 = encode_value(Value1),
+  Json2 = encode_value(Value2),
   Encoded1 = encode(none, UnionType, null),
   Encoded2 = encode(none, UnionType, "bar"),
   ?assertEqual(Json1, Encoded1),
@@ -329,7 +334,7 @@ check_json_encode_union_properly_test() ->
 check_json_encode_fixed_properly_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value = avro_fixed:new(Type, <<1,127>>),
-  Json = avro_json_encoder:encode_value(Value),
+  Json = encode_value(Value),
   Encoded = encode(fun(_) -> Type end, "some_fixed", <<1,127>>),
   ?assertEqual(?TO_STRING(Json), ?TO_STRING(Encoded)).
 
