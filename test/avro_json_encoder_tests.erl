@@ -281,11 +281,12 @@ check_json_encode_record_properly_test() ->
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Term = [{"f1", 1},{"f2","my string"}],
   {ok, AvroValue} = avro:cast(MyRecordType, Term),
-  JSON = avro_json_encoder:encode_value(AvroValue),
-  Encoded = avro_json_encoder:encode(Store, "my.com.MyRecord", Term),
-  ?assertEqual(JSON, jsonx:encode(Encoded)),
+  ExpectedJSON = avro_json_encoder:encode_value(AvroValue),
+  JSON = encode(Store, "my.com.MyRecord", Term),
+  ?assertEqual(ExpectedJSON, JSON),
   ?assertEqual(Term,
-    avro_json_decoder:decode_value(JSON, "my.com.MyRecord", Store, [{is_wrapped, false}])).
+    avro_json_decoder:decode_value(JSON, "my.com.MyRecord", Store,
+                                   [{is_wrapped, false}])).
 
 check_json_encode_enum_properly_test() ->
   EnumType =
@@ -295,31 +296,32 @@ check_json_encode_enum_properly_test() ->
   Store = avro_schema_store:add_type(EnumType, avro_schema_store:new([])),
   EnumValue = ?AVRO_VALUE(EnumType, "B"),
   EnumValueJson = avro_json_encoder:encode_value(EnumValue),
-  Encoded = avro_json_encoder:encode(Store, "com.klarna.test.bix.Enum", "B"),
-  ?assertEqual(EnumValueJson, jsonx:encode(Encoded)).
+  Encoded = encode(Store, "com.klarna.test.bix.Enum", "B"),
+  ?assertEqual(EnumValueJson, Encoded).
 
 check_json_encode_array_properly_test() ->
   Type = avro_array:type(avro_primitive:string_type()),
   Value = avro_array:new(Type,
     [ avro_primitive:string("a")
     , avro_primitive:string("b")]),
-  Json = avro_json_encoder:encode_value(Value),
-  Encoded = avro_json_encoder:encode(fun(_) -> Type end, "some_array", ["a", "b"]),
-  ?assertEqual(Json, jsonx:encode(Encoded)).
+  ExpectedJSON = avro_json_encoder:encode_value(Value),
+  JSON = encode(fun(_) -> Type end, "some_array", ["a", "b"]),
+  ?assertEqual(ExpectedJSON, JSON).
 
 check_json_encode_map_properly_test() ->
   MapType = avro_map:type(avro_union:type(
     [avro_primitive:int_type(),
       avro_primitive:null_type()])),
-  MapValue = avro_map:new(MapType, [{"v1", 1}, {"v2", null}, {"v3", 2}]),
-  Json = avro_json_encoder:encode_value(MapValue),
-  Encoded = avro_json_encoder:encode(
-    fun(_) -> MapType end, "some_map", [{"v1", 1}, {"v2", null}, {"v3", 2}]),
-%%  Should test so complex because of avro_json_encoder:encode_value do not save the order of keys in case of map
-  Decoded1 = avro_json_decoder:parse_value(jsonx:decode(Json, [{format, struct}]), MapType, none),
-  Json1 = jsonx:encode(Encoded),
-  Decoded2 = avro_json_decoder:parse_value(jsonx:decode(Json1, [{format, struct}]), MapType, none),
-  ?assertEqual(Decoded1, Decoded2).
+  Value = [{"v1", 1}, {"v2", null}, {"v3", 2}],
+  MapValue = avro_map:new(MapType, Value),
+  JSON1 = avro_json_encoder:encode_value(MapValue),
+  JSON2 = encode(fun(_) -> MapType end, "some_map", Value),
+  DecodeF = fun(JSON) ->
+              avro_json_decoder:decode_value(JSON, MapType, none,
+                                             [{is_wrapped, false}])
+            end,
+  ?assertEqual(Value, lists:keysort(1, DecodeF(JSON1))),
+  ?assertEqual(Value, lists:keysort(1, DecodeF(JSON2))).
 
 check_json_encode_union_properly_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
@@ -328,17 +330,17 @@ check_json_encode_union_properly_test() ->
   Value2 = avro_union:new(UnionType, avro_primitive:string("bar")),
   Json1 = avro_json_encoder:encode_value(Value1),
   Json2 = avro_json_encoder:encode_value(Value2),
-  Encoded1 = avro_json_encoder:encode(fun(_) -> UnionType end, "some_union", null),
-  Encoded2 = avro_json_encoder:encode(fun(_) -> UnionType end, "some_union", "bar"),
-  ?assertEqual(Json1, jsonx:encode(Encoded1)),
-  ?assertEqual(Json2, jsonx:encode(Encoded2)).
+  Encoded1 = encode(none, UnionType, null),
+  Encoded2 = encode(none, UnionType, "bar"),
+  ?assertEqual(Json1, Encoded1),
+  ?assertEqual(Json2, Encoded2).
 
 check_json_encode_fixed_properly_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value = avro_fixed:new(Type, <<1,127>>),
   Json = avro_json_encoder:encode_value(Value),
-  Encoded = avro_json_encoder:encode(fun(_) -> Type end, "some_fixed", <<1,127>>),
-  ?assertEqual(?TO_STRING(Json), ?TO_STRING(jsonx:encode(Encoded))).
+  Encoded = encode(fun(_) -> Type end, "some_fixed", <<1,127>>),
+  ?assertEqual(?TO_STRING(Json), ?TO_STRING(Encoded)).
 
 
 %% @private
@@ -388,3 +390,14 @@ sample_record() ->
     , {"float",  2.718281828}
     , {"bytes",  <<"bytes value">>}
     ]).
+
+%% @private
+encode(StoreOrLkupFun, TypeOrName, Value) ->
+  iolist_to_binary(
+    avro_json_encoder:encode(StoreOrLkupFun, TypeOrName, Value)).
+
+%%%_* Emacs ============================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:
