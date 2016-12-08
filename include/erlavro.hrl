@@ -260,8 +260,6 @@
           _         -> ok
         end).
 
--define(AVRO_SCHEMA_LOOKUP_FUN(Store), avro_schema_store:to_lookup_fun(Store)).
-
 %% Decoder hook is a function to be evaluated when decoding:
 %% 1. primitives
 %% 2. each field/element of complex types.

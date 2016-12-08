@@ -37,6 +37,8 @@
   , sync
 }).
 
+-define(AVRO_SCHEMA_LOOKUP_FUN(Store), avro_schema_store:to_lookup_fun(Store)).
+
 -endif.
 
 %%%_* Emacs ====================================================================
