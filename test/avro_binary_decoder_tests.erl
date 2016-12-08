@@ -18,10 +18,15 @@
 %%%-------------------------------------------------------------------
 -module(avro_binary_decoder_tests).
 
+-import(avro_binary_decoder, [ decode/3
+                             , decode/4
+                             , zigzag/1
+                             ]).
 -include_lib("eunit/include/eunit.hrl").
 
 %% simple types, never reference
-decode_t(Bin, Type) -> avro_binary_decoder:decode(Bin, Type, fun(_) -> exit(error) end).
+decode_t(Bin, Type) ->
+  decode(Bin, Type, fun(_) -> exit(error) end).
 
 decode_null_test() ->
   ?assertEqual(null, decode_t(<<>>, avro_primitive:null_type())).
@@ -31,12 +36,12 @@ decode_boolean_test() ->
   ?assertEqual(false, decode_t([0], avro_primitive:boolean_type())).
 
 zigzag_test() ->
-  ?assertEqual(0, avro_binary_decoder:zigzag(0)),
-  ?assertEqual(-1, avro_binary_decoder:zigzag(1)),
-  ?assertEqual(1, avro_binary_decoder:zigzag(2)),
-  ?assertEqual(-2, avro_binary_decoder:zigzag(3)),
-  ?assertEqual(2147483647, avro_binary_decoder:zigzag(4294967294)),
-  ?assertEqual(-2147483648, avro_binary_decoder:zigzag(4294967295)).
+  ?assertEqual(0, zigzag(0)),
+  ?assertEqual(-1, zigzag(1)),
+  ?assertEqual(1, zigzag(2)),
+  ?assertEqual(-2, zigzag(3)),
+  ?assertEqual(2147483647, zigzag(4294967294)),
+  ?assertEqual(-2147483648, zigzag(4294967295)).
 
 encode_int_test() ->
   Int = avro_primitive:int_type(),
@@ -185,7 +190,7 @@ decode_with_hook_test() ->
   Schema = sample_record_type(),
   Lkup = fun(_) -> exit(error) end,
   Hook = avro_util:pretty_print_decoder_hook(),
-  Fields = avro_binary_decoder:decode(Binary, Schema, Lkup, Hook),
+  Fields = decode(Binary, Schema, Lkup, Hook),
   ?assertMatch([ {"bool",   true}
     , {"int",    100}
     , {"long",   123456789123456789}
@@ -196,3 +201,9 @@ decode_with_hook_test() ->
     , {"array",  [0]}
     , {"map",    []}
   ], Fields).
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

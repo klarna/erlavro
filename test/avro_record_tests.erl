@@ -44,7 +44,8 @@ get_field_type_test() ->
   Schema = avro_record:type("Test", [Field],
     [ {namespace, "name.space"}
     ]),
-  ?assertEqual(avro_primitive:long_type(), avro_record:get_field_type("invno", Schema)).
+  ?assertEqual(avro_primitive:long_type(),
+               avro_record:get_field_type("invno", Schema)).
 
 default_fields_test() ->
   Field = avro_record:define_field("invno",
@@ -123,7 +124,8 @@ cast_test() ->
     ]),
   {ok, Record} = avro_record:cast(RecordType, [{"b", 1},
     {"a", "foo"}]),
-  ?assertEqual(avro_primitive:string("foo"), avro_record:get_value("a", Record)),
+  ?assertEqual(avro_primitive:string("foo"),
+               avro_record:get_value("a", Record)),
   ?assertEqual(avro_primitive:int(1), avro_record:get_value("b", Record)).
 
 cast_by_aliases_test() ->
@@ -137,7 +139,8 @@ cast_by_aliases_test() ->
     ]),
   {ok, Record} = avro_record:cast(RecordType, [{"al4", 1},
     {"al1", "foo"}]),
-  ?assertEqual(avro_primitive:string("foo"), avro_record:get_value("a", Record)),
+  ?assertEqual(avro_primitive:string("foo"),
+               avro_record:get_value("a", Record)),
   ?assertEqual(avro_primitive:int(1), avro_record:get_value("b", Record)).
 
 new_encoded_test() ->
@@ -158,3 +161,9 @@ new_encoded_test() ->
   ?assertException(throw, {value_already_encoded, _},
     avro_record:update("any", fun()-> "care not" end, Rec)),
   ?assertException(throw, {value_already_encoded, _}, avro_record:to_list(Rec)).
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:
