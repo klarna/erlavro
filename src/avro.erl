@@ -195,7 +195,7 @@ build_type_fullname(Type, EnclosingNamespace) ->
 %% to the specified Avro type performing conversion if required.
 -spec cast(avro_type_or_name(), term()) -> {ok, avro_value()} | {error, term()}.
 
-cast(TypeName, Value) when is_list(TypeName) ->
+cast(TypeName, Value) when ?IS_NAME(TypeName) ->
   case type_from_name(TypeName) of
     undefined ->
       %% If the type specified by its name then in most cases

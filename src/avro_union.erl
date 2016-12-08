@@ -48,7 +48,7 @@
 %% API functions which should be used only inside erlavro
 -export([new_direct/2]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 %%%===================================================================
 %%% API
@@ -56,7 +56,7 @@
 
 type([]) ->
   erlang:error(avro_union_should_have_at_least_one_type);
-type(Types) when is_list(Types) ->
+type(Types) when ?IS_NAME(Types) ->
   Count = length(Types),
   IndexedTypes = lists:zip(lists:seq(0, Count - 1), Types),
   TypesDict =
@@ -83,7 +83,7 @@ lookup_child_type(Union, TypeId) when is_integer(TypeId)  ->
     {TypeId, Type} -> {ok, Type};
     false          -> false
   end;
-lookup_child_type(Union, TypeName) when is_list(TypeName) ->
+lookup_child_type(Union, TypeName) when ?IS_NAME(TypeName) ->
   case lookup(TypeName, Union) of
     {ok, {_TypeId, Type}} -> {ok, Type};
     false                 -> false
@@ -176,7 +176,7 @@ build_types_dict(IndexedTypes) ->
 %% @private
 %% If type is specified by its name then return this name,
 %% otherwise return type's full name.
-get_type_fullname_ex(TypeName) when is_list(TypeName) ->
+get_type_fullname_ex(TypeName) when ?IS_NAME(TypeName) ->
   TypeName;
 get_type_fullname_ex(Type) ->
   avro:get_type_fullname(Type).
