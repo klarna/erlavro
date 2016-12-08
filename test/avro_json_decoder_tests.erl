@@ -12,20 +12,6 @@
 -include("erlavro.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-get_test_record() ->
-  Fields = [ avro_record:define_field(
-    "invno", avro_primitive:long_type())
-    , avro_record:define_field(
-      "array", avro_array:type(avro_primitive:string_type()))
-    , avro_record:define_field(
-      "union", avro_union:type([ avro_primitive:null_type()
-        , avro_primitive:int_type()
-        , avro_primitive:boolean_type()
-      ]))
-  ],
-  avro_record:type("Test", Fields,
-    [{namespace, "name.space"}]).
-
 parse_primitive_type_name_test() ->
   %% Check that primitive types specified by their names are parsed correctly
   ?assertEqual(avro_primitive:int_type(),
@@ -271,3 +257,19 @@ parse_value_with_extract_type_fun_test() ->
   ?assertEqual("name.space.Test",
     avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
   ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).
+
+
+%% @private
+get_test_record() ->
+  Fields = [ avro_record:define_field(
+    "invno", avro_primitive:long_type())
+           , avro_record:define_field(
+      "array", avro_array:type(avro_primitive:string_type()))
+           , avro_record:define_field(
+      "union", avro_union:type([ avro_primitive:null_type()
+                               , avro_primitive:int_type()
+                               , avro_primitive:boolean_type()
+                               ]))
+           ],
+  avro_record:type("Test", Fields,
+    [{namespace, "name.space"}]).

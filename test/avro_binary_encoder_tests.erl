@@ -218,3 +218,9 @@ encode_enum_properly_test() ->
   Encoded2 = avro_binary_encoder:encode(fun(_) -> UnionType end, "some_union", "bar"),
   ?assertEqual(EncodedValue1, Encoded1),
   ?assertEqual(EncodedValue2, Encoded2).
+
+encode_map_properly_test() ->
+  Type = avro_map:type(avro_primitive:int_type()),
+  TypedValue = avro_map:new(Type, [{"a", 3}, {"b", 27}]),
+  Encoded = avro_binary_encoder:encode(fun(_) -> Type end, "some map", [{"a", 3}, {"b", 27}]),
+  ?assertBinEq(avro_binary_encoder:encode_value(TypedValue), Encoded).

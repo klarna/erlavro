@@ -12,55 +12,6 @@
 -include("erlavro.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-to_string(Json) ->
-  binary_to_list(iolist_to_binary(Json)).
-
-sample_record_type() ->
-  avro_record:type(
-    "SampleRecord",
-    [ avro_record:define_field("bool", avro_primitive:boolean_type(),
-      [ {doc, "bool f"}
-        , {default, avro_primitive:boolean(false)}
-      ])
-      , avro_record:define_field("int", avro_primitive:int_type(),
-      [ {doc, "int f"}
-        , {default, avro_primitive:int(0)}
-      ])
-      , avro_record:define_field("long", avro_primitive:long_type(),
-      [ {doc, "long f"}
-        , {default, avro_primitive:long(42)}
-      ])
-      , avro_record:define_field("float", avro_primitive:float_type(),
-      [ {doc, "float f"}
-        , {default, avro_primitive:float(3.14)}
-      ])
-      , avro_record:define_field("double", avro_primitive:double_type(),
-      [ {doc, "double f"}
-        , {default, avro_primitive:double(6.67221937)}
-      ])
-      , avro_record:define_field("bytes", avro_primitive:bytes_type(),
-      [ {doc, "bytes f"}
-      ])
-      , avro_record:define_field("string", avro_primitive:string_type(),
-      [ {doc, "string f"}
-        , {default,
-        avro_primitive:string("string value")}
-      ])
-    ],
-    [ {namespace, "com.klarna.test.bix"}
-      , {doc, "Record documentation"}]).
-
-sample_record() ->
-  avro_record:new(sample_record_type(),
-    [ {"string", "string value"}
-      , {"double", 3.14159265358}
-      , {"long",   123456789123456789}
-      , {"bool",   true}
-      , {"int",    100}
-      , {"float",  2.718281828}
-      , {"bytes",  <<"bytes value">>}
-    ]).
-
 encode_null_type_test() ->
   Json = avro_json_encoder:encode_type(avro_primitive:null_type()),
   ?assertEqual("\"null\"", to_string(Json)).
@@ -347,11 +298,13 @@ check_json_encode_map_properly_test() ->
       avro_primitive:null_type()])),
   MapValue = avro_map:new(MapType, [{"v1", 1}, {"v2", null}, {"v3", 2}]),
   Json = avro_json_encoder:encode_value(MapValue),
-  ct:pal("json ~p", [Json]),
   Encoded = avro_json_encoder:encode(
-    fun(_) -> MapType end, "some_map", dict:from_list([{"v1", 1}, {"v2", null}, {"v3", 2}])),
-  ct:pal("got ~p  --> ~p", [Encoded, jsonx:encode(Encoded)]),
-  ?assertEqual(Json, jsonx:encode(Encoded)).
+    fun(_) -> MapType end, "some_map", [{"v1", 1}, {"v2", null}, {"v3", 2}]),
+%%  Should test so complex because of avro_json_encoder:encode_value do not save the order of keys in case of map
+  Decoded1 = avro_json_decoder:parse_value(jsonx:decode(Json, [{format, struct}]), MapType, none),
+  Json1 = jsonx:encode(Encoded),
+  Decoded2 = avro_json_decoder:parse_value(jsonx:decode(Json1, [{format, struct}]), MapType, none),
+  ?assertEqual(Decoded1, Decoded2).
 
 check_json_encode_union_properly_test() ->
   UnionType = avro_union:type([ avro_primitive:string_type()
@@ -364,3 +317,63 @@ check_json_encode_union_properly_test() ->
   Encoded2 = avro_json_encoder:encode(fun(_) -> UnionType end, "some_union", "bar"),
   ?assertEqual(Json1, jsonx:encode(Encoded1)),
   ?assertEqual(Json2, jsonx:encode(Encoded2)).
+
+check_json_encode_fixed_properly_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  Value = avro_fixed:new(Type, <<1,127>>),
+  Json = avro_json_encoder:encode_value(Value),
+  Encoded = avro_json_encoder:encode(fun(_) -> Type end, "some_fixed", <<1,127>>),
+  ?assertEqual(to_string(Json), to_string(jsonx:encode(Encoded))).
+
+
+%% @private
+to_string(Json) ->
+  binary_to_list(iolist_to_binary(Json)).
+
+%% @private
+sample_record_type() ->
+  avro_record:type(
+    "SampleRecord",
+    [ avro_record:define_field("bool", avro_primitive:boolean_type(),
+      [ {doc, "bool f"}
+      , {default, avro_primitive:boolean(false)}
+      ])
+    , avro_record:define_field("int", avro_primitive:int_type(),
+      [ {doc, "int f"}
+      , {default, avro_primitive:int(0)}
+      ])
+    , avro_record:define_field("long", avro_primitive:long_type(),
+      [ {doc, "long f"}
+      , {default, avro_primitive:long(42)}
+      ])
+    , avro_record:define_field("float", avro_primitive:float_type(),
+      [ {doc, "float f"}
+      , {default, avro_primitive:float(3.14)}
+      ])
+    , avro_record:define_field("double", avro_primitive:double_type(),
+      [ {doc, "double f"}
+      , {default, avro_primitive:double(6.67221937)}
+      ])
+    , avro_record:define_field("bytes", avro_primitive:bytes_type(),
+      [ {doc, "bytes f"}
+      ])
+    , avro_record:define_field("string", avro_primitive:string_type(),
+      [ {doc, "string f"}
+      , {default,
+        avro_primitive:string("string value")}
+      ])
+    ],
+    [ {namespace, "com.klarna.test.bix"}
+    , {doc, "Record documentation"}]).
+
+%% @private
+sample_record() ->
+  avro_record:new(sample_record_type(),
+    [ {"string", "string value"}
+    , {"double", 3.14159265358}
+    , {"long",   123456789123456789}
+    , {"bool",   true}
+    , {"int",    100}
+    , {"float",  2.718281828}
+    , {"bytes",  <<"bytes value">>}
+    ]).

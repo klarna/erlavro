@@ -103,22 +103,14 @@ encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
 encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   lists:map(fun(Element) -> encode(Lkup, avro_array:get_items_type(Type), Element) end, Value);
 encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
-  L = dict:to_list(Value),
-  ct:pal("L ~p, T ~p", [L, avro_map:type(Type)]),
+  ItemsType = avro_map:get_items_type(Type),
   { struct
-  , lists:map(fun({Caption, Element}) ->
-    ct:pal("ELMNT ~p, Type ~p", [Element, avro_map:get_items_type(Type)]),
-    {Caption,
-    encode(Lkup, avro_map:get_items_type(Type), Element)} end, L)
+  , [{encode_string(K), encode(Lkup, ItemsType, V)} || {K, V} <- Value]
   };
 encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
-  ct:pal("avro is fixed type ~p ~p", [Type, Value]),
-  %% force binary size check for the value
-  encode_value(avro_fixed:new(Type, Value));
+  {json, encode_binary(Value)};
 encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
-  ct:pal("avro is union type ~p ~p types ~p", [Type, Union, avro_union:get_types(Type)]),
   MemberTypes = avro_union:get_types(Type),
-  ct:pal("types ~p, value ~p", [MemberTypes, Union]),
   case Union of
     null  -> null; %% Nulls don't need a type to be specified
     _ ->
@@ -317,7 +309,6 @@ do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
 do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
   L = dict:to_list(avro_map:to_dict(Map)),
-  ct:pal("MAP ~p L ~p", [Map, L]),
   { struct
   , lists:map(fun encode_field_with_value/1, L)
   };
