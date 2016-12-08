@@ -43,7 +43,9 @@
 -define(ENCODE_MAP_FUN(L),
   fun(IType, K, V) -> {encode_string(K), encode(L, IType, V)} end).
 -define(ENCODE_UNION_FUN(L),
-  fun(MemberT, Value, _) -> {encode_string(avro:get_type_fullname(MemberT)), encode(L, MemberT, Value)} end).
+  fun(MemberT, Value, _) ->
+    {encode_string(avro:get_type_fullname(MemberT)), encode(L, MemberT, Value)}
+  end).
 
 %%%===================================================================
 %%% API
