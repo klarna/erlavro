@@ -10,6 +10,8 @@ License: Apache License 2.0
 
 Dependencies: jsonx and mochijson3 (see rebar.config).
 
+[![Build Status](https://travis-ci.org/klarna/erlavro.svg?branch=master)](https://travis-ci.org/klarna/erlavro)
+
 # Examples
 
 ## Load avro schema file(s) (demonstrating in Erlang shell)
