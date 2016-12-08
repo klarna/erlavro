@@ -43,6 +43,7 @@
 -export([new/2]).
 -export([get_value/1]).
 -export([set_value/2]).
+-export([encode/3]).
 
 %% API functions which should be used only inside erlavro
 -export([new_direct/2]).
@@ -128,6 +129,11 @@ get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 set_value(Union, Value) when ?AVRO_IS_UNION_VALUE(Union) ->
   ?AVRO_UPDATE_VALUE(Union, Value).
 
+-spec encode(avro_type_or_name(), term(),fun()) -> term().
+encode(Type, Union,EncodeFun) ->
+  MemberTypes = avro_union:get_types(Type),
+  try_encode_union_loop(Type, MemberTypes, Union, 0, EncodeFun).
+
 %%%===================================================================
 %%% API: casting
 %%%===================================================================
@@ -147,6 +153,16 @@ to_term(Union) -> avro:to_term(get_value(Union)).
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @private
+try_encode_union_loop(UnionType, [], Value, _Index, _EncodeFun) ->
+  erlang:error({failed_to_encode_union, UnionType, Value});
+try_encode_union_loop(UnionType, [MemberT | Rest], Value, Index, EncodeFun) ->
+  try
+    EncodeFun(MemberT, Value, Index)
+  catch _ : _ ->
+    try_encode_union_loop(UnionType, Rest, Value, Index + 1, EncodeFun)
+  end.
 
 %% @private
 build_types_dict(IndexedTypes) ->

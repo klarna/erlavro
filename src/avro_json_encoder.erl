@@ -37,6 +37,15 @@
 -include("erlavro.hrl").
 -include("avro_internal.hrl").
 
+-define(ENCODE_ARRAY_FUN(L),
+  fun(IType, Item) -> encode(L, IType, Item) end).
+-define(ENCODE_RECORD_FUN(L),
+  fun({FN, FT, FV}) -> {encode_string(FN), encode(L, FT, FV)} end).
+-define(ENCODE_MAP_FUN(L),
+  fun(IType, K, V) -> {encode_string(K), encode(L, IType, V)} end).
+-define(ENCODE_UNION_FUN(L),
+  fun(MemberT, Value, _) -> {encode_string(avro:get_type_fullname(MemberT)), encode(L, MemberT, Value)} end).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -73,7 +82,7 @@ encode_value(Value, mochijson3) ->
 %% schema lookup
 %% @end
 -spec encode(schema_store() | lkup_fun(), avro_type_or_name(), term()) ->
-  iodata().
+  term().
 encode(Store, TypeName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeName, Value);
@@ -83,78 +92,26 @@ encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro_primitive:cast(Type, Value),
   do_encode_value(AvroValue);
 encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
-  FieldTypes = avro_record:get_all_field_types(Type),
-  TypeFullName = avro:get_type_fullname(Type),
-  FieldValues =
-    case Value of
-      {TypeFullName_, FieldValues_} ->
-        TypeFullName_ = TypeFullName, %% assert
-        FieldValues_;
-      L when is_list(L) ->
-        L
-    end,
-  TypeAndValueList =
-    zip_record_field_types_with_key_value(TypeFullName, FieldTypes, FieldValues),
-  { struct
-  , lists:map(fun({FieldName, FT, FV}) -> {encode_string(FieldName), encode(Lkup, FT, FV)} end, TypeAndValueList)
-  };
+  Encoded = avro_record:encode(Type, Value, ?ENCODE_RECORD_FUN(Lkup)),
+  { struct, Encoded };
 encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   encode_string(Value);
 encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
-  lists:map(fun(Element) -> encode(Lkup, avro_array:get_items_type(Type), Element) end, Value);
+  avro_array:encode(Type, Value, ?ENCODE_ARRAY_FUN(Lkup));
 encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
-  ItemsType = avro_map:get_items_type(Type),
-  { struct
-  , [{encode_string(K), encode(Lkup, ItemsType, V)} || {K, V} <- Value]
-  };
+  Encoded = avro_map:encode(Type, Value, ?ENCODE_MAP_FUN(Lkup)),
+  { struct, Encoded };
 encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   {json, encode_binary(Value)};
+encode(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
+  null; %do not encode null
 encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
-  MemberTypes = avro_union:get_types(Type),
-  case Union of
-    null  -> null; %% Nulls don't need a type to be specified
-    _ ->
-      { struct
-      , [try_encode_union_loop(Lkup, Type, MemberTypes, Union, 0)]
-      }
-  end.
+  Encoded = avro_union:encode(Type, Union, ?ENCODE_UNION_FUN(Lkup)),
+  { struct, [Encoded] }.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-%% @private
-try_encode_union_loop(_Lkup, UnionType, [], Value, _Index) ->
-  erlang:error({failed_to_encode_union, UnionType, Value});
-try_encode_union_loop(Lkup, UnionType, [MemberT | Rest], Value, Index) ->
-  try
-    {encode_string(avro:get_type_fullname(MemberT)), encode(Lkup, MemberT, Value)}
-  catch _ : _ ->
-    try_encode_union_loop(Lkup, UnionType, Rest, Value, Index + 1)
-  end.
-
-%% @private
-zip_record_field_types_with_key_value(_Name, [], []) -> [];
-zip_record_field_types_with_key_value(Name, [{FieldName, FieldType} | Rest],
-    FieldValues0) ->
-  {FieldValue, FieldValues} =
-    take_record_field_value(Name, FieldName, FieldValues0, []),
-  [{FieldName, FieldType, FieldValue}
-    | zip_record_field_types_with_key_value(Name, Rest, FieldValues)
-  ].
-
-%% @private
-take_record_field_value(RecordName, FieldName, [], _) ->
-  erlang:error({field_value_not_found, RecordName, FieldName});
-take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
-  case Tag =:= FieldName orelse
-    (is_atom(Tag) andalso atom_to_list(Tag) =:= FieldName) of
-    true ->
-      {Value, Tried ++ Rest};
-    false ->
-      take_record_field_value(RecordName, FieldName,
-        Rest, [{Tag, Value} | Tried])
-  end.
 
 %% @private
 optional_field(_Key, Default, Default, _MappingFun) -> [];
