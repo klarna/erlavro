@@ -221,7 +221,7 @@ get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
   case lists:keyfind(FieldName, 1, Data) of
-    {_N, _T, V} -> V;
+    {_N, V} -> V;
     false       -> erlang:error({unknown_field, FieldName})
   end.
 
@@ -252,9 +252,10 @@ set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   ok = ?ASSERT_AVRO_VALUE(Data),
   NewData =
     case lists:keytake(FieldName, 1, Data) of
-      {value, {_,T,_}, Rest} ->
+      {value, {_, V}, Rest} ->
+        T = ?AVRO_VALUE_TYPE(V),
         case avro:cast(T, Value) of
-          {ok, NewValue} -> [{FieldName, T, NewValue}|Rest];
+          {ok, NewValue} -> [{FieldName, NewValue} | Rest];
           Err            -> erlang:error(Err)
         end;
       false ->
@@ -273,9 +274,10 @@ update(FieldName, Fun, Record) ->
   ok = ?ASSERT_AVRO_VALUE(Data),
   NewData =
     case lists:keytake(FieldName, 1, Data) of
-      {value, {_,T,OldValue}, Rest} ->
+      {value, {_, OldValue}, Rest} ->
+        T = ?AVRO_VALUE_TYPE(OldValue),
         case avro:cast(T, Fun(OldValue)) of
-          {ok, NewValue} -> [{FieldName, T, NewValue}|Rest];
+          {ok, NewValue} -> [{FieldName, NewValue} | Rest];
           {error, Err}   -> erlang:error({FieldName, Err})
         end;
       false ->
@@ -287,11 +289,7 @@ update(FieldName, Fun, Record) ->
 to_list(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
-  lists:map(
-    fun({N, _T, V}) ->
-        {N,V}
-    end,
-    Data).
+  Data.
 
 -spec to_term(avro_value()) -> term().
 to_term(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
@@ -325,7 +323,7 @@ lookup_value_from_list(FieldDef, Values) ->
 
 cast_fields([], _Values, Acc) ->
   lists:reverse(Acc);
-cast_fields([FieldDef|Rest], Values, Acc) ->
+cast_fields([FieldDef | Rest], Values, Acc) ->
   #avro_record_field
   { name = FieldName
   , type = FieldType
@@ -336,7 +334,7 @@ cast_fields([FieldDef|Rest], Values, Acc) ->
     Value ->
       case avro:cast(FieldType, Value) of
         {ok, CastedValue} ->
-          cast_fields(Rest, Values, [{FieldName, FieldType, CastedValue}|Acc]);
+          cast_fields(Rest, Values, [{FieldName, CastedValue} | Acc]);
         {error, Reason} ->
           {error, {FieldName, Reason}}
       end
