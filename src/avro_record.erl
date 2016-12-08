@@ -47,6 +47,7 @@
 -export([update/3]).
 -export([to_list/1]).
 -export([to_term/1]).
+-export([encode/3]).
 
 -deprecated({type, 4, eventually}).
 -deprecated({type, 6, eventually}).
@@ -302,9 +303,45 @@ to_term(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Name = avro:get_type_fullname(Record),
   {Name, lists:map(fun({N, V}) -> {N, avro:to_term(V)} end, to_list(Record))}.
 
+-spec encode(avro_type_or_name(), term(), fun()) -> list().
+encode(Type, Value, EncodeFun) ->
+  FieldTypes = avro_record:get_all_field_types(Type),
+  TypeFullName = avro:get_type_fullname(Type),
+  FieldValues = get_values_for_encode(Value, TypeFullName),
+  TypeAndValueList = zip_record_field_types_with_key_value(TypeFullName, FieldTypes, FieldValues),
+  lists:map(EncodeFun, TypeAndValueList).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @private
+get_values_for_encode({TypeFullName, FieldValues}, TypeFullName) -> FieldValues;
+get_values_for_encode(L, _) when is_list(L) -> L.
+
+%% @private
+zip_record_field_types_with_key_value(_Name, [], []) -> [];
+zip_record_field_types_with_key_value(Name, [{FieldName, FieldType} | Rest],
+    FieldValues0) ->
+  {FieldValue, FieldValues} =
+    take_record_field_value(Name, FieldName, FieldValues0, []),
+  [{FieldName, FieldType, FieldValue}
+  | zip_record_field_types_with_key_value(Name, Rest, FieldValues)
+  ].
+
+%% @private
+-spec take_record_field_value(string(), string(), proplists:proplist(), list()) -> tuple().
+take_record_field_value(RecordName, FieldName, [], _) ->
+  erlang:error({field_value_not_found, RecordName, FieldName});
+take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
+  case Tag =:= FieldName orelse
+    (is_atom(Tag) andalso atom_to_list(Tag) =:= FieldName) of
+    true ->
+      {Value, Tried ++ Rest};
+    false ->
+      take_record_field_value(RecordName, FieldName,
+        Rest, [{Tag, Value} | Tried])
+  end.
 
 %% @private
 %% Try to find a value for a field specified by list of its names

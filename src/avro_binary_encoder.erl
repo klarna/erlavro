@@ -39,6 +39,15 @@
 -compile(export_all).
 -endif.
 
+-define(ENCODE_ARRAY_FUN(L),
+  fun(IType, Item) -> encode(L, IType, Item) end).
+-define(ENCODE_RECORD_FUN(L),
+  fun({_, FT, FV}) -> encode(L, FT, FV) end).
+-define(ENCODE_MAP_FUN(L),
+  fun(IType, K, V) -> [string(K), encode(L, IType, V)] end).
+-define(ENCODE_UNION_FUN(L),
+  fun(MemberT, Value, Index) -> [long(Index), encode(L, MemberT, Value)] end).
+
 %%%_* APIs =====================================================================
 
 %% @doc Encode avro value in binary format.
@@ -82,71 +91,24 @@ encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro:cast(Type, Value),
   encode_value(AvroValue);
 encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
-  FieldTypes = avro_record:get_all_field_types(Type),
-  TypeFullName = avro:get_type_fullname(Type),
-  FieldValues =
-    case Value of
-      {TypeFullName_, FieldValues_} ->
-        TypeFullName_ = TypeFullName, %% assert
-        FieldValues_;
-      L when is_list(L) ->
-        L
-    end,
-  TypeAndValueList =
-    zip_record_field_types_with_value(TypeFullName, FieldTypes, FieldValues),
-  [encode(Lkup, FT, FV) || {FT, FV} <- TypeAndValueList];
+  avro_record:encode(Type, Value, ?ENCODE_RECORD_FUN(Lkup));
 encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   int(avro_enum:get_index(Type, Value));
 encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
-  ItemsType = avro_array:get_items_type(Type),
   Count = length(Value),
-  block(Count, [encode(Lkup, ItemsType, Item) || Item <- Value]);
+  Encoded = avro_array:encode(Type, Value, ?ENCODE_ARRAY_FUN(Lkup)),
+  block(Count, Encoded);
 encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
-  ItemsType = avro_map:get_items_type(Type),
+  Encoded = avro_map:encode(Type, Value, ?ENCODE_MAP_FUN(Lkup)),
   Count = length(Value),
-  block(Count, [[string(K), encode(Lkup, ItemsType, V)] || {K, V} <- Value]);
+  block(Count, Encoded);
 encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   %% force binary size check for the value
   encode_value(avro_fixed:new(Type, Value));
-encode(Lkup, Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
-  %% encoding union might be quite costy but we'll have to live with it.
-  MemberTypes = avro_union:get_types(Type),
-  try_encode_union_loop(Lkup, Type, MemberTypes, Value, 0).
+encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
+  avro_union:encode(Type, Union, ?ENCODE_UNION_FUN(Lkup)).
 
 %%%_* Internal functions =======================================================
-
-%% @private
-zip_record_field_types_with_value(_Name, [], []) -> [];
-zip_record_field_types_with_value(Name, [{FieldName, FieldType} | Rest],
-                                  FieldValues0) ->
-  {FieldValue, FieldValues} =
-    take_record_field_value(Name, FieldName, FieldValues0, []),
-  [ {FieldType, FieldValue}
-  | zip_record_field_types_with_value(Name, Rest, FieldValues)
-  ].
-
-%% @private
-take_record_field_value(RecordName, FieldName, [], _) ->
-  erlang:error({field_value_not_found, RecordName, FieldName});
-take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
-  case Tag =:= FieldName orelse
-       (is_atom(Tag) andalso atom_to_list(Tag) =:= FieldName) of
-    true ->
-      {Value, Tried ++ Rest};
-    false ->
-      take_record_field_value(RecordName, FieldName,
-                              Rest, [{Tag, Value} | Tried])
-  end.
-
-%% @private
-try_encode_union_loop(_Lkup, UnionType, [], Value, _Index) ->
-  erlang:error({failed_to_encode_union, UnionType, Value});
-try_encode_union_loop(Lkup, UnionType, [MemberT | Rest], Value, Index) ->
-  try
-    [long(Index), encode(Lkup, MemberT, Value)]
-  catch _ : _ ->
-    try_encode_union_loop(Lkup, UnionType, Rest, Value, Index + 1)
-  end.
 
 %% @private
 encode_prim(T, _) when ?AVRO_IS_NULL_TYPE(T)    -> null();

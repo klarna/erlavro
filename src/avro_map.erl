@@ -30,6 +30,7 @@
 -export([to_list/1]).
 -export([cast/2]).
 -export([to_term/1]).
+-export([encode/3]).
 
 -include("erlavro.hrl").
 
@@ -64,6 +65,11 @@ cast(Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
 -spec to_term(avro_value()) -> list().
 to_term(Map) ->
   [{K, avro:to_term(V)} || {K, V} <- dict:to_list(to_dict(Map))].
+
+-spec encode(avro_type_or_name(), term(), fun()) -> list().
+encode(Type, Value, EncodeFun) ->
+  ItemsType = avro_map:get_items_type(Type),
+  [EncodeFun(ItemsType, K, V) || {K, V} <- Value].
 
 %%%===================================================================
 %%% Internal functions

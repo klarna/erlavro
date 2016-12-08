@@ -31,6 +31,7 @@
 -export([get/1]).
 -export([cast/2]).
 -export([to_term/1]).
+-export([encode/3]).
 
 -export([prepend/2]).
 
@@ -84,6 +85,11 @@ cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
 -spec to_term(avro_value()) -> list().
 to_term(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   [ avro:to_term(Item) || Item <- ?AVRO_VALUE_DATA(Array) ].
+
+-spec encode(avro_type_or_name(), list(), fun()) -> list().
+encode(Type, Value, EncodeFun) ->
+  ItemsType = avro_array:get_items_type(Type),
+  lists:map(fun(Element) -> EncodeFun(ItemsType, Element) end, Value).
 
 %%%===================================================================
 %%% Internal functions
