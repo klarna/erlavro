@@ -32,7 +32,8 @@ big_union() ->
   avro_union:type([get_record(N) || N <- lists:seq(1,200)]).
 
 new_direct_test() ->
-  Type = avro_union:type([avro_primitive:int_type(), avro_primitive:string_type()]),
+  Type = avro_union:type([avro_primitive:int_type(),
+                          avro_primitive:string_type()]),
   NewVersion = avro_union:new(Type, "Foo"),
   DirectVersion = avro_union:new_direct(Type, avro_primitive:string("Foo")),
   ?assertEqual(NewVersion, DirectVersion).
@@ -68,8 +69,15 @@ get_child_type_index_test() ->
     avro_union:get_child_type_index(Type2, "com.klarna.test.bix.R43")).
 
 to_term_test() ->
-  Type = avro_union:type([avro_primitive:null_type(), avro_primitive:int_type()]),
+  Type = avro_union:type([avro_primitive:null_type(),
+                          avro_primitive:int_type()]),
   Value1 = avro_union:new(Type, null),
   Value2 = avro_union:new(Type, 1),
   ?assertEqual(null, avro:to_term(Value1)),
   ?assertEqual(1,    avro:to_term(Value2)).
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:
