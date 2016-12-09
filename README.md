@@ -14,7 +14,7 @@ Dependencies: jsonx and mochijson3 (see rebar.config).
 
 # Examples
 
-## Load avro schema file(s) (demonstrating in Erlang shell)
+## Load Avro Schema file(s) (demonstrating in Erlang shell)
 
 See `priv/interop.avsc` for avro schema definition.
 
@@ -48,6 +48,8 @@ true
 
 ## Define avro schema using erlavro APIs
 
+### Avro Binary Encode/Decode
+
 ```erlang
 MyRecordType = avro_record:type("MyRecord",
                                 [avro_record:define_field("f1", avro_primitive:int_type()),
@@ -59,7 +61,7 @@ Encoded = avro_binary_encoder:encode(Store, "my.com.MyRecord", Term),
 Term =:= avro_binary_decoder:decode(Encoded, "my.com.MyRecord", Store).
 ```
 
-## Cast values for encoding (demonstrating avro JSON encoding/decoding)
+### Avro JSON Encode/Decode
 
 ```erlang
 MyRecordType = avro_record:type("MyRecord",
@@ -68,8 +70,7 @@ MyRecordType = avro_record:type("MyRecord",
                                 [{namespace, "my.com"}]),
 Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
 Term = [{"f1", 1},{"f2","my string"}],
-{ok, AvroValue} = avro:cast(MyRecordType, Term),
-JSON = avro_json_encoder:encode_value(AvroValue),
+JSON = iolist_to_binary(avro_json_encoder:encode(Store, "my.com.MyRecord", Term)),
 Term =:= avro_json_decoder:decode_value(JSON, "my.com.MyRecord", Store, [{is_wrapped, false}]),
 io:put_chars(user, JSON).
 ```
@@ -90,5 +91,4 @@ This version of library supports only subset of all functionality.
 What things should be done:
 
 1. Full support for avro 1.8
-2. Allow inner type reference for JSON encoding (currently only fully constructed #avro_value{} can be used for JSON encoding)
 
