@@ -68,12 +68,6 @@ import_test() ->
   ets:delete(Store),
   ok.
 
-priv_dir() ->
-  case filelib:is_dir(filename:join(["..", priv])) of
-    true -> filename:join(["..", priv]);
-    _    -> "./priv"
-  end.
-
 expand_type_test() ->
   PrivDir = priv_dir(),
   AvscFile = filename:join([PrivDir, "interop.avsc"]),
@@ -163,6 +157,19 @@ extracted_test_record() ->
       , {doc, "Some doc"}
       , {aliases, ["TestRecordAlias1", "TestRecordAlias2"]}
     ]).
+
+%% @private
+priv_dir() ->
+  case code:priv_dir(erlavro) of
+    {error, bad_name} ->
+      %% application is not loaded, try dirty way
+      case filelib:is_dir(filename:join(["..", priv])) of
+        true -> filename:join(["..", priv]);
+        _    -> "./priv"
+      end;
+    Dir ->
+      Dir
+  end.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

@@ -42,6 +42,7 @@ interop_test() ->
   ?assertEqual(Schema, Schema1),
   ?assertEqual(Objects, Objects1).
 
+%% @private
 priv_dir() ->
   case code:priv_dir(erlavro) of
     {error, bad_name} ->
