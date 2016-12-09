@@ -70,7 +70,7 @@
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
--compile(export_all).
+-export([extract_children_types/1]).
 -endif.
 
 -opaque store() :: ets:tab().

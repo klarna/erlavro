@@ -36,7 +36,7 @@
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
--compile(export_all).
+-export([init_schema_store/1]).
 -endif.
 
 -type avro_object() :: term().

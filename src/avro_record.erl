@@ -60,7 +60,7 @@
 -include("erlavro.hrl").
 
 -ifdef(TEST).
--compile(export_all).
+-export([get_field_def/2]).
 -endif.
 
 %% Record internals:

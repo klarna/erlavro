@@ -32,7 +32,7 @@
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
--compile(export_all).
+-export([parse_value/3, parse_schema/3, parse/5]).
 -endif.
 
 -type option_name() :: json_decoder
