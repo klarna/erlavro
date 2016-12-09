@@ -43,9 +43,15 @@ interop_test() ->
   ?assertEqual(Objects, Objects1).
 
 priv_dir() ->
-  case filelib:is_dir(filename:join(["..", priv])) of
-    true -> filename:join(["..", priv]);
-    _    -> "./priv"
+  case code:priv_dir(erlavro) of
+    {error, bad_name} ->
+      %% application is not loaded, try dirty way
+      case filelib:is_dir(filename:join(["..", priv])) of
+        true -> filename:join(["..", priv]);
+        _    -> "./priv"
+      end;
+    Dir ->
+      Dir
   end.
 
 %%%_* Emacs ====================================================================
