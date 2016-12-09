@@ -1,3 +1,4 @@
+%% coding: latin-1
 %%%-------------------------------------------------------------------
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
@@ -16,7 +17,7 @@
 %%% under the License.
 %%%
 %%%-------------------------------------------------------------------
--module(arvo_schema_store_tests).
+-module(avro_schema_store_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 

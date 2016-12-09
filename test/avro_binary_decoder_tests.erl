@@ -1,3 +1,4 @@
+%% coding: latin-1
 %%%-------------------------------------------------------------------
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
@@ -79,7 +80,7 @@ decode_string_test() ->
   ?assertEqual(Str, decode_t(Enc, avro_primitive:string_type())).
 
 decode_utf8_string_test() ->
-  Str = "Avro √§r popul√§r",
+  Str = "Avro ‰r popul‰r",
   Utf8 = unicode:characters_to_binary(Str, latin1, utf8),
   Enc = [size(Utf8) * 2, Utf8],
   ?assertEqual(binary_to_list(Utf8),

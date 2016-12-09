@@ -1,3 +1,4 @@
+%% coding: latin-1
 %%%-------------------------------------------------------------------
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
@@ -29,11 +30,7 @@
 -include("erlavro.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--ifndef(otp_17_or_above).
--define(TO_STRING(S), unicode:characters_to_list(S)).
--else.
 -define(TO_STRING(S), binary_to_list(iolist_to_binary(S))).
--endif.
 
 -define(assertBinEq(A,B),
   ?assertEqual(iolist_to_binary(A),iolist_to_binary(B))).
@@ -109,7 +106,7 @@ encode_string_with_quoting_test() ->
   ?assertBinEq([4, <<34, 92>>], BinString).
 
 encode_utf8_string_test() ->
-  S = unicode:characters_to_binary("Avro √§r popul√§r", latin1, utf8),
+  S = unicode:characters_to_binary("Avro ‰r popul‰r", latin1, utf8),
   BinString = encode_value(avro_primitive:string(?TO_STRING(S))),
   ?assertBinEq([34, "Avro ", [195,164], "r popul", [195,164], "r"], BinString).
 

@@ -1,3 +1,4 @@
+%% coding: latin-1
 %%%-------------------------------------------------------------------
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
@@ -26,11 +27,7 @@
 -include("erlavro.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--ifndef(otp_17_or_above).
--define(TO_STRING(S), unicode:characters_to_list(S)).
--else.
 -define(TO_STRING(S), binary_to_list(iolist_to_binary(S))).
--endif.
 
 encode_null_type_test() ->
   Json = encode_type(avro_primitive:null_type()),
@@ -127,7 +124,7 @@ encode_string_with_quoting_test() ->
   ?assertEqual("\"\\\"\\\\\"", ?TO_STRING(Json)).
 
 encode_utf8_string_test() ->
-  S = unicode:characters_to_binary("Avro √§r popul√§r", latin1, utf8),
+  S = unicode:characters_to_binary("Avro ‰r popul‰r", latin1, utf8),
   Json = encode_value(avro_primitive:string(binary_to_list(S))),
   ?assertEqual("\"Avro " ++ [195,164] ++ "r popul"++ [195,164] ++ "r\"",
     ?TO_STRING(Json)).
