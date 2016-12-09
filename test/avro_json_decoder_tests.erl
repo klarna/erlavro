@@ -16,8 +16,6 @@
 %%% under the License.
 %%%
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
-%%% @doc Avro Json decoder
-%%% @end
 %%%-------------------------------------------------------------------
 -module(avro_json_decoder_tests).
 -author("tihon").
