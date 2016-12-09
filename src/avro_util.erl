@@ -43,7 +43,7 @@
 
 -include("avro_internal.hrl").
 -ifdef(TEST).
--compile(export_all).
+-export([is_correct_dotted_name/1, is_correct_name/1, tokens_ex/2]).
 -endif.
 
 %%%===================================================================

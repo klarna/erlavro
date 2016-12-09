@@ -37,7 +37,7 @@
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
--compile(export_all).
+-export([zigzag/1]).
 -endif.
 
 -type hook() :: decoder_hook_fun().

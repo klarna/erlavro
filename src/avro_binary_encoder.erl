@@ -35,7 +35,7 @@
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
--compile(export_all).
+-export([string/1, int/1, long/1, zigzag/2]).
 -endif.
 
 %%%_* APIs =====================================================================
