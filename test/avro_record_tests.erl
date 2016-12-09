@@ -15,10 +15,8 @@
 %%% specific language governing permissions and limitations
 %%% under the License.
 %%%
-%%% @author Ilya Staheev <ilya.staheev@klarna.com>
 %%%-------------------------------------------------------------------
 -module(avro_record_tests).
--author("tihon").
 
 -include_lib("eunit/include/eunit.hrl").
 
