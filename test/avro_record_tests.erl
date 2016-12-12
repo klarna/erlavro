@@ -147,7 +147,7 @@ cast_by_aliases_test() ->
 new_encoded_test() ->
   Type = avro_record:type("Test",
     [ avro_record:define_field("field1", avro_primitive:long_type())
-      , avro_record:define_field("field2", avro_primitive:string_type())
+    , avro_record:define_field("field2", avro_primitive:string_type())
     ],
     [ {namespace, "name.space"}
     ]),

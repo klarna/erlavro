@@ -21,7 +21,9 @@
 %%%-------------------------------------------------------------------
 -module(avro).
 
--export([ expand_type/2
+-export([ encode/4
+        , encode_wrapped/4
+        , expand_type/2
         , flatten_type/1
         , get_type_name/1
         , get_type_namespace/1
@@ -127,11 +129,33 @@ flatten_type(Type) ->
 expand_type(Type, Store) ->
   avro_schema_store:expand_type(Type, Store).
 
+%% @doc Encode value to json or binary format.
+-spec encode(schema_store() | lkup_fun(), avro_type_or_name(),
+             term(), avro_encoding()) -> iodata().
+encode(StoreOrLkup, Type, Value, avro_json) ->
+  avro_json_encoder:encode(StoreOrLkup, Type, Value);
+encode(StoreOrLkup, Type, Value, avro_binary) ->
+  avro_binary_encoder:encode(StoreOrLkup, Type, Value).
+
+%% @doc Encode value and return the result wrapped with type info.
+%% The result can be used as a 'trusted' part of a higher level
+%% wrapper structure. e.g. encode a big array of some complex type
+%% and use the result as a field value of a parent record
+%% @end
+-spec encode_wrapped(schema_store() | lkup_fun(), avro_type_or_name(),
+                     term(), avro_encoding()) -> avro_value().
+encode_wrapped(StoreOrLkup, TypeOrName, Value, Encoding) ->
+  Encoded = iolist_to_binary(encode(StoreOrLkup, TypeOrName, Value, Encoding)),
+  case Encoding of
+    avro_json   -> ?AVRO_ENCODED_VALUE_JSON(TypeOrName, Encoded);
+    avro_binary -> ?AVRO_ENCODED_VALUE_BINARY(TypeOrName, Encoded)
+  end.
+
 %%%===================================================================
 %%% API: Reading schema from json file
 %%%===================================================================
--spec read_schema(file:filename()) ->
-        {ok, avro_type()} | {error, any()}.
+
+-spec read_schema(file:filename()) -> {ok, avro_type()} | {error, any()}.
 read_schema(File) ->
   case file:read_file(File) of
     {ok, Data} ->
@@ -291,7 +315,6 @@ type_from_name(?AVRO_DOUBLE) -> avro_primitive:double_type();
 type_from_name(?AVRO_BYTES)  -> avro_primitive:bytes_type();
 type_from_name(?AVRO_STRING) -> avro_primitive:string_type();
 type_from_name(_)            -> undefined.
-
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

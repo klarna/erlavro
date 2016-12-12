@@ -39,6 +39,19 @@
 
 -define(AVRO_SCHEMA_LOOKUP_FUN(Store), avro_schema_store:to_lookup_fun(Store)).
 
+-define(AVRO_ENCODED_VALUE_JSON(Type, Value),
+        ?AVRO_VALUE(Type, {json, Value})).
+-define(AVRO_ENCODED_VALUE_BINARY(Type, Value),
+        ?AVRO_VALUE(Type, {binary, Value})).
+
+%% Throw an exception in case the value is already encoded.
+-define(ASSERT_AVRO_VALUE(VALUE),
+        case VALUE of
+          {json, _}   -> erlang:throw({value_already_encoded, VALUE});
+          {binary, _} -> erlang:throw({value_already_encoded, VALUE});
+          _           -> ok
+        end).
+
 -endif.
 
 %%%_* Emacs ====================================================================
