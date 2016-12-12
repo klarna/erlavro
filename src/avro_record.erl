@@ -37,7 +37,7 @@
 -export([cast/2]).
 
 -export([new/2]).
--export([new_encoded/3]).
+-export([new_encoded/3]). %% DEPRECATED
 -export([get/2]). %% DEPRECATED
 -export([get_value/2]).
 -export([set/2]). %% DEPRECATED
@@ -49,6 +49,7 @@
 -export([to_term/1]).
 -export([encode/3]).
 
+-deprecated({new_encoded, 3, eventually}).
 -deprecated({type, 4, eventually}).
 -deprecated({type, 6, eventually}).
 -deprecated({field, 3 ,eventually}).
@@ -57,7 +58,7 @@
 -deprecated({set, 2, eventually}).
 -deprecated({set, 3, eventually}).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 -ifdef(TEST).
 -export([get_field_def/2]).
@@ -195,9 +196,8 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
     {error, Err} -> erlang:error(Err)
   end.
 
-%% @doc Create a new record and encod it right away.
-%% NOTE: unlike avro_value()s, avro_encoded_value() can not be used
-%%       for further update or inner inspection anymore.
+%% @deprecated Create a new record and encod it right away.
+%% NOTE: deprecated, use avro:encode_wrapped/4
 %% @end
 -spec new_encoded(#avro_record_type{}, term(), json_binary | avro_encoding()) ->
         avro_encoded_value().
@@ -206,28 +206,25 @@ new_encoded(Type, Value, json_binary) ->
   %% 'json_binary' is used before 1.3
   new_encoded(Type, Value, avro_json);
 new_encoded(Type, Value, EncodeTo) ->
-  AvroValue = new(Type, Value),
-  case EncodeTo of
-    avro_json ->
-      JsonIoData = avro_json_encoder:encode_value(AvroValue),
-      ?AVRO_ENCODED_VALUE_JSON(Type, iolist_to_binary(JsonIoData));
-    avro_binary ->
-      AvroIoData = avro_binary_encoder:encode_value(AvroValue),
-      ?AVRO_ENCODED_VALUE_BINARY(Type, iolist_to_binary(AvroIoData))
-  end.
+  MyName = avro:get_type_fullname(Type),
+  %% Assuming Type is fully constructed. i.e. no type reference
+  %% only self-recursive type lookup is supported
+  Lkup = fun(Name) when Name =:= MyName -> Type;
+            (Name)                      -> erlang:error({unexpected, Name})
+         end,
+  avro:encode_wrapped(Lkup, Type, Value, EncodeTo).
 
 %% @deprecated Use get_value instead
 get(FieldName, Record) ->
   get_value(FieldName, Record).
 
--spec get_value(string(), avro_value()) ->
-        avro_value() | no_return().
+-spec get_value(string(), avro_value()) -> avro_value() | no_return().
 get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
   case lists:keyfind(FieldName, 1, Data) of
     {_N, V} -> V;
-    false       -> erlang:error({unknown_field, FieldName})
+    false   -> erlang:error({unknown_field, FieldName})
   end.
 
 %% @deprecated Use set_values/2 instead

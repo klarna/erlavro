@@ -1,7 +1,7 @@
 {application, erlavro,
  [
   {description, "Apache Avro support for Erlang"},
-  {vsn, "1.9.0"},
+  {vsn, "1.9.1"},
   {registered, []},
   {applications, [
                   kernel,

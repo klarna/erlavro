@@ -85,6 +85,8 @@ encode(Lkup, TypeOrName, Value) ->
 %%%===================================================================
 
 %% @private
+do_encode(_Lkup, _, Value) when ?IS_AVRO_VALUE(Value) ->
+  encode_value(Value, mochijson3);
 do_encode(Lkup, TypeName, Value) when ?IS_NAME(TypeName) ->
   do_encode(Lkup, Lkup(TypeName), Value);
 do_encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
