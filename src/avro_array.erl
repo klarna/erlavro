@@ -30,6 +30,7 @@
 -export([new/2]).
 -export([get/1]).
 -export([cast/2]).
+-export([uncast/2]).
 -export([to_term/1]).
 -export([encode/3]).
 
@@ -82,6 +83,10 @@ prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
 cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   do_cast(Type, Value).
 
+-spec uncast(avro_type(), avro_value()) -> {ok, term()} | {error, term()}.
+uncast(_Type, Value) ->
+  uncast_items(Value, []).
+
 -spec to_term(avro_value()) -> list().
 to_term(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   [ avro:to_term(Item) || Item <- ?AVRO_VALUE_DATA(Array) ].
@@ -96,8 +101,8 @@ encode(Type, Value, EncodeFun) ->
 %%%===================================================================
 
 %% @private
--spec do_cast(#avro_array_type{}, avro_value() | [term()])
-             -> {ok, avro_value()} | {error, term()}.
+-spec do_cast(#avro_array_type{}, avro_value() | [term()]) ->
+  {ok, avro_value()} | {error, term()}.
 
 do_cast(Type, Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   %% Since we can't compare array types we just cast all items one by one
@@ -119,6 +124,15 @@ cast_items(TargetType, [Item|H], Acc) ->
     Err         -> Err
   end.
 
+%% @private
+uncast_items([], Acc) ->
+  {ok, lists:reverse(Acc)};
+uncast_items([Item | Rest], Acc) ->
+  case avro:uncast(Item) of
+    {ok, Value} when ?AVRO_IS_ARRAY_VALUE(Value) -> uncast_items(Rest, [lists:reverse(Value) | Acc]);
+    {ok, Value} -> uncast_items(Rest, [Value | Acc]);
+    Err         -> Err
+  end.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

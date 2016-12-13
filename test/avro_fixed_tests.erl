@@ -74,8 +74,9 @@ get_value_test() ->
   Value = avro_fixed:new(Type, <<1,2>>),
   ?assertEqual(<<1,2>>, avro_fixed:get_value(Value)).
 
-%%%_* Emacs ====================================================================
-%%% Local Variables:
-%%% allout-layout: t
-%%% erlang-indent-level: 2
-%%% End:
+cast_uncast_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  Bin = <<1,2>>,
+  {ok, SourceValue} = avro:cast(Type, Bin),
+  {ok, UnCasted} = avro:uncast(SourceValue),
+  ?assertEqual(Bin, UnCasted).

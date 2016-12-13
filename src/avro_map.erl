@@ -29,6 +29,7 @@
 -export([to_dict/1]).
 -export([to_list/1]).
 -export([cast/2]).
+-export([uncast/2]).
 -export([to_term/1]).
 -export([encode/3]).
 
@@ -62,6 +63,10 @@ to_list(Value) when ?AVRO_IS_MAP_VALUE(Value) ->
 cast(Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
   do_cast(Type, Value).
 
+-spec uncast(avro_type(), avro_value()) -> {ok, term()} | {error, term()}.
+uncast(_Type, Value) ->
+  do_uncast(dict:to_list(Value), []).
+
 -spec to_term(avro_value()) -> list().
 to_term(Map) ->
   [{K, avro:to_term(V)} || {K, V} <- dict:to_list(to_dict(Map))].
@@ -87,6 +92,17 @@ do_cast(Type, Dict) ->
   case cast_from_dict(ItemsType, Dict) of
     {error, _} = Err -> Err;
     NewDict          -> {ok, ?AVRO_VALUE(Type, NewDict)}
+  end.
+
+%% @private
+do_uncast([], Acc) ->
+  {ok, Acc};
+do_uncast([{K, V} | Rest], Acc) ->
+  case avro:uncast(V) of
+    {ok, Value} ->
+      do_uncast(Rest, [{K, Value} | Acc]);
+    Err ->
+      Err
   end.
 
 %% @private

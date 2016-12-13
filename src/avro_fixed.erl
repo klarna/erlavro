@@ -30,6 +30,7 @@
 -export([get_value/1]).
 -export([to_integer/1]).
 -export([cast/2]).
+-export([uncast/2]).
 
 -include("erlavro.hrl").
 
@@ -90,6 +91,10 @@ to_integer(Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
 
 cast(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   do_cast(Type, Value).
+
+-spec uncast(avro_type(), avro_value()) -> {ok, term()} | {error, term()}.
+uncast(_Type, Value) ->
+  {ok, Value}.
 
 %%%===================================================================
 %%% Internal functions

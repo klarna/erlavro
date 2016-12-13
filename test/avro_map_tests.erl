@@ -48,8 +48,21 @@ to_term_test() ->
   Mappings = avro:to_term(Value),
   ?assertEqual(ExpectedMappings, lists:keysort(1, Mappings)).
 
-%%%_* Emacs ====================================================================
-%%% Local Variables:
-%%% allout-layout: t
-%%% erlang-indent-level: 2
-%%% End:
+cast_uncast_simple_test() ->
+  MapType = avro_map:type(avro_union:type(
+    [avro_primitive:int_type(),
+      avro_primitive:null_type()])),
+  {ok, MapValue} = avro:cast(MapType, [{"v1", 1}, {"v2", null}, {"v3", 2}]),
+  {ok, Map} = avro:uncast(MapValue),
+  ?assertEqual(lists:sort([{"v1", 1}, {"v2", null}, {"v3", 2}]), lists:sort(Map)).
+
+cast_uncast_complex_test() ->
+  InnerType = avro_map:type(avro_union:type(
+    [avro_primitive:int_type(),
+      avro_primitive:null_type()])),
+  MapType = avro_map:type(avro_union:type(
+    [avro_primitive:int_type(), InnerType])),
+  Map = [{"v1", 1}, {"v2", [{"key", 17}]}, {"v3", 2}],
+  {ok, MapValue} = avro:cast(MapType, Map),
+  {ok, MapGot} = avro:uncast(MapValue),
+  ?assertEqual(lists:sort(Map), lists:sort(MapGot)).

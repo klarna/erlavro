@@ -50,8 +50,22 @@ new_direct_test() ->
     ]),
   ?assertEqual(NewVersion, DirectVersion).
 
-%%%_* Emacs ====================================================================
-%%% Local Variables:
-%%% allout-layout: t
-%%% erlang-indent-level: 2
-%%% End:
+cast_uncast_simple_test() ->
+  ArrayType = avro_array:type(avro_primitive:string_type()),
+  {ok, AvroValue} = avro:cast(ArrayType, ["c", "b", "a"]),
+  {ok, Uncasted} = avro:uncast(AvroValue),
+  ?assertEqual(["c", "b", "a"], Uncasted).
+
+cast_uncast_complex_test() ->
+  InnerType1 = avro_array:type(avro_primitive:string_type()),
+  InnerType2 = avro_array:type(InnerType1),
+  ArrayType = avro_array:type(InnerType2),
+  Array =
+   [
+     [["h", "e"], ["l", "l"]],
+     [["o", " "], ["t"]],
+     [["t", "h", "e"], ["r", "e"]]
+   ],
+  {ok, AvroValue} = avro:cast(ArrayType, Array),
+  {ok, Uncasted} = avro:uncast(AvroValue),
+  ?assertEqual(Array, Uncasted).

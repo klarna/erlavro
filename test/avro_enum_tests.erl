@@ -23,6 +23,7 @@
                    , get_value/1
                    , new/2
                    , type/2
+                   , type/3
                    ]).
 
 -include("erlavro.hrl").
@@ -66,8 +67,11 @@ get_value_test() ->
   Value = new(Type, "b"),
   ?assertEqual("b", get_value(Value)).
 
-%%%_* Emacs ====================================================================
-%%% Local Variables:
-%%% allout-layout: t
-%%% erlang-indent-level: 2
-%%% End:
+cast_uncast_test() ->
+  Type =
+    type("Enum",
+      ["A", "B", "C"],
+      [{namespace, "com.klarna.test.bix"}]),
+  {ok, Enum} = avro:cast(Type, "B"),
+  {ok, Uncasted} = avro:uncast(Enum),
+  ?assertEqual("B", Uncasted).
