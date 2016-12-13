@@ -1,56 +1,27 @@
-Avro support for Erlang (http://avro.apache.org/).
+%%%-------------------------------------------------------------------
+%%% Copyright (c) 2013-2016 Klarna AB
+%%%
+%%% This file is provided to you under the Apache License,
+%%% Version 2.0 (the "License"); you may not use this file
+%%% except in compliance with the License.  You may obtain
+%%% a copy of the License at
+%%%
+%%%   http://www.apache.org/licenses/LICENSE-2.0
+%%%
+%%% Unless required by applicable law or agreed to in writing,
+%%% software distributed under the License is distributed on an
+%%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+%%% KIND, either express or implied.  See the License for the
+%%% specific language governing permissions and limitations
+%%% under the License.
+%%%
+%%%-------------------------------------------------------------------
+-module(erlavro_readme_tests).
 
-Current version implements Apache Avro 1.7.5 specification.
+-include("avro_internal.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
-License: Apache License 2.0
-
-# Compilation
-
-   make
-
-Dependencies: jsonx and mochijson3 (see rebar.config).
-
-[![Build Status](https://travis-ci.org/klarna/erlavro.svg?branch=master)](https://travis-ci.org/klarna/erlavro)
-
-# Examples
-
-## Load Avro Schema file(s) (demonstrating in Erlang shell)
-
-See `priv/interop.avsc` for avro schema definition.
-
-```erlang
-1> Store = avro_schema_store:new([], ["priv/interop.avsc"]).
-16400
-2> Term = hd(element(3, avro_ocf:decode_file("priv/interop.ocf"))).
-[{"intField",12},
- {"longField",15234324},
- {"stringField","hey"},
- {"boolField",true},
- {"floatField",1234.0},
- {"doubleField",-1234.0},
- {"bytesField",<<"12312adf">>},
- {"nullField",null},
- {"arrayField",[5.0,0.0,12.0]},
- {"mapField",
-  [{"a",[{"label","a"}]},{"bee",[{"label","cee"}]}]},
- {"unionField",12.0},
- {"enumField","C"},
- {"fixedField",<<"1019181716151413">>},
- {"recordField",
-  [{"label","blah"},
-   {"children",[[{"label","inner"},{"children",[]}]]}]}]
-3> Encoded = iolist_to_binary(avro_binary_encoder:encode(Store, "org.apache.avro.Interop", Term)).
-<<24,168,212,195,14,6,104,101,121,1,0,64,154,68,0,0,0,0,0,
-  72,147,192,16,49,50,51,49,50,97,...>>
-4> Term =:= avro:decode(Encoded, "org.apache.avro.Interop", Store, avro_binary).
-true
-```
-
-## Define avro schema using erlavro APIs
-
-### Avro Binary Encode/Decode
-
-```erlang
+binary_encode_decode_test() ->
   MyRecordType =
     avro_record:type(
       "MyRecord",
@@ -64,11 +35,8 @@ true
   Bin = Encoder("my.com.MyRecord", Term),
   Term = Decoder(Bin, "my.com.MyRecord"),
   ok.
-```
 
-### Avro JSON Encode/Decode
-
-```erlang
+json_encode_decode_test() ->
   MyRecordType =
     avro_record:type(
       "MyRecord",
@@ -83,18 +51,13 @@ true
   Term = Decoder(JSON, "my.com.MyRecord"),
   io:put_chars(user, JSON),
   ok.
-```
 
-JSON to expect:
+encode_wrapped_test_() ->
+  [ {"json encoder", fun() -> encode_wrapped([{encoding, avro_json}]) end}
+  , {"binary encoder", fun() -> encode_wrapped([]) end}
+  ].
 
-```json
-{"f1":1,"f2":"my string"}
-```
-
-### Encoded Value as a Part of Parent Object
-
-```erlang
-  CodecOptions = [], %% [{encoding, avro_json}] for JSON encode/decode
+encode_wrapped(CodecOptions) ->
   NullableInt = avro_union:type([avro_primitive:null_type(),
                                  avro_primitive:int_type()]),
   MyRecordType1 =
@@ -136,38 +99,9 @@ JSON to expect:
   , {"my.com.MyRecord2", [{"f1", "str2"}, {"f2", {"int", 2}}]}
   ] = Decoder(Bin, MyArray),
   ok.
-```
 
-## Decoder Hooks
-
-Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend either schmea or data (input or output).
-* A hook can be used to fast-skip undesired data fields of records or undesired data of big maps etc.
-* A hook can be used for debug. e.g. `avro_decoer_hooks:make_binary_decoder_debug_hook/2' gives you a hook which can print decode history and stack upon failure
-* A hook can also be used as a monkey patch to fix some corrupted data.
-Find the examples in `avro_decoder_hooks.erl'
-
-## NOTEs About Unions
-
-### Union Values Are Better to be Encoded With Tags
-
-In case a union value is not tagged with a type name, the encoder will have to 
-try to loop over all union members to encode until succeed. This is not quite 
-efficent when the union is relatively big
-
-### Union Values Are Decoded Without Tags by Default
-
-However, you may use the anonymous functions returned from 
-`avro_decoer_hooks:tag_unions_fun/0' as a decode hook to get 
-the decoded values tagged.
-
-## Object container file encoding/decoding
-
-See avro_ocf.erl for details
-
-# TODOs
-
-This version of library supports only subset of all functionality.
-What things should be done:
-
-1. Full support for avro 1.8
-
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

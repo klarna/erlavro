@@ -30,20 +30,22 @@
 -module(avro_union).
 
 %% API
--export([type/1]).
--export([get_types/1]).
--export([lookup_child_type/2]).
--export([get_child_type_name/1]).
--export([get_child_type_index/1]).
--export([get_child_type_index/2]).
+-export([ type/1
+        , get_types/1
+        , lookup_child_type/2
+        , get_child_type_name/1
+        , get_child_type_index/1
+        , get_child_type_index/2
+        ]).
+-export([ cast/2
+        , to_term/1
+        ]).
 
--export([cast/2]).
--export([to_term/1]).
-
--export([new/2]).
--export([get_value/1]).
--export([set_value/2]).
--export([encode/3]).
+-export([ new/2
+        , get_value/1
+        , set_value/2
+        , encode/3
+        ]).
 
 %% API functions which should be used only inside erlavro
 -export([new_direct/2]).
@@ -75,34 +77,28 @@ get_types(#avro_union_type{types = IndexedTypes}) ->
 
 %% Search for a type by its full name through the children types
 %% of the union
--spec lookup_child_type(#avro_union_type{}, string() | integer()) ->
+-spec lookup_child_type(#avro_union_type{}, fullname() | union_index()) ->
         false | {ok, avro_type()}.
-lookup_child_type(Union, TypeId) when is_integer(TypeId)  ->
-  #avro_union_type{types = IndexedTypes} = Union,
-  case lists:keyfind(TypeId, 1, IndexedTypes) of
-    {TypeId, Type} -> {ok, Type};
-    false          -> false
-  end;
-lookup_child_type(Union, TypeName) when ?IS_NAME(TypeName) ->
+lookup_child_type(Union, TypeName) ->
   case lookup(TypeName, Union) of
     {ok, {_TypeId, Type}} -> {ok, Type};
     false                 -> false
   end.
 
--spec get_child_type_index(#avro_value{}) -> non_neg_integer().
+-spec get_child_type_index(#avro_value{}) -> union_index().
 get_child_type_index(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   UnionType = ?AVRO_VALUE_TYPE(Union),
   TypeName = get_child_type_name(Union),
   {ok, Index} = get_child_type_index(UnionType, TypeName),
   Index.
 
--spec get_child_type_name(#avro_value{}) -> string().
+-spec get_child_type_name(#avro_value{}) -> fullname().
 get_child_type_name(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   TypedData = ?AVRO_VALUE_DATA(Union),
   get_type_fullname_ex(?AVRO_VALUE_TYPE(TypedData)).
 
--spec get_child_type_index(#avro_union_type{}, string()) ->
-        false | {ok, non_neg_integer()}.
+-spec get_child_type_index(#avro_union_type{}, fullname()) ->
+        false | {ok, union_index()}.
 get_child_type_index(Union, TypeName) when ?AVRO_IS_UNION_TYPE(Union) ->
   case lookup(TypeName, Union) of
     {ok, {TypeId, _Type}} -> {ok, TypeId};
@@ -129,10 +125,18 @@ get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 set_value(Union, Value) when ?AVRO_IS_UNION_VALUE(Union) ->
   ?AVRO_UPDATE_VALUE(Union, Value).
 
--spec encode(avro_type_or_name(), term(),fun()) -> term().
-encode(Type, Union,EncodeFun) ->
-  MemberTypes = avro_union:get_types(Type),
-  try_encode_union_loop(Type, MemberTypes, Union, 0, EncodeFun).
+-spec encode(avro_type_or_name(), term(), fun()) -> term().
+encode(Type, {MemberId, TryValue} = Value, EncodeFun) ->
+  case lookup(MemberId, Type) of
+    {ok, {MemberIdInteger, MemberType}} ->
+      %% the union input value is tagged with a union member name or id
+      EncodeFun(MemberType, TryValue, MemberIdInteger);
+    false ->
+      %% no union tag, try to loop over the members
+      do_encode(Type, Value, EncodeFun)
+  end;
+encode(Type, Value, EncodeFun) ->
+  do_encode(Type, Value, EncodeFun).
 
 %%%===================================================================
 %%% API: casting
@@ -153,6 +157,11 @@ to_term(Union) -> avro:to_term(get_value(Union)).
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @private
+do_encode(Type, Union, EncodeFun) ->
+  MemberTypes = avro_union:get_types(Type),
+  try_encode_union_loop(Type, MemberTypes, Union, 0, EncodeFun).
 
 %% @private
 try_encode_union_loop(UnionType, [], Value, _Index, _EncodeFun) ->
@@ -182,9 +191,18 @@ get_type_fullname_ex(Type) ->
   avro:get_type_fullname(Type).
 
 %% @private
-lookup(TypeName, #avro_union_type{types = Types, types_dict = undefined}) ->
+-spec lookup(fullname() | union_index(), #avro_union_type{}) ->
+        {ok, {union_index(), avro_type()}} | false.
+lookup(TypeId, #avro_union_type{types = Types}) when is_integer(TypeId) ->
+  case lists:keyfind(TypeId, 1, Types) of
+    {TypeId, Type} -> {ok, {TypeId, Type}};
+    false          -> false
+  end;
+lookup(TypeName, #avro_union_type{ types      = Types
+                                 , types_dict = undefined
+                                 }) when ?IS_NAME(TypeName) ->
   scan(TypeName, Types);
-lookup(TypeName, #avro_union_type{types_dict = Dict}) ->
+lookup(TypeName, #avro_union_type{types_dict = Dict}) when ?IS_NAME(TypeName) ->
   case dict:find(TypeName, Dict) of
     {ok, _IndexedType} = Res -> Res;
     error                    -> false

@@ -511,8 +511,14 @@ parse_union(_, _, _, _, _) ->
   erlang:error(wrong_union_value).
 
 %% @private
-parse_union_ex(ValueTypeName, Value, UnionType,
-               ExtractFun, IsWrapped, Hook) ->
+parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun, IsWrapped, Hook) ->
+  Hook(UnionType, ValueTypeName, Value,
+       fun(In) -> do_parse_union_ex(ValueTypeName, In, UnionType,
+                                    ExtractFun, IsWrapped, Hook) end).
+
+%% @private
+do_parse_union_ex(ValueTypeName, Value, UnionType,
+                  ExtractFun, IsWrapped, Hook) ->
   case avro_union:lookup_child_type(UnionType, ValueTypeName) of
     {ok, ValueType} ->
       ParsedValue = parse(Value, ValueType, ExtractFun, IsWrapped, Hook),

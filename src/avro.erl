@@ -21,9 +21,9 @@
 %%%-------------------------------------------------------------------
 -module(avro).
 
--export([ encode/4
-        , encode_wrapped/4
-        , expand_type/2
+-export([ expand_type/2
+        , get_decoder/2
+        , get_encoder/2
         , flatten_type/1
         , get_type_name/1
         , get_type_namespace/1
@@ -38,13 +38,21 @@
         , build_type_fullname/3
         ]).
 
--export([read_schema/1]).
+-export([ read_schema/1
+        ]).
 
 -export([cast/2]).
 
 -export([to_term/1]).
 
--export_type([ enum_symbol/0
+-export([ decode/5
+        , encode/4
+        , encode_wrapped/4
+        ]).
+
+-export_type([ decode_fun/0
+             , encode_fun/0
+             , enum_symbol/0
              , fullname/0
              , name/0
              , namespace/0
@@ -53,6 +61,78 @@
              ]).
 
 -include("avro_internal.hrl").
+
+-type codec_options() :: [proplists:property()].
+-type encode_fun() ::
+        fun((avro_type_or_name(), term()) -> iodata() | avro_value()).
+-type decode_fun() ::
+        fun((avro_type_or_name(), binary()) -> term()).
+
+%% @doc Get encoder function.
+-spec get_encoder(schema_store() | lkup_fun(), codec_options()) ->
+        encode_fun().
+get_encoder(StoreOrLkupFun, Options) ->
+  Encoding = proplists:get_value(encoding, Options, avro_binary),
+  IsWrapped = proplists:get_bool(wrapped, Options),
+  case IsWrapped of
+    true ->
+      fun(TypeOrName, Value) ->
+        ?MODULE:encode_wrapped(StoreOrLkupFun, TypeOrName, Value, Encoding)
+      end;
+    false ->
+      fun(TypeOrName, Value) ->
+        ?MODULE:encode(StoreOrLkupFun, TypeOrName, Value, Encoding)
+      end
+  end.
+
+%% @doc Get decoder function.
+get_decoder(StoreOrLkupFun, Options) ->
+  Encoding = proplists:get_value(encoding, Options, avro_binary),
+  Hook = proplists:get_value(hook, Options, ?DEFAULT_DECODER_HOOK),
+  fun(Bin, TypeOrName) ->
+    ?MODULE:decode(Encoding, Bin, TypeOrName, StoreOrLkupFun, Hook)
+  end.
+
+%% @doc Encode value to json or binary format.
+-spec encode(schema_store() | lkup_fun(), avro_type_or_name(),
+             term(), avro_encoding()) -> iodata().
+encode(StoreOrLkup, Type, Value, avro_json) ->
+  avro_json_encoder:encode(StoreOrLkup, Type, Value);
+encode(StoreOrLkup, Type, Value, avro_binary) ->
+  avro_binary_encoder:encode(StoreOrLkup, Type, Value).
+
+%% @doc Encode value and return the result wrapped with type info.
+%% The result can be used as a 'trusted' part of a higher level
+%% wrapper structure. e.g. encode a big array of some complex type
+%% and use the result as a field value of a parent record
+%% @end
+-spec encode_wrapped(schema_store() | lkup_fun(), avro_type_or_name(),
+                     term(), avro_encoding()) -> avro_value().
+encode_wrapped(S, TypeOrName, Value, Encoding) when not is_function(S) ->
+  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(S),
+  encode_wrapped(Lkup, TypeOrName, Value, Encoding);
+encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME(Name) ->
+  Type = Lkup(Name),
+  encode_wrapped(Lkup, Type, Value, Encoding);
+encode_wrapped(Lkup, Type, Value, Encoding) ->
+  Encoded = iolist_to_binary(encode(Lkup, Type, Value, Encoding)),
+  case Encoding of
+    avro_json   -> ?AVRO_ENCODED_VALUE_JSON(Type, Encoded);
+    avro_binary -> ?AVRO_ENCODED_VALUE_BINARY(Type, Encoded)
+  end.
+
+%% @doc Decode value return unwarpped values.
+-spec decode(avro_encoding(),
+             Data :: binary(),
+             avro_type_or_name(),
+             schema_store() | lkup_fun(),
+             decoder_hook_fun()) -> term().
+decode(avro_json, JSON, TypeOrName, StoreOrLkup, Hook) ->
+  avro_json_decoder:decode_value(JSON, TypeOrName, StoreOrLkup,
+                                 [{is_wrapped, false},
+                                  {json_decoder, mochijson3}], Hook);
+decode(avro_binary, Bin, TypeOrName, StoreOrLkup, Hook) ->
+  avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Hook).
 
 %%%===================================================================
 %%% API: Accessing types properties
@@ -124,32 +204,10 @@ flatten_type(Type) ->
   avro_schema_store:flatten_type(Type).
 
 %% @see avro_schema_store:expand_type/2
--spec expand_type(fullname() | avro_type(), avro_schema_store:store()) ->
+-spec expand_type(fullname() | avro_type(), schema_store()) ->
         avro_type() | none().
 expand_type(Type, Store) ->
   avro_schema_store:expand_type(Type, Store).
-
-%% @doc Encode value to json or binary format.
--spec encode(schema_store() | lkup_fun(), avro_type_or_name(),
-             term(), avro_encoding()) -> iodata().
-encode(StoreOrLkup, Type, Value, avro_json) ->
-  avro_json_encoder:encode(StoreOrLkup, Type, Value);
-encode(StoreOrLkup, Type, Value, avro_binary) ->
-  avro_binary_encoder:encode(StoreOrLkup, Type, Value).
-
-%% @doc Encode value and return the result wrapped with type info.
-%% The result can be used as a 'trusted' part of a higher level
-%% wrapper structure. e.g. encode a big array of some complex type
-%% and use the result as a field value of a parent record
-%% @end
--spec encode_wrapped(schema_store() | lkup_fun(), avro_type_or_name(),
-                     term(), avro_encoding()) -> avro_value().
-encode_wrapped(StoreOrLkup, TypeOrName, Value, Encoding) ->
-  Encoded = iolist_to_binary(encode(StoreOrLkup, TypeOrName, Value, Encoding)),
-  case Encoding of
-    avro_json   -> ?AVRO_ENCODED_VALUE_JSON(TypeOrName, Encoded);
-    avro_binary -> ?AVRO_ENCODED_VALUE_BINARY(TypeOrName, Encoded)
-  end.
 
 %%%===================================================================
 %%% API: Reading schema from json file

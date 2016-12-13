@@ -252,10 +252,8 @@ parse_fixed_value_test() ->
   ?assertEqual(Expected, parse_value(Json, Type, none)).
 
 parse_value_with_extract_type_fun_test() ->
-  Hook = avro_util:pretty_print_decoder_hook(),
-  ExtractTypeFun = fun("name.space.Test") ->
-    get_test_record()
-                   end,
+  Hook = avro_decoder_hooks:pretty_print_hist(),
+  ExtractTypeFun = fun("name.space.Test") -> get_test_record() end,
   Schema = {struct, [ {<<"type">>, <<"array">>}
     , {<<"items">>, <<"Test">>}
   ]},
@@ -272,7 +270,6 @@ parse_value_with_extract_type_fun_test() ->
   ?assertEqual("name.space.Test",
     avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
   ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).
-
 
 %% @private
 get_test_record() ->
