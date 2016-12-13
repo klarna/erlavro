@@ -50,7 +50,8 @@
         , encode_wrapped/4
         ]).
 
--export_type([ decode_fun/0
+-export_type([ codec_options/0
+             , decode_fun/0
              , encode_fun/0
              , enum_symbol/0
              , fullname/0

@@ -140,10 +140,12 @@ JSON to expect:
 
 ## Decoder Hooks
 
-Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend either schmea or data (input or output).
+Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend schmea and|or data before and|or after decoding.
+
 * A hook can be used to fast-skip undesired data fields of records or undesired data of big maps etc.
 * A hook can be used for debug. e.g. `avro_decoer_hooks:make_binary_decoder_debug_hook/2' gives you a hook which can print decode history and stack upon failure
 * A hook can also be used as a monkey patch to fix some corrupted data.
+
 Find the examples in `avro_decoder_hooks.erl'
 
 ## NOTEs About Unions
