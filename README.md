@@ -42,7 +42,8 @@ See `priv/interop.avsc` for avro schema definition.
 3> Encoder = avro:get_encoder(Store, []).
 4> Decoder = avro:get_decoder(Store, []).
 5> Encoded = iolist_to_binary(Encoder(Term, "org.apache.avro.Interop")).
-6> Term = Decoder("org.apache.avro.Interop", Encoded).
+6> Term =:= Decoder(Encoded, "org.apache.avro.Interop").
+true
 ```
 
 ## Define avro schema using erlavro APIs
