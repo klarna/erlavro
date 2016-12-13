@@ -27,7 +27,7 @@
 %% e.g. To dig out only the field named "MyField" in "MyRecord", the
 %% hook may probably look like:
 %%
-%% ```
+%% <pre>
 %% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
 %%      case {avro:get_type_fullname(Type), SubNameOrIndex} of
 %%        {"MyRecord.example.com", "MyField"} ->
@@ -38,12 +38,12 @@
 %%          DecodeFun(Data)
 %%      end
 %% end.
-%% ```
+%% </pre>
 %%
 %% A hook can be used for debug. For example, below hook should print
 %% the decoding stack along the decode function traverses through the bytes.
 %%
-%% ```
+%% <pre>
 %% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
 %%      SubInfo = case is_integer(SubNameOrIndex) of
 %%                  true  -> integer_to_list(SubNameOrIndex);
@@ -52,7 +52,7 @@
 %%      io:format("~s.~s\n", [avro:get_type_name(Type), SubInfo]),
 %%      DecodeFun(Data)
 %% end
-%% ```
+%% </pre>
 %%
 %% A hook can also be used as a monkey patch to fix some corrupted data.
 %%% @end
