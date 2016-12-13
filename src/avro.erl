@@ -65,9 +65,9 @@
 
 -type codec_options() :: [proplists:property()].
 -type encode_fun() ::
-        fun((avro_type_or_name(), term()) -> iodata() | avro_value()).
+        fun((term(), avro_type_or_name()) -> iodata() | avro_value()).
 -type decode_fun() ::
-        fun((avro_type_or_name(), binary()) -> term()).
+        fun((binary(), avro_type_or_name()) -> term()).
 
 %% @doc Get encoder function.
 -spec get_encoder(schema_store() | lkup_fun(), codec_options()) ->
@@ -77,16 +77,18 @@ get_encoder(StoreOrLkupFun, Options) ->
   IsWrapped = proplists:get_bool(wrapped, Options),
   case IsWrapped of
     true ->
-      fun(TypeOrName, Value) ->
+      fun(Value, TypeOrName) ->
         ?MODULE:encode_wrapped(StoreOrLkupFun, TypeOrName, Value, Encoding)
       end;
     false ->
-      fun(TypeOrName, Value) ->
+      fun(Value, TypeOrName) ->
         ?MODULE:encode(StoreOrLkupFun, TypeOrName, Value, Encoding)
       end
   end.
 
 %% @doc Get decoder function.
+-spec get_decoder(schema_store() | lkup_fun(), codec_options()) ->
+        decode_fun().
 get_decoder(StoreOrLkupFun, Options) ->
   Encoding = proplists:get_value(encoding, Options, avro_binary),
   Hook = proplists:get_value(hook, Options, ?DEFAULT_DECODER_HOOK),

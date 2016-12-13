@@ -34,7 +34,7 @@ debug_hook_test() ->
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:get_encoder(Store, []),
   Term = [{"f1", 1},{"f2","my string"}],
-  Bin = iolist_to_binary(Encoder("my.com.MyRecord", Term)),
+  Bin = iolist_to_binary(Encoder(Term, "my.com.MyRecord")),
   %% Mkae a corrupted binary to decode
   BadSize = size(Bin) - 1,
   CorruptedBin = <<Bin:BadSize/binary>>,

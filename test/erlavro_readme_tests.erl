@@ -21,6 +21,17 @@
 -include("avro_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+load_schmea_test() ->
+  SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
+  OcfFilename = filename:join(priv_dir(), "interop.ocf"),
+  Store = avro_schema_store:new([], [SchemaFilename]),
+  Encoder = avro:get_encoder(Store, []),
+  Decoder = avro:get_decoder(Store, []),
+  Term = hd(element(3, avro_ocf:decode_file(OcfFilename))),
+  Encoded = iolist_to_binary(Encoder(Term, "org.apache.avro.Interop")),
+  Term = Decoder(Encoded, "org.apache.avro.Interop"),
+  ok.
+
 binary_encode_decode_test() ->
   MyRecordType =
     avro_record:type(
@@ -32,7 +43,7 @@ binary_encode_decode_test() ->
   Encoder = avro:get_encoder(Store, []),
   Decoder = avro:get_decoder(Store, []),
   Term = [{"f1", 1},{"f2","my string"}],
-  Bin = Encoder("my.com.MyRecord", Term),
+  Bin = Encoder(Term, "my.com.MyRecord"),
   Term = Decoder(Bin, "my.com.MyRecord"),
   ok.
 
@@ -47,7 +58,7 @@ json_encode_decode_test() ->
   Encoder = avro:get_encoder(Store, [{encoding, avro_json}]),
   Decoder = avro:get_decoder(Store, [{encoding, avro_json}]),
   Term = [{"f1", 1},{"f2", "my string"}],
-  JSON = Encoder("my.com.MyRecord", Term),
+  JSON = Encoder(Term, "my.com.MyRecord"),
   Term = Decoder(JSON, "my.com.MyRecord"),
   io:put_chars(user, JSON),
   ok.
@@ -83,15 +94,15 @@ encode_wrapped(CodecOptions) ->
   T1 = [{"f1", null}, {"f2", "str1"}],
   T2 = [{"f1", "str2"}, {"f2", 2}],
   %% Encode the records with type info wrapped
-  R1 = WrappedEncoder(MyRecordType1, T1),
-  R2 = WrappedEncoder(MyRecordType2, T2),
+  R1 = WrappedEncoder(T1, MyRecordType1),
+  R2 = WrappedEncoder(T2, MyRecordType2),
   %% Tag the union values for better encoding performance
   U1 = {"my.com.MyRecord1", R1},
   U2 = {"my.com.MyRecord2", R2},
   %% This encoder returns iodata result without type info wrapped
   BinaryEncoder = avro:get_encoder(Lkup, CodecOptions),
   %% Construct the array from encoded elements
-  Bin = iolist_to_binary(BinaryEncoder(MyArray, [U1, U2])),
+  Bin = iolist_to_binary(BinaryEncoder([U1, U2], MyArray)),
   %% Tag the decoded values
   Hook = avro_decoder_hooks:tag_unions_fun(),
   Decoder = avro:get_decoder(Lkup, [{hook, Hook} | CodecOptions]),
@@ -99,6 +110,19 @@ encode_wrapped(CodecOptions) ->
   , {"my.com.MyRecord2", [{"f1", "str2"}, {"f2", {"int", 2}}]}
   ] = Decoder(Bin, MyArray),
   ok.
+
+%% @private
+priv_dir() ->
+  case code:priv_dir(erlavro) of
+    {error, bad_name} ->
+      %% application is not loaded, try dirty way
+      case filelib:is_dir(filename:join(["..", priv])) of
+        true -> filename:join(["..", priv]);
+        _    -> "./priv"
+      end;
+    Dir ->
+      Dir
+  end.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

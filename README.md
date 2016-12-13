@@ -39,11 +39,10 @@ See `priv/interop.avsc` for avro schema definition.
  {"recordField",
   [{"label","blah"},
    {"children",[[{"label","inner"},{"children",[]}]]}]}]
-3> Encoded = iolist_to_binary(avro_binary_encoder:encode(Store, "org.apache.avro.Interop", Term)).
-<<24,168,212,195,14,6,104,101,121,1,0,64,154,68,0,0,0,0,0,
-  72,147,192,16,49,50,51,49,50,97,...>>
-4> Term =:= avro:decode(Encoded, "org.apache.avro.Interop", Store, avro_binary).
-true
+3> Encoder = avro:get_encoder(Store, []).
+4> Decoder = avro:get_decoder(Store, []).
+5> Encoded = iolist_to_binary(Encoder(Term, "org.apache.avro.Interop")).
+6> Term = Decoder("org.apache.avro.Interop", Encoded).
 ```
 
 ## Define avro schema using erlavro APIs
@@ -61,7 +60,7 @@ true
   Encoder = avro:get_encoder(Store, []),
   Decoder = avro:get_decoder(Store, []),
   Term = [{"f1", 1},{"f2","my string"}],
-  Bin = Encoder("my.com.MyRecord", Term),
+  Bin = Encoder(Term, "my.com.MyRecord"),
   Term = Decoder(Bin, "my.com.MyRecord"),
   ok.
 ```
@@ -79,7 +78,7 @@ true
   Encoder = avro:get_encoder(Store, [{encoding, avro_json}]),
   Decoder = avro:get_decoder(Store, [{encoding, avro_json}]),
   Term = [{"f1", 1},{"f2", "my string"}],
-  JSON = Encoder("my.com.MyRecord", Term),
+  JSON = Encoder(Term, "my.com.MyRecord"),
   Term = Decoder(JSON, "my.com.MyRecord"),
   io:put_chars(user, JSON),
   ok.
@@ -120,15 +119,15 @@ JSON to expect:
   T1 = [{"f1", null}, {"f2", "str1"}],
   T2 = [{"f1", "str2"}, {"f2", 2}],
   %% Encode the records with type info wrapped
-  R1 = WrappedEncoder(MyRecordType1, T1),
-  R2 = WrappedEncoder(MyRecordType2, T2),
+  R1 = WrappedEncoder(T1, MyRecordType1),
+  R2 = WrappedEncoder(T2, MyRecordType2),
   %% Tag the union values for better encoding performance
   U1 = {"my.com.MyRecord1", R1},
   U2 = {"my.com.MyRecord2", R2},
   %% This encoder returns iodata result without type info wrapped
   BinaryEncoder = avro:get_encoder(Lkup, CodecOptions),
   %% Construct the array from encoded elements
-  Bin = iolist_to_binary(BinaryEncoder(MyArray, [U1, U2])),
+  Bin = iolist_to_binary(BinaryEncoder([U1, U2], MyArray)),
   %% Tag the decoded values
   Hook = avro_decoder_hooks:tag_unions_fun(),
   Decoder = avro:get_decoder(Lkup, [{hook, Hook} | CodecOptions]),
@@ -140,14 +139,14 @@ JSON to expect:
 
 ## Decoder Hooks
 
-Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend schmea and|or data before and|or after decoding.
+Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend schmea and/or data before and/or after decoding.
 Hooks can be used to:
 
 * Fast-skip undesired data fields of records or undesired data of big maps etc.
-* Debug. e.g. `avro_decoer_hooks:make_binary_decoder_debug_hook/2' gives you a hook which can print decode history and stack upon failure
+* Debug. e.g. `avro_decoer_hooks:make_binary_decoder_debug_hook/2` gives you a hook which can print decode history and stack upon failure
 * Mmonkey patch corrupted data.
 
-Find the examples in `avro_decoder_hooks.erl'
+Find the examples in `avro_decoder_hooks.erl`
 
 ## NOTEs About Unions
 
@@ -159,12 +158,12 @@ efficient when the union is relatively big.
 
 ### Union Values Are Decoded Without Tags by Default
 
-However, you may use the decoder hook `avro_decoer_hooks:tag_unions_fun/0' 
+However, you may use the decoder hook `avro_decoer_hooks:tag_unions_fun/0`
 to have the decoded values tagged.
 
 ## Object container file encoding/decoding
 
-See avro_ocf.erl for details
+See `avro_ocf.erl` for details
 
 # TODOs
 
