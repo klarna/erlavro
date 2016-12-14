@@ -19,6 +19,16 @@
 
 -include("erlavro.hrl").
 
+-define(IS_PRIMITIVE_NAME(N),
+        (N =:= ?AVRO_NULL    orelse
+         N =:= ?AVRO_BOOLEAN orelse
+         N =:= ?AVRO_INT     orelse
+         N =:= ?AVRO_LONG    orelse
+         N =:= ?AVRO_STRING  orelse
+         N =:= ?AVRO_FLOAT   orelse
+         N =:= ?AVRO_DOUBLE  orelse
+         N =:= ?AVRO_BYTES)).
+
 -define(IS_AVRO_TYPE(T), is_tuple(T)).
 -define(IS_NAME(N), (is_list(N))).
 -define(NAMESPACE_NONE, "").

@@ -133,7 +133,7 @@ JSON to expect:
   Hook = avro_decoder_hooks:tag_unions(),
   Decoder = avro:get_decoder(Lkup, [{hook, Hook} | CodecOptions]),
   [ {"my.com.MyRecord1", [{"f1", null}, {"f2", "str1"}]}
-  , {"my.com.MyRecord2", [{"f1", "str2"}, {"f2", {"int", 2}}]}
+  , {"my.com.MyRecord2", [{"f1", "str2"}, {"f2", 2}]}
   ] = Decoder(Bin, MyArray),
   ok.
 ```

@@ -153,30 +153,31 @@ pretty_print_hist() ->
 %% @private
 tag_unions(T, SubInfo, DecodeIn, DecodeFun) when ?AVRO_IS_UNION_TYPE(T) ->
   Result = DecodeFun(DecodeIn),
-  Tag =
+  Name =
     case SubInfo of
       Id when is_integer(Id) ->
         {ok, ST} = avro_union:lookup_child_type(T, Id),
         avro:get_type_fullname(ST);
-      Name when ?IS_NAME(Name) ->
-        Name
+      Name_ when ?IS_NAME(Name_) ->
+        Name_
     end,
     case Result of
       {Value, Tail} when is_binary(Tail) ->
         %% used as binary decoder hook
-        {maybe_tag(Tag, Value), Tail};
+        {maybe_tag(Name, Value), Tail};
       Value ->
         %% used as JSON decoder hook
-        maybe_tag(Tag, Value)
+        maybe_tag(Name, Value)
     end;
 tag_unions(_T, _SubInfo, DecodeIn, DecodeFun) ->
   %% Not a union, pass through
   DecodeFun(DecodeIn).
 
-%% @private
-%% never tag null
-maybe_tag("null", Value) -> Value;
-maybe_tag(Name, Value)   -> {Name, Value}.
+%% @private Never tag primitives and unnamed types.
+maybe_tag(N, Value) when ?IS_PRIMITIVE_NAME(N) -> Value;
+maybe_tag(?AVRO_ARRAY, Value) -> Value;
+maybe_tag(?AVRO_MAP, Value) -> Value;
+maybe_tag(Name, Value) -> {Name, Value}.
 
 %% @private
 print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, HistCount) ->
