@@ -104,7 +104,7 @@ encode_wrapped(CodecOptions) ->
   %% Construct the array from encoded elements
   Bin = iolist_to_binary(BinaryEncoder([U1, U2], MyArray)),
   %% Tag the decoded values
-  Hook = avro_decoder_hooks:tag_unions_fun(),
+  Hook = avro_decoder_hooks:tag_unions(),
   Decoder = avro:get_decoder(Lkup, [{hook, Hook} | CodecOptions]),
   [ {"my.com.MyRecord1", [{"f1", null}, {"f2", "str1"}]}
   , {"my.com.MyRecord2", [{"f1", "str2"}, {"f2", {"int", 2}}]}

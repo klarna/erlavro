@@ -130,7 +130,7 @@ JSON to expect:
   %% Construct the array from encoded elements
   Bin = iolist_to_binary(BinaryEncoder([U1, U2], MyArray)),
   %% Tag the decoded values
-  Hook = avro_decoder_hooks:tag_unions_fun(),
+  Hook = avro_decoder_hooks:tag_unions(),
   Decoder = avro:get_decoder(Lkup, [{hook, Hook} | CodecOptions]),
   [ {"my.com.MyRecord1", [{"f1", null}, {"f2", "str1"}]}
   , {"my.com.MyRecord2", [{"f1", "str2"}, {"f2", {"int", 2}}]}
@@ -144,7 +144,7 @@ Decoder hook is an anonymous function to be evaluated by the JSON or binary deco
 Hooks can be used to:
 
 * Fast-skip undesired data fields of records or undesired data of big maps etc.
-* Debug. e.g. `avro_decoer_hooks:make_binary_decoder_debug_hook/2` gives you a hook which can print decode history and stack upon failure
+* Debug. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure
 * Mmonkey patch corrupted data.
 
 Find the examples in `avro_decoder_hooks.erl`
@@ -159,7 +159,7 @@ efficient when the union is relatively big.
 
 ### Union Values Are Decoded Without Tags by Default
 
-However, you may use the decoder hook `avro_decoer_hooks:tag_unions_fun/0`
+However, you may use the decoder hook `avro_decoer_hooks:tag_unions/0`
 to have the decoded values tagged.
 
 ## Object container file encoding/decoding

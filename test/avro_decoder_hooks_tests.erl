@@ -21,10 +21,16 @@
 -include("avro_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-debug_hook_test() ->
+debug_hook_test_() ->
+  [ {"json", fun() -> test_debug_hook(avro_json) end}
+  , {"binary", fun() -> test_debug_hook(avro_binary) end}
+  ].
+
+test_debug_hook(Encoding) ->
+  CodecOptions = [{encoding, Encoding}],
   LogFun = fun(IoData) -> io:put_chars(user, IoData) end,
   HistLen = 10,
-  Hook = avro_decoder_hooks:binary_decoder_debug_trace(LogFun, HistLen),
+  Hook = avro_decoder_hooks:print_debug_trace(LogFun, HistLen),
   MyRecordType =
     avro_record:type(
       "MyRecord",
@@ -32,18 +38,29 @@ debug_hook_test() ->
        avro_record:define_field("f2", avro_primitive:string_type())],
       [{namespace, "my.com"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Encoder = avro:get_encoder(Store, []),
-  Term = [{"f1", 1},{"f2","my string"}],
+  Encoder = avro:get_encoder(Store, CodecOptions),
+  Term = [{"f1", 1},{"f2","my-string"}],
   Bin = iolist_to_binary(Encoder(Term, "my.com.MyRecord")),
   %% Mkae a corrupted binary to decode
-  BadSize = size(Bin) - 1,
-  CorruptedBin = <<Bin:BadSize/binary>>,
-  Decoder = avro:get_decoder(Store, [{hook, Hook}]),
+  CorruptedBin = corrupt_encoded(Encoding, Bin),
+  Decoder = avro:get_decoder(Store, [{hook, Hook} | CodecOptions]),
   ?assertException(
     _Class,
     {'$hook-raised', _},
     Decoder(CorruptedBin, "my.com.MyRecord")),
   ok.
+
+%% @private
+corrupt_encoded(avro_binary, Bin) ->
+  %% for binary format, chopping off the last byte should corrupt the data
+  %% because the last element is a string, the missing byte
+  %% should violate the encoded string length check
+  BadSize = size(Bin) - 1,
+  <<Bin:BadSize/binary>>;
+corrupt_encoded(avro_json, Bin) ->
+  %% for json, replace the last string with an integer
+  %% to violate the type check
+  binary:replace(Bin, <<"\"my-string\"">>, <<"42">>).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
