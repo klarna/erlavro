@@ -39,10 +39,10 @@ See `priv/interop.avsc` for avro schema definition.
  {"recordField",
   [{"label","blah"},
    {"children",[[{"label","inner"},{"children",[]}]]}]}]
-3> Encoder = avro:get_encoder(Store, []).
-4> Decoder = avro:get_decoder(Store, []).
-5> Encoded = iolist_to_binary(Encoder(Term, "org.apache.avro.Interop")).
-6> Term =:= Decoder(Encoded, "org.apache.avro.Interop").
+3> Encoder = avro:make_encoder(Store, []).
+4> Decoder = avro:make_decoder(Store, []).
+5> Encoded = iolist_to_binary(Encoder("org.apache.avro.Interop", Term)).
+6> Term =:= Decoder("org.apache.avro.Interop", Encoded).
 true
 ```
 
@@ -56,13 +56,13 @@ true
       "MyRecord",
       [avro_record:define_field("f1", avro_primitive:int_type()),
        avro_record:define_field("f2", avro_primitive:string_type())],
-      [{namespace, "my.com"}]),
+      [{namespace, "com.example"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Encoder = avro:get_encoder(Store, []),
-  Decoder = avro:get_decoder(Store, []),
+  Encoder = avro:make_encoder(Store, []),
+  Decoder = avro:make_decoder(Store, []),
   Term = [{"f1", 1},{"f2","my string"}],
-  Bin = Encoder(Term, "my.com.MyRecord"),
-  Term = Decoder(Bin, "my.com.MyRecord"),
+  Bin = Encoder("com.example.MyRecord", Term),
+  Term = Decoder("com.example.MyRecord", Bin),
   ok.
 ```
 
@@ -74,13 +74,13 @@ true
       "MyRecord",
       [avro_record:define_field("f1", avro_primitive:int_type()),
        avro_record:define_field("f2", avro_primitive:string_type())],
-      [{namespace, "my.com"}]),
+      [{namespace, "com.example"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Encoder = avro:get_encoder(Store, [{encoding, avro_json}]),
-  Decoder = avro:get_decoder(Store, [{encoding, avro_json}]),
+  Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
+  Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
   Term = [{"f1", 1},{"f2", "my string"}],
-  JSON = Encoder(Term, "my.com.MyRecord"),
-  Term = Decoder(JSON, "my.com.MyRecord"),
+  JSON = Encoder("com.example.MyRecord", Term),
+  Term = Decoder("com.example.MyRecord", JSON),
   io:put_chars(user, JSON),
   ok.
 ```
@@ -102,13 +102,13 @@ JSON to expect:
       "MyRecord1",
       [avro_record:define_field("f1", NullableInt),
        avro_record:define_field("f2", avro_primitive:string_type())],
-      [{namespace, "my.com"}]),
+      [{namespace, "com.example"}]),
   MyRecordType2 =
     avro_record:type(
       "MyRecord2",
       [avro_record:define_field("f1", avro_primitive:string_type()),
        avro_record:define_field("f2", NullableInt)],
-      [{namespace, "my.com"}]),
+      [{namespace, "com.example"}]),
   MyUnion = avro_union:type([MyRecordType1, MyRecordType2]),
   MyArray = avro_array:type(MyUnion),
   Lkup = fun(_) -> erlang:error("not expecting type lookup because "
@@ -116,25 +116,25 @@ JSON to expect:
                                 "i.e. no name references") end,
   %% Encode Records with type info wrapped
   %% so they can be used as a drop-in part of wrapper object
-  WrappedEncoder = avro:get_encoder(Lkup, [wrapped | CodecOptions]),
+  WrappedEncoder = avro:make_encoder(Lkup, [wrapped | CodecOptions]),
   T1 = [{"f1", null}, {"f2", "str1"}],
   T2 = [{"f1", "str2"}, {"f2", 2}],
   %% Encode the records with type info wrapped
-  R1 = WrappedEncoder(T1, MyRecordType1),
-  R2 = WrappedEncoder(T2, MyRecordType2),
+  R1 = WrappedEncoder(MyRecordType1, T1),
+  R2 = WrappedEncoder(MyRecordType2, T2),
   %% Tag the union values for better encoding performance
-  U1 = {"my.com.MyRecord1", R1},
-  U2 = {"my.com.MyRecord2", R2},
+  U1 = {"com.example.MyRecord1", R1},
+  U2 = {"com.example.MyRecord2", R2},
   %% This encoder returns iodata result without type info wrapped
-  BinaryEncoder = avro:get_encoder(Lkup, CodecOptions),
+  BinaryEncoder = avro:make_encoder(Lkup, CodecOptions),
   %% Construct the array from encoded elements
-  Bin = iolist_to_binary(BinaryEncoder([U1, U2], MyArray)),
+  Bin = iolist_to_binary(BinaryEncoder(MyArray, [U1, U2])),
   %% Tag the decoded values
   Hook = avro_decoder_hooks:tag_unions(),
-  Decoder = avro:get_decoder(Lkup, [{hook, Hook} | CodecOptions]),
-  [ {"my.com.MyRecord1", [{"f1", null}, {"f2", "str1"}]}
-  , {"my.com.MyRecord2", [{"f1", "str2"}, {"f2", 2}]}
-  ] = Decoder(Bin, MyArray),
+  Decoder = avro:make_decoder(Lkup, [{hook, Hook} | CodecOptions]),
+  [ {"com.example.MyRecord1", [{"f1", null}, {"f2", "str1"}]}
+  , {"com.example.MyRecord2", [{"f1", "str2"}, {"f2", 2}]}
+  ] = Decoder(MyArray, Bin),
   ok.
 ```
 

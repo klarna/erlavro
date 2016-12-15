@@ -36,18 +36,18 @@ test_debug_hook(Encoding) ->
       "MyRecord",
       [avro_record:define_field("f1", avro_primitive:int_type()),
        avro_record:define_field("f2", avro_primitive:string_type())],
-      [{namespace, "my.com"}]),
+      [{namespace, "com.example"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Encoder = avro:get_encoder(Store, CodecOptions),
+  Encoder = avro:make_encoder(Store, CodecOptions),
   Term = [{"f1", 1},{"f2","my-string"}],
-  Bin = iolist_to_binary(Encoder(Term, "my.com.MyRecord")),
+  Bin = iolist_to_binary(Encoder("com.example.MyRecord", Term)),
   %% Mkae a corrupted binary to decode
   CorruptedBin = corrupt_encoded(Encoding, Bin),
-  Decoder = avro:get_decoder(Store, [{hook, Hook} | CodecOptions]),
+  Decoder = avro:make_decoder(Store, [{hook, Hook} | CodecOptions]),
   ?assertException(
     _Class,
     {'$hook-raised', _},
-    Decoder(CorruptedBin, "my.com.MyRecord")),
+    Decoder("com.example.MyRecord", CorruptedBin)),
   ok.
 
 %% @private

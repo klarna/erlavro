@@ -22,14 +22,14 @@
 -module(avro).
 
 -export([ expand_type/2
-        , get_decoder/2
-        , get_encoder/2
         , flatten_type/1
         , get_type_name/1
         , get_type_namespace/1
         , get_type_fullname/1
         , get_aliases/1
         , is_named_type/1
+        , make_decoder/2
+        , make_encoder/2
         ]).
 
 -export([ split_type_name/2
@@ -65,34 +65,48 @@
 
 -type codec_options() :: [proplists:property()].
 -type encode_fun() ::
-        fun((term(), avro_type_or_name()) -> iodata() | avro_value()).
+        fun((avro_type_or_name(), term()) -> iodata() | avro_value()).
 -type decode_fun() ::
-        fun((binary(), avro_type_or_name()) -> term()).
+        fun((avro_type_or_name(), binary()) -> term()).
 
-%% @doc Get encoder function.
--spec get_encoder(schema_store() | lkup_fun(), codec_options()) ->
+%% @doc Make a encoder function.
+%% Supported codec options:
+%% * {encoding, avro_binary | avro_json}, default = avro_binary
+%%   To get a encoder function for JSON or binary encoding
+%% * wrapped | {wrapped, true}, default = false
+%%   when 'wrapped' is not in the option list, or {wrapped, false} is given,
+%%   return encoded iodata() without type info wrapped around.
+%% @end
+-spec make_encoder(schema_store() | lkup_fun(), codec_options()) ->
         encode_fun().
-get_encoder(StoreOrLkupFun, Options) ->
+make_encoder(StoreOrLkupFun, Options) ->
   Encoding = proplists:get_value(encoding, Options, avro_binary),
   IsWrapped = proplists:get_bool(wrapped, Options),
   case IsWrapped of
     true ->
-      fun(Value, TypeOrName) ->
+      fun(TypeOrName, Value) ->
         ?MODULE:encode_wrapped(StoreOrLkupFun, TypeOrName, Value, Encoding)
       end;
     false ->
-      fun(Value, TypeOrName) ->
+      fun(TypeOrName, Value) ->
         ?MODULE:encode(StoreOrLkupFun, TypeOrName, Value, Encoding)
       end
   end.
 
-%% @doc Get decoder function.
--spec get_decoder(schema_store() | lkup_fun(), codec_options()) ->
+%% @doc Make a decoder function.
+%% Supported codec options:
+%% * {encoding, avro_binary | avro_json}, default = avro_binary
+%%   To get a decoder function for JSON or binary encoded data
+%% * hook, default = ?DEFAULT_DECODER_HOOK
+%%   The default hook is a dummy one (does nothing).
+%%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
+%% @end
+-spec make_decoder(schema_store() | lkup_fun(), codec_options()) ->
         decode_fun().
-get_decoder(StoreOrLkupFun, Options) ->
+make_decoder(StoreOrLkupFun, Options) ->
   Encoding = proplists:get_value(encoding, Options, avro_binary),
   Hook = proplists:get_value(hook, Options, ?DEFAULT_DECODER_HOOK),
-  fun(Bin, TypeOrName) ->
+  fun(TypeOrName, Bin) ->
     ?MODULE:decode(Encoding, Bin, TypeOrName, StoreOrLkupFun, Hook)
   end.
 
