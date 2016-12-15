@@ -140,12 +140,12 @@ JSON to expect:
 
 ## Decoder Hooks
 
-Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend schmea and/or data before and/or after decoding.
+Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend schmea and/or data before and/or after decoding. 
 Hooks can be used to:
 
 * Fast-skip undesired data fields of records or undesired data of big maps etc.
 * Debug. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure
-* Mmonkey patch corrupted data.
+* Monkey patch corrupted data.
 
 Find the examples in `avro_decoder_hooks.erl`
 
@@ -159,7 +159,7 @@ efficient when the union is relatively big.
 
 ### Union Values Are Decoded Without Tags by Default
 
-However, you may use the decoder hook `avro_decoer_hooks:tag_unions/0`
+However, you may use the decoder hook `avro_decoer_hooks:tag_unions/0` 
 to have the decoded values tagged.
 
 ## Object container file encoding/decoding

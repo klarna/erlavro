@@ -513,8 +513,10 @@ parse_union(_, _, _, _, _) ->
 %% @private
 parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun, IsWrapped, Hook) ->
   Hook(UnionType, ValueTypeName, Value,
-       fun(In) -> do_parse_union_ex(ValueTypeName, In, UnionType,
-                                    ExtractFun, IsWrapped, Hook) end).
+       fun(In) ->
+          do_parse_union_ex(ValueTypeName, In, UnionType,
+                            ExtractFun, IsWrapped, Hook)
+       end).
 
 %% @private
 do_parse_union_ex(ValueTypeName, Value, UnionType,

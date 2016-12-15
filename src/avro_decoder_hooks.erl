@@ -94,8 +94,7 @@ print_debug_trace(PrintFun, MaxHistoryLength) ->
     print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, MaxHistoryLength)
   end.
 
-%% @doc Return a function to be used as the decoder hook.
-%% The hook prints the type tree with indentation, and the leaf values
+%% @doc This hook prints the type tree with indentation, and the leaf values
 %% to the io-device 'user' is directed.
 %% @end
 -spec pretty_print_hist() -> decoder_hook_fun().
@@ -123,27 +122,8 @@ pretty_print_hist() ->
     io:format(user, "~s", [ToPrint]),
     _ = put(?PD_PP_INDENTATION, Indentation + 1),
     DecodeResult = DecodeFun(Data),
-    ResultToPrint =
-      case DecodeResult of
-        {Result, Tail} when is_binary(Tail) ->
-          %% binary decode result
-          Result;
-        JsonDecodeResult ->
-          case ?IS_AVRO_VALUE(JsonDecodeResult) of
-            true  -> ?AVRO_VALUE_DATA(JsonDecodeResult);
-            false -> JsonDecodeResult
-          end
-      end,
-    %% print empty array and empty map
-    case SubInfo =/= [] andalso ResultToPrint =:= [] of
-      true  -> io:format(user, "~s  []\n", [IndentationStr]);
-      false -> ok
-    end,
-    %% print the value if it's a leaf in the type tree
-    case SubInfo =:= [] of
-      true  -> io:format(user, "~1000000p\n", [ResultToPrint]);
-      false -> ok
-    end,
+    ResultToPrint = get_pretty_print_result(DecodeResult),
+    _ = pretty_print_result(SubInfo, ResultToPrint, IndentationStr),
     _ = put(?PD_PP_INDENTATION, Indentation),
     DecodeResult
   end.
@@ -173,7 +153,7 @@ tag_unions(_T, _SubInfo, DecodeIn, DecodeFun) ->
   %% Not a union, pass through
   DecodeFun(DecodeIn).
 
-%% @private Never tag primitives and unnamed types.
+%% @private Never tag primitives and unnamed complex types.
 maybe_tag(N, Value) when ?IS_PRIMITIVE_NAME(N) -> Value;
 maybe_tag(?AVRO_ARRAY, Value) -> Value;
 maybe_tag(?AVRO_MAP, Value) -> Value;
@@ -184,21 +164,7 @@ print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, HistCount) ->
   Name = avro:get_type_fullname(T),
   ok = add_hist({push, Name, Sub}),
   try
-    Result = DecodeFun(Data),
-    Value =
-      case Result of
-        {V, Tail} when is_binary(Tail) ->
-          %% binary decoder
-          V;
-        _ ->
-          %% JSON decoder
-          Result
-      end,
-    case Sub =:= [] orelse Value =:= [] of
-      true  -> add_hist({pop, Value}); %% add stack hist with decoded value
-      false -> add_hist(pop)
-    end,
-    Result
+    decode_and_add_trace(Sub, Data, DecodeFun)
   catch C : R when not (is_tuple(R) andalso element(1, R) =:= ?REASON_TAG) ->
     %% catch only the very first error
     Stack = erlang:get_stacktrace(),
@@ -206,6 +172,24 @@ print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, HistCount) ->
     ok = erase_hist(),
     erlang:raise(C, {?REASON_TAG, R}, Stack)
   end.
+
+%% @private
+decode_and_add_trace(Sub, Data, DecodeFun) ->
+  Result = DecodeFun(Data),
+  Value =
+    case Result of
+      {V, Tail} when is_binary(Tail) ->
+        %% binary decoder
+        V;
+      _ ->
+        %% JSON decoder
+        Result
+    end,
+  case Sub =:= [] orelse Value =:= [] of
+    true  -> add_hist({pop, Value}); %% add stack hist with decoded value
+    false -> add_hist(pop)
+  end,
+  Result.
 
 %% @private
 -spec erase_hist() -> ok.
@@ -264,6 +248,27 @@ format_trace([pop | Rest], Stack, Hist, HistCount) ->
 
 %% @private
 bin(IoData) -> iolist_to_binary(IoData).
+
+%% @private
+get_pretty_print_result(JsonResult) when ?IS_AVRO_VALUE(JsonResult) ->
+  %% Wrapped JSON result
+ ?AVRO_VALUE_DATA(JsonResult);
+get_pretty_print_result({Result, Tail}) when is_binary(Tail) ->
+  %% binary decode result
+  Result;
+get_pretty_print_result(JsonResult) ->
+  %% Unwarpped JSON result
+  JsonResult.
+
+%% @private
+pretty_print_result(_Sub = [], _Result = [], IndentationStr) ->
+  %% print empty array and empty map
+  io:format(user, "~s  []\n", [IndentationStr]);
+pretty_print_result(_Sub = [], Result, _IndentationStr) ->
+  %% print the value if it's a leaf in the type tree
+  io:format(user, "~1000000p\n", [Result]);
+pretty_print_result(_Sub, _Result, _IndentationStr) ->
+  ok.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
