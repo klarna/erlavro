@@ -14,7 +14,7 @@ Dependencies: jsonx and mochijson3 (see rebar.config).
 
 # Avro Type and Erlang Spec Mapping
 
-| Avro | To Encoder | From Decoder | Notes |
+| Avro | Encoder Input | Decoder Output | Notes |
 | --- | --- | --- | --- |
 | null | `null` | `null` | `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder |
 | boolean | `boolean() | 0 | 1` | `boolean()` | |
