@@ -26,14 +26,14 @@
 %% A hook can be used to fast-skip undesired data fields of records
 %% or undesired data of big maps etc.
 %% e.g. To dig out only the field named "MyField" in "MyRecord", the
-%% hook may probably look like:
+%% JSON decoder hook may probably look like:
 %%
 %% <pre>
 %% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
 %%      case {avro:get_type_fullname(Type), SubNameOrIndex} of
-%%        {"MyRecord.example.com", "MyField"} ->
+%%        {"com.example.MyRecord", "MyField"} ->
 %%          DecodeFun(Data);
-%%        {"MyRecord.example.com", _OtherFields} ->
+%%        {"com.example.MyRecord", _OtherFields} ->
 %%          ignored;
 %%        _OtherType ->
 %%          DecodeFun(Data)

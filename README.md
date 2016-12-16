@@ -168,11 +168,11 @@ JSON to expect:
 # Decoder Hooks
 
 Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend data before and/or after decoding. 
-Hooks can be used to:
+Some hook use cases:
 
-* Fast-skip undesired data fields of records or undesired data of big maps etc.
-* Debug. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure
-* Monkey patch corrupted data.
+* For JSON decoder, fast-skip undesired data fields in records or keys in maps.
+* Debugging. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure
+* Monkey patching corrupted data.
 
 The default decoder hook does nothing but just passing through the decode call:
 
