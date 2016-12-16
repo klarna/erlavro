@@ -12,6 +12,25 @@ Dependencies: jsonx and mochijson3 (see rebar.config).
 
 [![Build Status](https://travis-ci.org/klarna/erlavro.svg?branch=master)](https://travis-ci.org/klarna/erlavro)
 
+# Avro Type and Erlang Spec mapping
+
+| Avro Type | Erlang Spec | Notes |
+| --- | --- | --- |
+| null | `null` | `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder |
+| boolean | `boolean() \| 0 \| 1` | |
+| int | `-2147483648..2147483647` | |
+| long | `-9223372036854775808..9223372036854775807` | |
+| float | `integer() | float()` | |
+| double | `integer() | float()` | |
+| bytes | `binary()` | |
+| string | `string()` | `binary()` is not supported so far |
+| enum | `string()` | `atom()` or `binary()` is not supported so far |
+| array | `list()` | |
+| map | `[string(), term()]` | `map()` is not supported so far |
+| fixed | `binary()` | |
+| record | `[{FieldName :: string(), FieldValue :: term()}]` | `map()` or `atom()` as `FiledName` is not supported so far |
+| union | `term() | {Tag :: string(), term()}`  | Tag is the type name |
+
 # Examples
 
 ## Load Avro Schema file(s) (demonstrating in Erlang shell)
@@ -137,29 +156,6 @@ JSON to expect:
   ] = Decoder(MyArray, Bin),
   ok.
 ```
-
-# Avro Type and Erlang Spec mapping
-
-* null: `null`
-  `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder
-* boolean: `boolean() | 0 | 1`
-* int: `-2147483648..2147483647`
-* long: `-9223372036854775808..9223372036854775807`
-* float: `integer() | float()`
-* double: `integer() | float()`
-* bytes: `binary()`
-* string: `string()`
-  `binary()` is not supported so far
-* enum: `string()`
-  `atom()` or `binary()` is not supported so far
-* array: `list()`
-* map: `[string(), term()]`
-  `map()` is not supported so far
-* fixed: `binary()`
-* record: `[{FieldName :: string(), FieldValue :: term()}]`
-  `map()` or `atom()` as `FiledName` is not supported so far
-* union: `term() | {Tag :: string(), term()}`
-  where Tag is the type name
 
 # Decoder Hooks
 
