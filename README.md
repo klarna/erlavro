@@ -27,9 +27,11 @@ Dependencies: jsonx and mochijson3 (see rebar.config).
 | enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
 | fixed | `binary()` | `binary()` | |
 | array | `list()` | `list()` | |
-| map | `[{Key::string(), Value::term()}]` | `[{Key::string(), Value::term()}]` | `map()` is not supported so far |
-| record | `[{FieldName::string(), FieldValue::term()}]` | `[{FieldName::string(), FiledValue::term()}]` | `map()` or `atom()` as `FiledName` is not supported so far |
-| union | `term() | {Tag::string(), term()}`  | `term() | {Tag::string(), term()}` | Tag is the type name, See notes about unions below |
+| map | `[{Key::string(), Value::in()}]` | `[{Key::string(), Value::out()}]` | `map()` is not supported so far |
+| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | `map()` or `atom()` as `FiledName` is not supported so far |
+| union | `in() | {Tag::string(), in()}`  | `out() | {Tag::string(), out()}` | Tag is the type name, See notes about unions below |
+
+Where `in()` and `out()` refer to the input and output type specs recursively
 
 ## Important Notes about Unicode Strings
 
