@@ -23,7 +23,7 @@ Dependencies: jsonx and mochijson3 (see rebar.config).
 | float | `integer() | float()` | `float()` | |
 | double | `integer() | float()` | `float()` | |
 | bytes | `binary()` | `binary()` | |
-| string | `[byte()] | binary()` | `[byte()]` | NOT `iolist()` for encoder, will change decoder output to `binary()` in 2.0 |
+| string | `[byte()] | binary()` | `[byte()]` | NOT `iolist()` for encoder. Will change decoder output to `binary()` in 2.0 |
 | enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
 | array | `list()` | `list()` | |
 | map | `[string(), term()]` | `[string(), term()]` | `map()` is not supported so far |
@@ -33,15 +33,15 @@ Dependencies: jsonx and mochijson3 (see rebar.config).
 
 ## Important Notes about Unicode Strings
 
-The binary encoder/decoder will respec whatever is given in the input (bytes). 
+The binary encoder/decoder will respect whatever is given in the input (bytes). 
 i.e. The encoder will NOT try to be smart and encode the input `string()` to utf8 (or whatsoever), 
 and the decoder will not try to decode the input `binary()` to unicode char list. 
 
-The encoder user should make sure the input is a `[byte()] | binary()`, 
+The encoder caller should make sure the input is a `[byte()] | binary()`, 
 not a unicode character list which possibly has some non-ascii code points.
 
-For historical reason, the JSON encoder will try to encode the string in utf8 in output JSON object. 
-And the JSON decoder will try to validate the input strings as utf8 -- as it's the how mochijson3 implemented
+For historical reason, the JSON encoder will try to encode the string in utf8. 
+And the JSON decoder will try to validate the input strings as utf8 -- as it's how mochijson3 implemented
 
 # Examples
 
@@ -178,7 +178,7 @@ Hooks can be used to:
 * Debug. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure
 * Monkey patch corrupted data.
 
-The default decoder hook does nothing by passing along the decode calls:
+The default decoder hook does nothing but just passing through the decode call:
 
 ```
 fun(__Type__, __SubNameOrId__, Data, DecodeFun) ->
