@@ -141,14 +141,14 @@ tag_unions(T, SubInfo, DecodeIn, DecodeFun) when ?AVRO_IS_UNION_TYPE(T) ->
       Name_ when ?IS_NAME(Name_) ->
         Name_
     end,
-    case Result of
-      {Value, Tail} when is_binary(Tail) ->
-        %% used as binary decoder hook
-        {maybe_tag(Name, Value), Tail};
-      Value ->
-        %% used as JSON decoder hook
-        maybe_tag(Name, Value)
-    end;
+  case Result of
+    {Value, Tail} when is_binary(Tail) ->
+      %% used as binary decoder hook
+      {maybe_tag(Name, Value), Tail};
+    Value ->
+      %% used as JSON decoder hook
+      maybe_tag(Name, Value)
+  end;
 tag_unions(_T, _SubInfo, DecodeIn, DecodeFun) ->
   %% Not a union, pass through
   DecodeFun(DecodeIn).
