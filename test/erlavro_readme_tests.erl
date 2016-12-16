@@ -42,7 +42,7 @@ binary_encode_decode_test() ->
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, []),
   Decoder = avro:make_decoder(Store, []),
-  Term = [{"f1", 1},{"f2","my string"}],
+  Term = [{"f1", 1}, {"f2", "my string"}],
   Bin = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", Bin),
   ok.
@@ -57,7 +57,7 @@ json_encode_decode_test() ->
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
   Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
-  Term = [{"f1", 1},{"f2", "my string"}],
+  Term = [{"f1", 1}, {"f2", "my string"}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),
   io:put_chars(user, JSON),

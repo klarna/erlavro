@@ -178,8 +178,10 @@ bytes(Data) when is_binary(Data) ->
   [long(byte_size(Data)), Data].
 
 %% @private
+string(Data) when is_binary(Data) ->
+  [long(size(Data)), Data];
 string(Data) when is_list(Data) ->
-  [long(length(Data)), list_to_binary(Data)].
+  string(list_to_binary(Data)).
 
 %% @private
 %% ZigZag encode/decode

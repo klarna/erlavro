@@ -152,7 +152,7 @@ encode_map_test() ->
   TypedValue = avro_map:new(Type, [{"a", 3}, {"b", 27}]),
   Body = iolist_to_binary([string("a"),
     int(3),
-    string("b"),
+    string(<<"b">>),
     int(27)]),
   ?assertBinEq([long(-2),
     long(size(Body)),

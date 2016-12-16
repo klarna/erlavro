@@ -12,24 +12,36 @@ Dependencies: jsonx and mochijson3 (see rebar.config).
 
 [![Build Status](https://travis-ci.org/klarna/erlavro.svg?branch=master)](https://travis-ci.org/klarna/erlavro)
 
-# Avro Type and Erlang Spec mapping
+# Avro Type and Erlang Spec Mapping
 
-| Avro Type | Erlang Spec | Notes |
-| --- | --- | --- |
-| null | `null` | `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder |
-| boolean | `boolean() \| 0 \| 1` | |
-| int | `-2147483648..2147483647` | |
-| long | `-9223372036854775808..9223372036854775807` | |
-| float | `integer() | float()` | |
-| double | `integer() | float()` | |
-| bytes | `binary()` | |
-| string | `string()` | `binary()` is not supported so far |
-| enum | `string()` | `atom()` or `binary()` is not supported so far |
-| array | `list()` | |
-| map | `[string(), term()]` | `map()` is not supported so far |
-| fixed | `binary()` | |
-| record | `[{FieldName :: string(), FieldValue :: term()}]` | `map()` or `atom()` as `FiledName` is not supported so far |
-| union | `term() | {Tag :: string(), term()}`  | Tag is the type name |
+| Avro | To Encoder | From Decoder | Notes |
+| --- | --- | --- | --- |
+| null | `null` | `null` | `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder |
+| boolean | `boolean() | 0 | 1` | `boolean()` | |
+| int | `-2147483648..2147483647` | `integer()` | |
+| long | `-9223372036854775808..9223372036854775807` | `integer()` | |
+| float | `integer() | float()` | `float()` | |
+| double | `integer() | float()` | `float()` | |
+| bytes | `binary()` | `binary()` | |
+| string | `[byte()] | binary()` | `[byte()]` | NOT `iolist()` for encoder, will change decoder output to `binary()` in 2.0 |
+| enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
+| array | `list()` | `list()` | |
+| map | `[string(), term()]` | `[string(), term()]` | `map()` is not supported so far |
+| fixed | `binary()` | `binary()` | |
+| record | `[{FieldName::string(), FieldValue::term()}]` | `[{FieldName::string(), FiledValue::term()}]` | `map()` or `atom()` as `FiledName` is not supported so far |
+| union | `term() | {Tag::string(), term()}`  | `term() | {Tag::string(), term()}` | Tag is the type name, See notes about unions below |
+
+## Important Notes about Unicode Strings
+
+The binary encoder/decoder will respec whatever is given in the input (bytes). 
+i.e. The encoder will NOT try to be smart and encode the input `string()` to utf8 (or whatsoever), 
+and the decoder will not try to decode the input `binary()` to unicode char list. 
+
+The encoder user should make sure the input is a `[byte()] | binary()`, 
+not a unicode character list which possibly has some non-ascii code points.
+
+For historical reason, the JSON encoder will try to encode the string in utf8 in output JSON object. 
+And the JSON decoder will try to validate the input strings as utf8 -- as it's the how mochijson3 implemented
 
 # Examples
 
@@ -79,7 +91,7 @@ true
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, []),
   Decoder = avro:make_decoder(Store, []),
-  Term = [{"f1", 1},{"f2","my string"}],
+  Term = [{"f1", 1}, {"f2", "my string"}],
   Bin = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", Bin),
   ok.
@@ -97,7 +109,7 @@ true
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
   Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
-  Term = [{"f1", 1},{"f2", "my string"}],
+  Term = [{"f1", 1}, {"f2", "my string"}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),
   io:put_chars(user, JSON),
@@ -228,4 +240,5 @@ What things should be done:
 
 1. Full support for avro 1.8
 2. Support `atom() | binary()` as type names
+3. Decoded string should be binary() not [byte()] -- for 2.0 as it brakes backward compatibility
 
