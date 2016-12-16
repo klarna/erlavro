@@ -18,16 +18,16 @@ Dependencies: jsonx and mochijson3 (see rebar.config).
 | --- | --- | --- | --- |
 | null | `null` | `null` | `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder |
 | boolean | `boolean() | 0 | 1` | `boolean()` | |
-| int | `-2147483648..2147483647` | `integer()` | |
-| long | `-9223372036854775808..9223372036854775807` | `integer()` | |
+| int | `integer()` | `integer()` | `-2147483648..2147483647` |
+| long | `integer()` | `integer()` | `-9223372036854775808..9223372036854775807` |
 | float | `integer() | float()` | `float()` | |
 | double | `integer() | float()` | `float()` | |
 | bytes | `binary()` | `binary()` | |
 | string | `[byte()] | binary()` | `[byte()]` | NOT `iolist()` for encoder. Will change decoder output to `binary()` in 2.0 |
 | enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
-| array | `list()` | `list()` | |
-| map | `[string(), term()]` | `[string(), term()]` | `map()` is not supported so far |
 | fixed | `binary()` | `binary()` | |
+| array | `list()` | `list()` | |
+| map | `[{Key::string(), Value::term()}]` | `[{Key::string(), Value::term()}]` | `map()` is not supported so far |
 | record | `[{FieldName::string(), FieldValue::term()}]` | `[{FieldName::string(), FiledValue::term()}]` | `map()` or `atom()` as `FiledName` is not supported so far |
 | union | `term() | {Tag::string(), term()}`  | `term() | {Tag::string(), term()}` | Tag is the type name, See notes about unions below |
 
@@ -223,8 +223,8 @@ Therefore we are recommending the `Tagged` way, because it'll help the encoder t
 
 ### Union Values Are Decoded Without Tags by Default
 
-A bit contradicting to the recommended union encoding, the union members are NOT tagged by decoder BY DEFAULT. 
-Because we believe the use case of tagged unions in decoder output is not as common 
+A bit contradicting to the recommended union encoding, the decoded values are NOT tagged by DEFAULT. 
+Because we believe the use case of tagged unions in decoder output is not as common. 
 You may use the decoder hook `avro_decoer_hooks:tag_unions/0` to have the decoded values tagged. 
 NOTE: only named complex types are tagged by this hook, you can of course write your own hook for a different tagging behaviour.
 
@@ -232,11 +232,7 @@ NOTE: only named complex types are tagged by this hook, you can of course write 
 
 See `avro_ocf.erl` for details
 
-
 # TODOs
-
-This version of library supports only subset of all functionality.
-What things should be done:
 
 1. Full support for avro 1.8
 2. Support `atom() | binary()` as type names
