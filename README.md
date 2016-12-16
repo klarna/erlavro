@@ -4,12 +4,6 @@ Current version implements Apache Avro 1.7.5 specification.
 
 License: Apache License 2.0
 
-# Compilation
-
-   make
-
-Dependencies: jsonx and mochijson3 (see rebar.config).
-
 [![Build Status](https://travis-ci.org/klarna/erlavro.svg?branch=master)](https://travis-ci.org/klarna/erlavro)
 
 # Avro Type and Erlang Spec Mapping
