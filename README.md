@@ -138,33 +138,92 @@ JSON to expect:
   ok.
 ```
 
-## Decoder Hooks
+# Avro Type and Erlang Spec mapping
 
-Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend schmea and/or data before and/or after decoding. 
+* null: `null`
+  `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder
+* boolean: `boolean() | 0 | 1`
+* int: `-2147483648..2147483647`
+* long: `-9223372036854775808..9223372036854775807`
+* float: `integer() | float()`
+* double: `integer() | float()`
+* bytes: `binary()`
+* string: `string()`
+  `binary()` is not supported so far
+* enum: `string()`
+  `atom()` or `binary()` is not supported so far
+* array: `list()`
+* map: `[string(), term()]`
+  `map()` is not supported so far
+* fixed: `binary()`
+* record: `[{FieldName :: string(), FieldValue :: term()}]`
+  `map()` or `atom()` as `FiledName` is not supported so far
+* union: `term() | {Tag :: string(), term()}`
+  where Tag is the type name
+
+# Decoder Hooks
+
+Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend data before and/or after decoding. 
 Hooks can be used to:
 
 * Fast-skip undesired data fields of records or undesired data of big maps etc.
 * Debug. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure
 * Monkey patch corrupted data.
 
-Find the examples in `avro_decoder_hooks.erl`
+The default decoder hook does nothing by passing along the decode calls:
 
-## NOTEs About Unions
+```
+fun(__Type__, __SubNameOrId__, Data, DecodeFun) ->
+    DecodeFun(Data)
+end
+```
 
-### Union Values Should be Tagged for Better Encoding Performance
+This is a typical way to implement a hook which actually does something
 
-In case a union value is NOT tagged with a type name, the encoder will have to 
-try to loop over all union members to encode until succeed. This is not quite 
-efficient when the union is relatively big.
+```
+fun(Type, SubNameOrIndex, Data0, DecodeFun) ->
+    Data = amend_data(Data0),
+    Result = DecodeFun(Data),
+    amend_result(Result)
+end
+```
+
+You may find more details and a few examples in `avro_decoder_hooks.erl`
+
+# Important Notes About Unions
+
+### Union Values Should be Tagged with Type Name for Better Encoding Performance
+
+For a big union like below
+
+```
+[
+  "com.exmpale.MyRecord1",
+  "com.example.MyRecord2",
+  ... and many more ...
+]
+```
+
+There are two ways to encode such unions
+
+* Untagged: `Encoder(UnionType, MyRecord)` where `MyRecord` is of spec `[{field_name(), field_value()}]`
+* Tagged: `Encoder(UnionType, MyRecord)` where `MyRecord` is of spec `{"com.example.MyRecordX", [{field_name(), field_value()}]}`
+
+For `Untagged`, the encoder will have to TRY to encode using the union member types one after another until success. 
+This is completely fine for small unions (e.g. a union of `null` and `long`), however quite expansive (and sometimes can be problematic) for records. 
+Therefore we are recommending the `Tagged` way, because it'll help the encoder to find the member quickly.
 
 ### Union Values Are Decoded Without Tags by Default
 
-However, you may use the decoder hook `avro_decoer_hooks:tag_unions/0` 
-to have the decoded values tagged.
+A bit contradicting to the recommended union encoding, the union members are NOT tagged by decoder BY DEFAULT. 
+Because we believe the use case of tagged unions in decoder output is not as common 
+You may use the decoder hook `avro_decoer_hooks:tag_unions/0` to have the decoded values tagged. 
+NOTE: only named complex types are tagged by this hook, you can of course write your own hook for a different tagging behaviour.
 
-## Object container file encoding/decoding
+# Object container file encoding/decoding
 
 See `avro_ocf.erl` for details
+
 
 # TODOs
 
@@ -172,4 +231,5 @@ This version of library supports only subset of all functionality.
 What things should be done:
 
 1. Full support for avro 1.8
+2. Support `atom() | binary()` as type names
 
