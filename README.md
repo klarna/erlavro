@@ -21,8 +21,8 @@ License: Apache License 2.0
 | enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
 | fixed | `binary()` | `binary()` | |
 | array | `list()` | `list()` | |
-| map | `[{Key::string(), Value::in()}]` | `[{Key::string(), Value::out()}]` | Will support `atom() | binary()` as Key in 2.0 |
-| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | Will support `atom()` as `FiledName` for encoder in 2.0; User may implement decoder hook to get `FieldName` decoded as `atom()` |
+| map | `[{Key::string(), Value::in()}]` | `[{Key::string(), Value::out()}]` | Will support `atom() | binary()` as Key for encoder in 2.0 |
+| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | Will support `atom()` as `FiledName` for encoder in 2.0 |
 | union | `in() | {Tag::string(), in()}`  | `out() | {Tag::string(), out()}` | Tag is the type name, See notes about unions below |
 
 Where `in()` and `out()` refer to the input and output type specs recursively
