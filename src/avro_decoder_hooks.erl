@@ -95,7 +95,7 @@ print_debug_trace(PrintFun, MaxHistoryLength) ->
   end.
 
 %% @doc This hook prints the type tree with indentation, and the leaf values
-%% to the io-device 'user' is directed.
+%% to the current group leader.
 %% @end
 -spec pretty_print_hist() -> decoder_hook_fun().
 pretty_print_hist() ->
@@ -119,7 +119,7 @@ pretty_print_hist() ->
           _                    -> "\n"
         end
       ],
-    io:format(user, "~s", [ToPrint]),
+    io:format("~s", [ToPrint]),
     _ = put(?PD_PP_INDENTATION, Indentation + 1),
     DecodeResult = DecodeFun(Data),
     ResultToPrint = get_pretty_print_result(DecodeResult),
@@ -263,10 +263,10 @@ get_pretty_print_result(JsonResult) ->
 %% @private
 pretty_print_result(_Sub = [], _Result = [], IndentationStr) ->
   %% print empty array and empty map
-  io:format(user, "~s  []\n", [IndentationStr]);
+  io:format("~s  []\n", [IndentationStr]);
 pretty_print_result(_Sub = [], Result, _IndentationStr) ->
   %% print the value if it's a leaf in the type tree
-  io:format(user, "~1000000p\n", [Result]);
+  io:format("~1000000p\n", [Result]);
 pretty_print_result(_Sub, _Result, _IndentationStr) ->
   ok.
 
