@@ -21,8 +21,8 @@ License: Apache License 2.0
 | enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
 | fixed | `binary()` | `binary()` | |
 | array | `list()` | `list()` | |
-| map | `[{Key::string(), Value::in()}]` | `[{Key::string(), Value::out()}]` | `map()` is not supported so far |
-| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | `map()` or `atom()` as `FiledName` is not supported so far |
+| map | `[{Key::string(), Value::in()}]` | `[{Key::string(), Value::out()}]` | Will support `atom() | binary()` as Key in 2.0 |
+| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | Will support `atom()` as `FiledName` for encoder in 2.0; User may implement decoder hook to get `FieldName` decoded as `atom()` |
 | union | `in() | {Tag::string(), in()}`  | `out() | {Tag::string(), out()}` | Tag is the type name, See notes about unions below |
 
 Where `in()` and `out()` refer to the input and output type specs recursively
@@ -31,10 +31,10 @@ Where `in()` and `out()` refer to the input and output type specs recursively
 
 The binary encoder/decoder will respect whatever is given in the input (bytes). 
 i.e. The encoder will NOT try to be smart and encode the input `string()` to utf8 (or whatsoever), 
-and the decoder will not try to decode the input `binary()` to unicode char list. 
+and the decoder will not try to validate or decode the input `binary()` as unicode character list. 
 
-The encoder caller should make sure the input is a `[byte()] | binary()`, 
-not a unicode character list which possibly has some non-ascii code points.
+The encoder caller should make sure the input is of spec `[byte()] | binary()`, 
+NOT a unicode character list which may possibly contain some code points greater than 255.
 
 For historical reason, the JSON encoder will try to encode the string in utf8. 
 And the JSON decoder will try to validate the input strings as utf8 -- as it's how mochijson3 implemented
@@ -168,10 +168,12 @@ JSON to expect:
 # Decoder Hooks
 
 Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend data before and/or after decoding. 
-Some hook use cases:
+Some hook use cases for example:
 
+* Tag union value with type name. e.g. `avro_decoder_hooks:tag_unions/0`.
+* Apply `string_to_atom/1` on record field names or map keys.
+* Debugging. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure.
 * For JSON decoder, fast-skip undesired data fields in records or keys in maps.
-* Debugging. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure
 * Monkey patching corrupted data.
 
 The default decoder hook does nothing but just passing through the decode call:
@@ -191,8 +193,18 @@ fun(Type, SubNameOrIndex, Data0, DecodeFun) ->
     amend_result(Result)
 end
 ```
+You can of course also splice-up two hooks by one wrapping around the other:
 
-You may find more details and a few examples in `avro_decoder_hooks.erl`
+```
+Hook1 = fun(T, S, D, F) -> ... end,
+fun(Type, SubNameOrIndex, Data0, DecodeFun) ->
+  Data = amend_data(Data0),
+  Result = Hook1(Type, SubNameOrIndex, Data, DecodeFun),
+  amend_result(Result)
+end
+```
+
+Please find more details and a few examples in `avro_decoder_hooks.erl`
 
 # Important Notes About Unions
 
