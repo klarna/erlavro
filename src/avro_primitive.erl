@@ -127,7 +127,7 @@ cast(Type, Value) when ?AVRO_IS_BYTES_TYPE(Type) andalso
   {ok, ?AVRO_VALUE(Type, Value)};
 
 cast(Type, Value) when ?AVRO_IS_STRING_TYPE(Type) andalso
-                       is_list(Value) ->
+                       (is_list(Value) orelse is_binary(Value)) ->
   {ok, ?AVRO_VALUE(Type, Value)};
 
 %% Casts from other primitive Avro types so that we don't lose data

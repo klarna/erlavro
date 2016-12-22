@@ -2,6 +2,7 @@ ebin/*.app
 ebin/*.beam
 .eunit
 /lib/
+deps/
 /.rebar/
 doc/
 .idea/

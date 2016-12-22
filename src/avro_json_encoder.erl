@@ -85,6 +85,8 @@ encode(Lkup, TypeOrName, Value) ->
 %%%===================================================================
 
 %% @private
+do_encode(_Lkup, Type, #avro_value{type = Type} = V) ->
+  do_encode_value(V);
 do_encode(Lkup, TypeName, Value) when ?IS_NAME(TypeName) ->
   do_encode(Lkup, Lkup(TypeName), Value);
 do_encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
@@ -109,7 +111,7 @@ do_encode(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
   null; %do not encode null
 do_encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
   Encoded = avro_union:encode(Type, Union,
-    fun(MemberT, Value, _) ->
+    fun(MemberT, Value, _UnionIndex) ->
       {
         encode_string(avro:get_type_fullname(MemberT)),
         do_encode(Lkup, MemberT, Value)

@@ -28,6 +28,8 @@
         , get_type_fullname/1
         , get_aliases/1
         , is_named_type/1
+        , make_decoder/2
+        , make_encoder/2
         ]).
 
 -export([ split_type_name/2
@@ -36,13 +38,22 @@
         , build_type_fullname/3
         ]).
 
--export([read_schema/1]).
+-export([ read_schema/1
+        ]).
 
 -export([cast/2]).
 
 -export([to_term/1]).
 
--export_type([ enum_symbol/0
+-export([ decode/5
+        , encode/4
+        , encode_wrapped/4
+        ]).
+
+-export_type([ codec_options/0
+             , decode_fun/0
+             , encode_fun/0
+             , enum_symbol/0
              , fullname/0
              , name/0
              , namespace/0
@@ -51,6 +62,94 @@
              ]).
 
 -include("avro_internal.hrl").
+
+-type codec_options() :: [proplists:property()].
+-type encode_fun() ::
+        fun((avro_type_or_name(), term()) -> iodata() | avro_value()).
+-type decode_fun() ::
+        fun((avro_type_or_name(), binary()) -> term()).
+
+%% @doc Make a encoder function.
+%% Supported codec options:
+%% * {encoding, avro_binary | avro_json}, default = avro_binary
+%%   To get a encoder function for JSON or binary encoding
+%% * wrapped | {wrapped, true}, default = false
+%%   when 'wrapped' is not in the option list, or {wrapped, false} is given,
+%%   return encoded iodata() without type info wrapped around.
+%% @end
+-spec make_encoder(schema_store() | lkup_fun(), codec_options()) ->
+        encode_fun().
+make_encoder(StoreOrLkupFun, Options) ->
+  Encoding = proplists:get_value(encoding, Options, avro_binary),
+  IsWrapped = proplists:get_bool(wrapped, Options),
+  case IsWrapped of
+    true ->
+      fun(TypeOrName, Value) ->
+        ?MODULE:encode_wrapped(StoreOrLkupFun, TypeOrName, Value, Encoding)
+      end;
+    false ->
+      fun(TypeOrName, Value) ->
+        ?MODULE:encode(StoreOrLkupFun, TypeOrName, Value, Encoding)
+      end
+  end.
+
+%% @doc Make a decoder function.
+%% Supported codec options:
+%% * {encoding, avro_binary | avro_json}, default = avro_binary
+%%   To get a decoder function for JSON or binary encoded data
+%% * hook, default = ?DEFAULT_DECODER_HOOK
+%%   The default hook is a dummy one (does nothing).
+%%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
+%% @end
+-spec make_decoder(schema_store() | lkup_fun(), codec_options()) ->
+        decode_fun().
+make_decoder(StoreOrLkupFun, Options) ->
+  Encoding = proplists:get_value(encoding, Options, avro_binary),
+  Hook = proplists:get_value(hook, Options, ?DEFAULT_DECODER_HOOK),
+  fun(TypeOrName, Bin) ->
+    ?MODULE:decode(Encoding, Bin, TypeOrName, StoreOrLkupFun, Hook)
+  end.
+
+%% @doc Encode value to json or binary format.
+-spec encode(schema_store() | lkup_fun(), avro_type_or_name(),
+             term(), avro_encoding()) -> iodata().
+encode(StoreOrLkup, Type, Value, avro_json) ->
+  avro_json_encoder:encode(StoreOrLkup, Type, Value);
+encode(StoreOrLkup, Type, Value, avro_binary) ->
+  avro_binary_encoder:encode(StoreOrLkup, Type, Value).
+
+%% @doc Encode value and return the result wrapped with type info.
+%% The result can be used as a 'trusted' part of a higher level
+%% wrapper structure. e.g. encode a big array of some complex type
+%% and use the result as a field value of a parent record
+%% @end
+-spec encode_wrapped(schema_store() | lkup_fun(), avro_type_or_name(),
+                     term(), avro_encoding()) -> avro_value().
+encode_wrapped(S, TypeOrName, Value, Encoding) when not is_function(S) ->
+  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(S),
+  encode_wrapped(Lkup, TypeOrName, Value, Encoding);
+encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME(Name) ->
+  Type = Lkup(Name),
+  encode_wrapped(Lkup, Type, Value, Encoding);
+encode_wrapped(Lkup, Type, Value, Encoding) ->
+  Encoded = iolist_to_binary(encode(Lkup, Type, Value, Encoding)),
+  case Encoding of
+    avro_json   -> ?AVRO_ENCODED_VALUE_JSON(Type, Encoded);
+    avro_binary -> ?AVRO_ENCODED_VALUE_BINARY(Type, Encoded)
+  end.
+
+%% @doc Decode value return unwarpped values.
+-spec decode(avro_encoding(),
+             Data :: binary(),
+             avro_type_or_name(),
+             schema_store() | lkup_fun(),
+             decoder_hook_fun()) -> term().
+decode(avro_json, JSON, TypeOrName, StoreOrLkup, Hook) ->
+  avro_json_decoder:decode_value(JSON, TypeOrName, StoreOrLkup,
+                                 [{is_wrapped, false},
+                                  {json_decoder, mochijson3}], Hook);
+decode(avro_binary, Bin, TypeOrName, StoreOrLkup, Hook) ->
+  avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Hook).
 
 %%%===================================================================
 %%% API: Accessing types properties
@@ -122,7 +221,7 @@ flatten_type(Type) ->
   avro_schema_store:flatten_type(Type).
 
 %% @see avro_schema_store:expand_type/2
--spec expand_type(fullname() | avro_type(), avro_schema_store:store()) ->
+-spec expand_type(fullname() | avro_type(), schema_store()) ->
         avro_type() | none().
 expand_type(Type, Store) ->
   avro_schema_store:expand_type(Type, Store).
@@ -130,8 +229,8 @@ expand_type(Type, Store) ->
 %%%===================================================================
 %%% API: Reading schema from json file
 %%%===================================================================
--spec read_schema(file:filename()) ->
-        {ok, avro_type()} | {error, any()}.
+
+-spec read_schema(file:filename()) -> {ok, avro_type()} | {error, any()}.
 read_schema(File) ->
   case file:read_file(File) of
     {ok, Data} ->
@@ -291,7 +390,6 @@ type_from_name(?AVRO_DOUBLE) -> avro_primitive:double_type();
 type_from_name(?AVRO_BYTES)  -> avro_primitive:bytes_type();
 type_from_name(?AVRO_STRING) -> avro_primitive:string_type();
 type_from_name(_)            -> undefined.
-
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

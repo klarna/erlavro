@@ -75,6 +75,8 @@ encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 encode(Store, TypeName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeName, Value);
+encode(_Lkup, Type, #avro_value{type = Type} = V) ->
+  encode_value(V);
 encode(Lkup, TypeName, Value) when ?IS_NAME(TypeName) ->
   encode(Lkup, Lkup(TypeName), Value);
 encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
@@ -176,8 +178,10 @@ bytes(Data) when is_binary(Data) ->
   [long(byte_size(Data)), Data].
 
 %% @private
+string(Data) when is_binary(Data) ->
+  [long(size(Data)), Data];
 string(Data) when is_list(Data) ->
-  [long(length(Data)), list_to_binary(Data)].
+  string(list_to_binary(Data)).
 
 %% @private
 %% ZigZag encode/decode

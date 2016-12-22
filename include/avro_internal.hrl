@@ -19,6 +19,16 @@
 
 -include("erlavro.hrl").
 
+-define(IS_PRIMITIVE_NAME(N),
+        (N =:= ?AVRO_NULL    orelse
+         N =:= ?AVRO_BOOLEAN orelse
+         N =:= ?AVRO_INT     orelse
+         N =:= ?AVRO_LONG    orelse
+         N =:= ?AVRO_STRING  orelse
+         N =:= ?AVRO_FLOAT   orelse
+         N =:= ?AVRO_DOUBLE  orelse
+         N =:= ?AVRO_BYTES)).
+
 -define(IS_AVRO_TYPE(T), is_tuple(T)).
 -define(IS_NAME(N), (is_list(N))).
 -define(NAMESPACE_NONE, "").
@@ -38,6 +48,19 @@
 }).
 
 -define(AVRO_SCHEMA_LOOKUP_FUN(Store), avro_schema_store:to_lookup_fun(Store)).
+
+-define(AVRO_ENCODED_VALUE_JSON(Type, Value),
+        ?AVRO_VALUE(Type, {json, Value})).
+-define(AVRO_ENCODED_VALUE_BINARY(Type, Value),
+        ?AVRO_VALUE(Type, {binary, Value})).
+
+%% Throw an exception in case the value is already encoded.
+-define(ASSERT_AVRO_VALUE(VALUE),
+        case VALUE of
+          {json, _}   -> erlang:throw({value_already_encoded, VALUE});
+          {binary, _} -> erlang:throw({value_already_encoded, VALUE});
+          _           -> ok
+        end).
 
 -endif.
 

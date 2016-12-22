@@ -121,9 +121,13 @@ dec(Bin, T, Lkup, Hook) when ?AVRO_IS_MAP_TYPE(T) ->
   blocks(Bin, ItemDecodeFun);
 dec(Bin, T, Lkup, Hook) when ?AVRO_IS_UNION_TYPE(T) ->
   {Index, Tail} = long(Bin),
-  {ok, ChildType} = avro_union:lookup_child_type(T, Index),
-  Hook(T, Index, Tail,
-       fun(B) -> do_decode(B, ChildType, Lkup, Hook) end);
+  case avro_union:lookup_child_type(T, Index) of
+    {ok, ChildType} ->
+      Hook(T, Index, Tail,
+           fun(B) -> do_decode(B, ChildType, Lkup, Hook) end);
+    false ->
+      erlang:error({bad_union_index, T, Index})
+  end;
 dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_FIXED_TYPE(T) ->
   Hook(T, "", Bin,
        fun(B) ->
@@ -229,7 +233,6 @@ varint(Bin, Acc, AccBits, MaxBits) ->
     true  -> {NewAcc, Tail};
     false -> varint(Tail, NewAcc, AccBits + 7, MaxBits)
   end.
-
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

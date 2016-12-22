@@ -245,54 +245,11 @@
 
 -type avro_encoding() :: avro_json | avro_binary.
 
--define(AVRO_ENCODED_VALUE_JSON(Type, Value), ?AVRO_VALUE(Type, {json, Value})).
--define(AVRO_ENCODED_VALUE_BINARY(Type, Value), ?AVRO_VALUE(Type, {binary, Value})).
-
 %% avro_encoded_value() can be used as a nested inner value of
 %% a parent avor_value(), but can not be used for further update or
 %% inspection using APIs in avro_xxx modules.
 -type avro_encoded_value() :: #avro_value{}.
 
-%% Throw an exception in case the value is already encoded.
--define(ASSERT_AVRO_VALUE(VALUE),
-        case VALUE of
-          {json, _} -> erlang:throw({value_already_encoded, VALUE});
-          _         -> ok
-        end).
-
-%% Decoder hook is a function to be evaluated when decoding:
-%% 1. primitives
-%% 2. each field/element of complex types.
-%%
-%% A hook fun can be used to fast skipping undesired data fields of records
-%% or undesired data of big maps etc.
-%% For example, to dig out only the field named "MyField" in "MyRecord", the
-%% hook may probably look like:
-%%
-%% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
-%%      case {avro:get_type_fullname(Type), SubNameOrIndex} of
-%%        {"MyRecord.example.com", "MyField"} ->
-%%          DecodeFun(Data);
-%%        {"MyRecord.example.com", _OtherFields} ->
-%%          ignored;
-%%        _OtherType ->
-%%          DecodeFun(Data)
-%%      end
-%% end.
-%%
-%% A hook fun can be used for debug. For example, below hook should print
-%% the decoding stack along the decode function traverses through the bytes.
-%%
-%% fun(Type, SubNameOrIndex, Data, DecodeFun) ->
-%%      SubInfo = case is_integer(SubNameOrIndex) of
-%%                  true  -> integer_to_list(SubNameOrIndex);
-%%                  false -> SubNameOrIndex
-%%                end,
-%%      io:format("~s.~s\n", [avro:get_type_name(Type), SubInfo]),
-%%      DecodeFun(Data)
-%% end
-%%
-%% A hook can also be used as a dirty patch to fix some corrupted data.
 -type dec_in() :: term(). %% binary() | decoded json struct / raw value
 -type dec_out() :: term(). %% decoded raw value or #avro_value{}
 
@@ -303,5 +260,10 @@
 %% By default, the hook fun does nothing else but calling the decode function.
 -define(DEFAULT_DECODER_HOOK,
         fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
-
 -endif.
+
+%%%_* Emacs ====================================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

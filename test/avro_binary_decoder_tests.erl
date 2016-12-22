@@ -190,7 +190,7 @@ decode_with_hook_test() ->
   Binary = sample_record_binary(),
   Schema = sample_record_type(),
   Lkup = fun(_) -> exit(error) end,
-  Hook = avro_util:pretty_print_decoder_hook(),
+  Hook = avro_decoder_hooks:pretty_print_hist(),
   Fields = decode(Binary, Schema, Lkup, Hook),
   ?assertMatch([ {"bool",   true}
     , {"int",    100}
