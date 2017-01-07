@@ -35,8 +35,7 @@
 -export([parse_value/3, parse_schema/3, parse/5]).
 -endif.
 
--type option_name() :: json_decoder
-                     | is_wrapped.
+-type option_name() :: is_wrapped.
 
 -type options() :: [{option_name(), term()}].
 -type hook() :: decoder_hook_fun().
@@ -64,15 +63,6 @@ decode_schema(JsonSchema, ExtractTypeFun) ->
 %% specified by their names inside Schema.
 %%
 %% Options:
-%%   json_decoder (optional, default = jsonx)
-%%     jsonx | mochijson3
-%%     jsonx is about 12 times faster than mochijson3 and almost compatible
-%%     with it. The one discovered incompatibility is that jsonx performs more
-%%     strict checks on incoming json strings and can fail on some cases
-%%     (for example, on non-ascii symbols) while mochijson3 can parse such
-%%     strings without problems.
-%%     Current strategy is to use jsonx as the main parser and fall back to
-%%     mochijson3 in case of parsing issues.
 %%  is_wrapped (optional, default = true)
 %%     By default, this function returns #avro_value{} i.e. all values are
 %%     wrapped together with the type info.
@@ -101,18 +91,7 @@ decode_value(JsonValue, Schema, Store, Options, Hook)
   ExtractTypeFun = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   decode_value(JsonValue, Schema, ExtractTypeFun, Options, Hook);
 decode_value(JsonValue, Schema, ExtractTypeFun, Options, Hook) ->
-  DecodedJson =
-    case lists:keyfind(json_decoder, 1, Options) of
-      {_, mochijson3} ->
-        mochijson3:decode(JsonValue);
-      _ ->
-        case jsonx:decode(JsonValue, [{format, struct}]) of
-          {error, _Err, _Pos} ->
-            mochijson3:decode(JsonValue);
-          Decoded ->
-            Decoded
-        end
-    end,
+  DecodedJson = mochijson3:decode(JsonValue),
   IsWrapped = case lists:keyfind(is_wrapped, 1, Options) of
                 {is_wrapped, V} -> V;
                 false           -> true %% parse to wrapped value by default
@@ -126,8 +105,7 @@ decode_value(JsonValue, Schema, ExtractTypeFun, Options, Hook) ->
                    avro_type_or_name(),
                    schema_store() | lkup_fun()) -> avro_value().
 decode_value(JsonValue, Schema, StoreOrLkupFun) ->
-  decode_value(JsonValue, Schema, StoreOrLkupFun,
-               [{json_decoder, mochijson3}]).
+  decode_value(JsonValue, Schema, StoreOrLkupFun, []).
 
 decode_value(JsonValue, Schema, StoreOrLkupFun, Options) ->
   decode_value(JsonValue, Schema, StoreOrLkupFun,
