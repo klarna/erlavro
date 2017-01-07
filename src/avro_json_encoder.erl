@@ -31,7 +31,6 @@
 %% API
 -export([encode_type/1]).
 -export([encode_value/1]).
--export([encode_value/2]).
 -export([encode/3]).
 
 -include("avro_internal.hrl").
@@ -41,28 +40,16 @@
 %%%===================================================================
 
 %% @doc Encode avro schema in JSON format.
-%% We do not expect any failure in avro schema encoding.
 %% @end
 -spec encode_type(avro_type()) -> iodata().
 encode_type(Type) ->
-  jsonx:encode(do_encode_type(Type, _Namespace = ?NAMESPACE_NONE)).
+  Encoder = mochijson3:encoder([{utf8, true}]),
+  Encoder(do_encode_type(Type, _Namespace = ?NAMESPACE_NONE)).
 
-%% @doc Encode avro value in JSON format, use jsonx as default encoder.
-%% fallback to mochijson3 in case of failure
+%% @doc Encode avro value in JSON format.
 %% @end
 -spec encode_value(avro_value() | avro_encoded_value()) -> iodata().
 encode_value(Value) ->
-  try encode_value(Value, jsonx)
-  catch _ : _ -> encode_value(Value, mochijson3)
-  end.
-
-%% @doc Allow caller to choose encoder so it can fallback to another
-%% in case of falure etc.
-%% @end
--spec encode_value(avro_value(), jsonx | mochijson3) -> iodata().
-encode_value(Value, jsonx) ->
-  jsonx:encode(do_encode_value(Value));
-encode_value(Value, mochijson3) ->
   Encoder = mochijson3:encoder([{utf8, true}]),
   Encoder(do_encode_value(Value)).
 
