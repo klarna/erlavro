@@ -18,8 +18,6 @@
 %%%
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
 %%% @doc
-%%% Encodes Avro schemas and values to JSON format using mochijson3
-%%% as an encoder.
 %%%
 %%% Schema is written following parsing canonical form recommendations
 %%% but keeps all information (attributes are kept even if they are
@@ -35,6 +33,8 @@
 
 -include("avro_internal.hrl").
 
+-define(INLINE(JSON), {{json, JSON}}).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -43,15 +43,13 @@
 %% @end
 -spec encode_type(avro_type()) -> iodata().
 encode_type(Type) ->
-  Encoder = mochijson3:encoder([{utf8, true}]),
-  Encoder(do_encode_type(Type, _Namespace = ?NAMESPACE_NONE)).
+  encode_json(do_encode_type(Type, _Namespace = ?NAMESPACE_NONE)).
 
 %% @doc Encode avro value in JSON format.
 %% @end
 -spec encode_value(avro_value() | avro_encoded_value()) -> iodata().
 encode_value(Value) ->
-  Encoder = mochijson3:encoder([{utf8, true}]),
-  Encoder(do_encode_value(Value)).
+  encode_json(do_encode_value(Value)).
 
 %% @doc Encode unwrapped (raw) values directly without (possibilly
 %% recursive) type info wrapped with values.
@@ -64,12 +62,14 @@ encode(Store, TypeOrName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeOrName, Value);
 encode(Lkup, TypeOrName, Value) ->
-  Encoder = mochijson3:encoder([{utf8, true}]),
-  Encoder(do_encode(Lkup, TypeOrName, Value)).
+  encode_json(do_encode(Lkup, TypeOrName, Value)).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% @private
+encode_json(Input) -> jsone:encode(Input, [native_utf8]).
 
 %% @private
 do_encode(_Lkup, Type, #avro_value{type = Type} = V) ->
@@ -80,20 +80,18 @@ do_encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro_primitive:cast(Type, Value),
   do_encode_value(AvroValue);
 do_encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
-  Encoded = avro_record:encode(Type, Value,
-    fun({FN, FT, FV}) -> {encode_string(FN), do_encode(Lkup, FT, FV)} end),
-  { struct, Encoded };
+  avro_record:encode(Type, Value,
+    fun({FN, FT, FV}) -> {encode_string(FN), do_encode(Lkup, FT, FV)} end);
 do_encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   encode_string(Value);
 do_encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   avro_array:encode(Type, Value,
     fun(IType, Item) -> do_encode(Lkup, IType, Item) end);
 do_encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
-  Encoded = avro_map:encode(Type, Value,
-    fun(IType, K, V) -> {encode_string(K), do_encode(Lkup, IType, V)} end),
-  { struct, Encoded };
+  avro_map:encode(Type, Value,
+    fun(IType, K, V) -> {encode_string(K), do_encode(Lkup, IType, V)} end);
 do_encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
-  {json, encode_binary(Value)};
+  ?INLINE(encode_binary(Value));
 do_encode(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
   null; %do not encode null
 do_encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
@@ -104,7 +102,7 @@ do_encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
         do_encode(Lkup, MemberT, Value)
       }
     end),
-  { struct, [Encoded] }.
+  [Encoded].
 
 %% @private
 optional_field(_Key, Default, Default, _MappingFun) -> [];
@@ -138,7 +136,7 @@ do_encode_type(#avro_record_type{} = T, EnclosingNamespace) ->
     , {fields, lists:map(fun(F) -> encode_field(F, NewEnclosingNamespace) end,
                          Fields)}
     ],
-  {struct, lists:flatten(SchemaObjectFields)};
+  lists:flatten(SchemaObjectFields);
 do_encode_type(#avro_enum_type{} = T, EnclosingNamespace) ->
   #avro_enum_type{ name      = Name
                  , namespace = Namespace
@@ -154,19 +152,15 @@ do_encode_type(#avro_enum_type{} = T, EnclosingNamespace) ->
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
     , {symbols, lists:map(fun encode_string/1, Symbols)}
     ],
-  {struct, lists:flatten(SchemaObjectFields)};
+  lists:flatten(SchemaObjectFields);
 do_encode_type(#avro_array_type{type = Type}, EnclosingNamespace) ->
-  { struct
-  , [ {type,  encode_string("array")}
-    , {items, do_encode_type(Type, EnclosingNamespace)}
-    ]
-  };
+  [ {type,  encode_string("array")}
+  , {items, do_encode_type(Type, EnclosingNamespace)}
+  ];
 do_encode_type(#avro_map_type{type = Type}, EnclosingNamespace) ->
-  { struct
-  , [ {type,   encode_string("map")}
-    , {values, do_encode_type(Type, EnclosingNamespace)}
-    ]
-  };
+  [ {type,   encode_string("map")}
+  , {values, do_encode_type(Type, EnclosingNamespace)}
+  ];
 do_encode_type(#avro_union_type{types = Types}, EnclosingNamespace) ->
   F = fun({_Index, Type}) -> do_encode_type(Type, EnclosingNamespace) end,
   lists:map(F, Types);
@@ -183,7 +177,7 @@ do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace) ->
     , {size, encode_integer(Size)}
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
     ],
-  {struct, lists:flatten(SchemaObjectFields)}.
+  lists:flatten(SchemaObjectFields).
 
 %% @private
 encode_field(Field, EnclosingNamespace) ->
@@ -193,15 +187,13 @@ encode_field(Field, EnclosingNamespace) ->
                     , default = Default
                     , order   = Order
                     , aliases = Aliases} = Field,
-  { struct
-  , [ {name, encode_string(Name)}
-    , {type, do_encode_type(Type, EnclosingNamespace)}
-    ]
-    ++ optional_field(default, Default, undefined, fun do_encode_value/1)
-    ++ optional_field(doc,     Doc,     "",        fun encode_string/1)
-    ++ optional_field(order,   Order,   ascending, fun encode_order/1)
-    ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1)
-  }.
+  [ {name, encode_string(Name)}
+  , {type, do_encode_type(Type, EnclosingNamespace)}
+  ]
+  ++ optional_field(default, Default, undefined, fun do_encode_value/1)
+  ++ optional_field(doc,     Doc,     "",        fun encode_string/1)
+  ++ optional_field(order,   Order,   ascending, fun encode_order/1)
+  ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1).
 
 %% @private Get namespace to encode.
 %% Ignore namespace to encode if it is the same as enclosing namesapce
@@ -212,7 +204,7 @@ ns(Namespace, _EnclosingNamespace) -> Namespace.
 
 %% @private
 encode_string(String) ->
-  erlang:list_to_binary(String).
+  erlang:iolist_to_binary(String).
 
 %% @private
 encode_integer(Int) when is_integer(Int) ->
@@ -229,7 +221,7 @@ encode_order(ignore)     -> <<"ignore">>.
 
 %% @private
 do_encode_value(?AVRO_ENCODED_VALUE_JSON(_Type, _Value = Encoded)) ->
-  {json, Encoded};
+  ?INLINE(Encoded);
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
   null;
 do_encode_value(Value) when ?AVRO_IS_BOOLEAN_VALUE(Value) ->
@@ -237,44 +229,38 @@ do_encode_value(Value) when ?AVRO_IS_BOOLEAN_VALUE(Value) ->
 do_encode_value(Value) when ?AVRO_IS_INT_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value);
 do_encode_value(Value) when ?AVRO_IS_LONG_VALUE(Value) ->
-  %% mochijson3 encodes more than 4-bytes integers as floats
-  {json, integer_to_list(?AVRO_VALUE_DATA(Value))};
+  ?AVRO_VALUE_DATA(Value);
 do_encode_value(Value) when ?AVRO_IS_FLOAT_VALUE(Value) ->
-  ?AVRO_VALUE_DATA(Value);
+  encode_float(?AVRO_VALUE_DATA(Value));
 do_encode_value(Value) when ?AVRO_IS_DOUBLE_VALUE(Value) ->
-  ?AVRO_VALUE_DATA(Value);
+  encode_float(?AVRO_VALUE_DATA(Value));
 do_encode_value(Value) when ?AVRO_IS_BYTES_VALUE(Value) ->
-  %% mochijson3 doesn't support Avro style of encoding binaries
-  {json, encode_binary(?AVRO_VALUE_DATA(Value))};
+  %% jsone treats binary as utf8 string
+  ?INLINE(encode_binary(?AVRO_VALUE_DATA(Value)));
 do_encode_value(Value) when ?AVRO_IS_STRING_VALUE(Value) ->
   encode_string(?AVRO_VALUE_DATA(Value));
 do_encode_value(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   FieldsAndValues = avro_record:to_list(Record),
-  { struct
-  , lists:map(fun encode_field_with_value/1, FieldsAndValues)
-  };
+  lists:map(fun encode_field_with_value/1, FieldsAndValues);
 do_encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
   encode_string(?AVRO_VALUE_DATA(Enum));
 do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
 do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
   L = dict:to_list(avro_map:to_dict(Map)),
-  { struct
-  , lists:map(fun encode_field_with_value/1, L)
-  };
+  lists:map(fun encode_field_with_value/1, L);
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   Data = avro_union:get_value(Union),
   case ?AVRO_IS_NULL_VALUE(Data) of
-    true  -> null; %% Nulls don't need a type to be specified
+    true ->
+      null; %% Nulls don't need a type to be specified
     false ->
-      { struct
-      , [{encode_string(avro:get_type_fullname(?AVRO_VALUE_TYPE(Data))),
-          do_encode_value(Data)}]
-      }
+      TypeName = encode_string(avro:get_type_fullname(?AVRO_VALUE_TYPE(Data))),
+      [{TypeName, do_encode_value(Data)}]
   end;
 do_encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
-  %% mochijson3 doesn't support Avro style of encoding binaries
-  {json, encode_binary(?AVRO_VALUE_DATA(Fixed))}.
+  %% jsone treats binary as utf8 string
+  ?INLINE(encode_binary(?AVRO_VALUE_DATA(Fixed))).
 
 %% @private
 encode_field_with_value({FieldName, Value}) ->
@@ -295,6 +281,10 @@ to_hex(D) when D >= 0 andalso D =< 9 ->
   D + $0;
 to_hex(D) when D >= 10 andalso D =< 15 ->
   D - 10 + $a.
+
+%% @private
+encode_float(Number) ->
+  ?INLINE(iolist_to_binary(io_lib:format("~p", [Number]))).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
