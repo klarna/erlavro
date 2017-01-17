@@ -146,8 +146,7 @@ encode_wrapped(Lkup, Type, Value, Encoding) ->
              decoder_hook_fun()) -> term().
 decode(avro_json, JSON, TypeOrName, StoreOrLkup, Hook) ->
   avro_json_decoder:decode_value(JSON, TypeOrName, StoreOrLkup,
-                                 [{is_wrapped, false},
-                                  {json_decoder, mochijson3}], Hook);
+                                 [{is_wrapped, false}], Hook);
 decode(avro_binary, Bin, TypeOrName, StoreOrLkup, Hook) ->
   avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Hook).
 
