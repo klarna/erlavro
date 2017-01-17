@@ -40,6 +40,8 @@
 -type options() :: [{option_name(), term()}].
 -type hook() :: decoder_hook_fun().
 
+-define(JSON_OBJ(__FIELDS__), {__FIELDS__}).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -56,7 +58,8 @@ decode_schema(JsonSchema, Store) when not is_function(Store) ->
   ExtractTypeFun = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   decode_schema(JsonSchema, ExtractTypeFun);
 decode_schema(JsonSchema, ExtractTypeFun) ->
-  parse_schema(mochijson3:decode(JsonSchema), "", ExtractTypeFun).
+  Decoded = decode_json(JsonSchema),
+  parse_schema(Decoded, "", ExtractTypeFun).
 
 %% @doc Decode value specified as Json string according to Avro schema
 %% in Schema. ExtractTypeFun should be provided to retrieve types
@@ -91,22 +94,25 @@ decode_value(JsonValue, Schema, Store, Options, Hook)
   ExtractTypeFun = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   decode_value(JsonValue, Schema, ExtractTypeFun, Options, Hook);
 decode_value(JsonValue, Schema, ExtractTypeFun, Options, Hook) ->
-  DecodedJson = mochijson3:decode(JsonValue),
+  DecodedJson = decode_json(JsonValue),
   IsWrapped = case lists:keyfind(is_wrapped, 1, Options) of
                 {is_wrapped, V} -> V;
                 false           -> true %% parse to wrapped value by default
               end,
   parse(DecodedJson, Schema, ExtractTypeFun, IsWrapped, Hook).
 
-%% @doc This function is kept for backward compatibility.
-%% it calls decode_value/4 forcing to use mochijson3 as json decoder.
-%% @end
+%% @doc Decode value with default options and default hook.
 -spec decode_value(binary(),
                    avro_type_or_name(),
                    schema_store() | lkup_fun()) -> avro_value().
 decode_value(JsonValue, Schema, StoreOrLkupFun) ->
   decode_value(JsonValue, Schema, StoreOrLkupFun, []).
 
+%% @doc Decode value with default hook.
+-spec decode_value(binary(),
+                   avro_type_or_name(),
+                   schema_store() | lkup_fun(),
+                   options()) -> avro_value() | term().
 decode_value(JsonValue, Schema, StoreOrLkupFun, Options) ->
   decode_value(JsonValue, Schema, StoreOrLkupFun,
                Options, ?DEFAULT_DECODER_HOOK).
@@ -116,7 +122,7 @@ decode_value(JsonValue, Schema, StoreOrLkupFun, Options) ->
 %%%===================================================================
 
 %% @private
-parse_schema({struct, Attrs}, EnclosingNs, ExtractTypeFun) ->
+parse_schema(?JSON_OBJ(Attrs), EnclosingNs, ExtractTypeFun) ->
   %% Json object: this is a type definition (except for unions)
   parse_type(Attrs, EnclosingNs, ExtractTypeFun);
 parse_schema(Array, EnclosingNs, ExtractTypeFun) when is_list(Array) ->
@@ -175,7 +181,7 @@ parse_record_type(Attrs, EnclosingNs, ExtractTypeFun) ->
 
 %% @private
 parse_record_fields(Fields, EnclosingNs, ExtractTypeFun) ->
-  lists:map(fun({struct, FieldAttrs}) ->
+  lists:map(fun(?JSON_OBJ(FieldAttrs)) ->
                 parse_record_field(FieldAttrs, EnclosingNs, ExtractTypeFun);
                (_) ->
                 erlang:error(wrong_record_field_specification)
@@ -405,7 +411,7 @@ parse_bytes(_, _) ->
   erlang:error(wrong_bytes_string).
 
 %% @private
-parse_record({struct, Attrs}, Type, ExtractFun, IsWrapped, Hook) ->
+parse_record(?JSON_OBJ(Attrs), Type, ExtractFun, IsWrapped, Hook) ->
   Hook(Type, none, Attrs,
        fun(JsonValues) ->
          Fields = convert_attrs_to_record_fields(JsonValues, Type, ExtractFun,
@@ -459,7 +465,7 @@ parse_array(_, _, _, _, _) ->
   erlang:error(wrong_array_value).
 
 %% @private
-parse_map({struct, Attrs}, Type, ExtractFun, IsWrapped, Hook) ->
+parse_map(?JSON_OBJ(Attrs), Type, ExtractFun, IsWrapped, Hook) ->
   ItemsType = avro_map:get_items_type(Type),
   D = lists:foldl(
         fun({KeyBin, Value}, D) ->
@@ -480,7 +486,7 @@ parse_map({struct, Attrs}, Type, ExtractFun, IsWrapped, Hook) ->
 parse_union(null = Value, Type, ExtractFun, IsWrapped, Hook) ->
   %% Union values specified as null
   parse_union_ex(?AVRO_NULL, Value, Type, ExtractFun, IsWrapped, Hook);
-parse_union({struct, [{ValueTypeNameBin, Value}]},
+parse_union(?JSON_OBJ([{ValueTypeNameBin, Value}]),
             Type, ExtractFun, IsWrapped, Hook) ->
   %% Union value specified as {"type": <value>}
   ValueTypeName = binary_to_list(ValueTypeNameBin),
@@ -515,6 +521,8 @@ do_parse_union_ex(ValueTypeName, Value, UnionType,
       erlang:error(unknown_type_of_union_value)
   end.
 
+%% @private Always use tuple as object foramt.
+decode_json(JSON) -> jsone:decode(JSON, [{object_format, tuple}]).
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

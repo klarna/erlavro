@@ -64,7 +64,7 @@ encode_float_test() ->
   ?assertEqual(<<"3.14159265358">>, Json).
 
 encode_float_precision_lost_test() ->
-  ?assertEqual(<<"1.0e+16">>,
+  ?assertEqual(<<"1.0e16">>,
     encode_value(avro_primitive:float(10000000000000001))).
 
 encode_integer_float_test() ->
@@ -108,8 +108,12 @@ encode_string_with_quoting_test() ->
   ?assertEqual(<<"\"\\\"\\\\\"">>, Json).
 
 encode_utf8_string_test() ->
+  %% This file is in latin-1 encoding.
+  %% To test utf8, we need to perform a latin1 to utf8 translation
   S = unicode:characters_to_binary("Avro är populär", latin1, utf8),
   Json = encode_value(avro_primitive:string(binary_to_list(S))),
+  %% And because it's in latin-1 encoding, we need to hard-code
+  %% the expected utf8 string with byte-lists inline
   Expected0 = ["\"Avro " ++ [195,164] ++ "r popul"++ [195,164] ++ "r\""],
   Expected = iolist_to_binary(Expected0),
   ?assertEqual(Expected, Json).

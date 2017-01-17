@@ -29,15 +29,12 @@ Where `in()` and `out()` refer to the input and output type specs recursively
 
 ## Important Notes about Unicode Strings
 
-The binary encoder/decoder will respect whatever is given in the input (bytes). 
+The binary and JSON encoder/decoder will respect whatever is given in the input (bytes). 
 i.e. The encoder will NOT try to be smart and encode the input `string()` to utf8 (or whatsoever), 
 and the decoder will not try to validate or decode the input `binary()` as unicode character list. 
 
 The encoder caller should make sure the input is of spec `[byte()] | binary()`, 
 NOT a unicode character list which may possibly contain some code points greater than 255.
-
-For historical reason, the JSON encoder will try to encode strings in utf8. 
-And the JSON decoder will try to validate the input strings as utf8 -- as it's how mochijson3 implemented
 
 # Examples
 
