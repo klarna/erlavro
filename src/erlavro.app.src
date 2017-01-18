@@ -5,7 +5,9 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  mochijson3,
+                  jsonx
                  ]},
   {env, []}
  ]}.
