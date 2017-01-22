@@ -32,11 +32,10 @@ test_debug_hook(Encoding) ->
   HistLen = 10,
   Hook = avro_decoder_hooks:print_debug_trace(LogFun, HistLen),
   MyRecordType =
-    avro_record:type(
-      "MyRecord",
-      [avro_record:define_field("f1", avro_primitive:int_type()),
-       avro_record:define_field("f2", avro_primitive:string_type())],
-      [{namespace, "com.example"}]),
+    avro_record:type("MyRecord",
+                     [ define_field("f1", avro_primitive:int_type())
+                     , define_field("f2", avro_primitive:string_type())],
+                     [{namespace, "com.example"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, CodecOptions),
   Term = [{"f1", 1},{"f2","my-string"}],
@@ -44,10 +43,8 @@ test_debug_hook(Encoding) ->
   %% Mkae a corrupted binary to decode
   CorruptedBin = corrupt_encoded(Encoding, Bin),
   Decoder = avro:make_decoder(Store, [{hook, Hook} | CodecOptions]),
-  ?assertException(
-    _Class,
-    {'$hook-raised', _},
-    Decoder("com.example.MyRecord", CorruptedBin)),
+  ?assertException(_Class, {'$hook-raised', _},
+                   Decoder("com.example.MyRecord", CorruptedBin)),
   ok.
 
 %% @private
@@ -61,6 +58,9 @@ corrupt_encoded(avro_json, Bin) ->
   %% for json, replace the last string with an integer
   %% to violate the type check
   binary:replace(Bin, <<"\"my-string\"">>, <<"42">>).
+
+%% @private
+define_field(Name, Type) -> avro_record:define_field(Name, Type).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

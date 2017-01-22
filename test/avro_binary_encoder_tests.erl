@@ -74,11 +74,11 @@ encode_float_precision_lost_test() ->
   %% Warning: implementation of doubles in erlang loses
   %% precision on such numbers.
   ?assertBinEq(<<202,27,14,90>>,
-    encode_value(avro_primitive:float(10000000000000001))).
+               encode_value(avro_primitive:float(10000000000000001))).
 
 encode_integer_float_test() ->
   ?assertBinEq(<<180, 74, 146, 82>>,
-    encode_value(avro_primitive:float(314159265358))).
+               encode_value(avro_primitive:float(314159265358))).
 
 encode_double_test() ->
   BinDouble = encode_value(avro_primitive:double(3.14159265358)),
@@ -86,7 +86,7 @@ encode_double_test() ->
 
 encode_integer_double_test() ->
   ?assertBinEq(<<0, 128, 147, 125, 86, 73, 82, 66>>,
-    encode_value(avro_primitive:double(314159265358))).
+               encode_value(avro_primitive:double(314159265358))).
 
 encode_empty_bytes_test() ->
   BinBytes = encode_value(avro_primitive:bytes(<<>>)),
@@ -99,7 +99,7 @@ encode_bytes_test() ->
 encode_string_test() ->
   BinString = encode_value(avro_primitive:string("Hello, Avro!")),
   ?assertBinEq([24, <<72, 101, 108, 108, 111, 44, 32,
-    65, 118, 114, 111, 33>>], BinString).
+                      65, 118, 114, 111, 33>>], BinString).
 
 encode_string_with_quoting_test() ->
   BinString = encode_value(avro_primitive:string("\"\\")),
@@ -114,20 +114,20 @@ encode_record_test() ->
   BinRecord = encode_value(sample_record()),
   Expected =
     [<<1>>, %% bool
-      <<200,1>>, %% int
-      <<170,252,130,205,245,210,205,182,3>>, % long
-      <<84, 248, 45, 64>>, % float
-      <<244, 214, 67, 84, 251, 33, 9, 64>>, % double
-      [22, <<98, 121, 116, 101, 115, 32, 118, 97, 108, 117, 101>>], % bytes
-      [12, <<115, 116, 114, 105, 110, 103>>] % string
+     <<200,1>>, %% int
+     <<170,252,130,205,245,210,205,182,3>>, % long
+     <<84, 248, 45, 64>>, % float
+     <<244, 214, 67, 84, 251, 33, 9, 64>>, % double
+     [22, <<98, 121, 116, 101, 115, 32, 118, 97, 108, 117, 101>>], % bytes
+     [12, <<115, 116, 114, 105, 110, 103>>] % string
     ],
   ?assertBinEq(Expected, BinRecord).
 
 encode_enum_test() ->
   EnumType = avro_enum:type("TestEnum",
-    ["SYMBOL_0", "SYMBOL_1", "SYMBOL_2",
-      "SYMBOL_3", "SYMBOL_4", "SYMBOL_5"],
-    [{namespace, "com.klarna.test.bix"}]),
+                            ["SYMBOL_0", "SYMBOL_1", "SYMBOL_2",
+                             "SYMBOL_3", "SYMBOL_4", "SYMBOL_5"],
+                            [{namespace, "com.klarna.test.bix"}]),
   EnumValue = ?AVRO_VALUE(EnumType, "SYMBOL_4"),
   BynaryEnum = encode_value(EnumValue),
   ?assertBinEq([8], BynaryEnum).
@@ -150,18 +150,12 @@ encode_empty_map_test() ->
 encode_map_test() ->
   Type = avro_map:type(avro_primitive:int_type()),
   TypedValue = avro_map:new(Type, [{"a", 3}, {"b", 27}]),
-  Body = iolist_to_binary([string("a"),
-    int(3),
-    string(<<"b">>),
-    int(27)]),
-  ?assertBinEq([long(-2),
-    long(size(Body)),
-    Body,
-    0], encode_value(TypedValue)).
+  Body = iolist_to_binary([string("a"), int(3), string(<<"b">>), int(27)]),
+  ?assertBinEq([long(-2), long(size(Body)), Body, 0], encode_value(TypedValue)).
 
 encode_union_test() ->
   Type = avro_union:type([avro_primitive:null_type(),
-    avro_primitive:string_type()]),
+                          avro_primitive:string_type()]),
   Value1 = avro_union:new(Type, null),
   Value2 = avro_union:new(Type, "a"),
   ?assertBinEq([0], encode_value(Value1)),
@@ -173,10 +167,11 @@ encode_fixed_test() ->
   ?assertBinEq(<<1, 127>>, encode_value(Value)).
 
 encode_binary_properly_test() ->
-  MyRecordType = avro_record:type("MyRecord",
-    [avro_record:define_field("f1", avro_primitive:int_type()),
-      avro_record:define_field("f2", avro_primitive:string_type())],
-    [{namespace, "my.com"}]),
+  MyRecordType =
+    avro_record:type("MyRecord",
+                     [define_field("f1", avro_primitive:int_type()),
+                      define_field("f2", avro_primitive:string_type())],
+                     [{namespace, "my.com"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Term = [{"f1", 1}, {"f2", "my string"}],
   Encoded = encode(Store, "my.com.MyRecord", Term),
@@ -202,40 +197,38 @@ encode_map_properly_test() ->
   Encoded = encode(fun(_) -> Type end, "some map", [{"a", 3}, {"b", 27}]),
   ?assertBinEq(encode_value(TypedValue), Encoded).
 
-
 %% @private
 sample_record_type() ->
-  avro_record:type(
-    "SampleRecord",
-    [ avro_record:define_field("bool", avro_primitive:boolean_type(),
-      [ {doc, "bool f"}
-      , {default, avro_primitive:boolean(false)}
-      ])
-    , avro_record:define_field("int", avro_primitive:int_type(),
-      [ {doc, "int f"}
-      , {default, avro_primitive:int(0)}
-      ])
-    , avro_record:define_field("long", avro_primitive:long_type(),
-      [ {doc, "long f"}
-      , {default, avro_primitive:long(42)}
-      ])
-    , avro_record:define_field("float", avro_primitive:float_type(),
-      [ {doc, "float f"}
-      , {default, avro_primitive:float(3.14)}
-      ])
-    , avro_record:define_field("double", avro_primitive:double_type(),
-      [ {doc, "double f"}
-      , {default, avro_primitive:double(6.67221937)}
-      ])
-    , avro_record:define_field("bytes", avro_primitive:bytes_type(),
-      [ {doc, "bytes f"}
-      ])
-    , avro_record:define_field("string", avro_primitive:string_type(),
-      [ {doc, "string f"}
-      ])
-    ],
-    [ {namespace, "com.klarna.test.bix"}
-    , {doc, "Record documentation"}]).
+  avro_record:type("SampleRecord",
+                   [ define_field("bool", avro_primitive:boolean_type(),
+                                  [ {doc, "bool f"}
+                                  , {default, avro_primitive:boolean(false)}
+                                  ])
+                   , define_field("int", avro_primitive:int_type(),
+                                  [ {doc, "int f"}
+                                  , {default, avro_primitive:int(0)}
+                                  ])
+                   , define_field("long", avro_primitive:long_type(),
+                                  [ {doc, "long f"}
+                                  , {default, avro_primitive:long(42)}
+                                  ])
+                   , define_field("float", avro_primitive:float_type(),
+                                  [ {doc, "float f"}
+                                  , {default, avro_primitive:float(3.14)}
+                                  ])
+                   , define_field("double", avro_primitive:double_type(),
+                                  [ {doc, "double f"}
+                                  , {default, avro_primitive:double(6.67221937)}
+                                  ])
+                   , define_field("bytes", avro_primitive:bytes_type(),
+                                  [ {doc, "bytes f"}
+                                  ])
+                   , define_field("string", avro_primitive:string_type(),
+                                  [ {doc, "string f"}
+                                  ])
+                   ],
+                   [ {namespace, "com.klarna.test.bix"}
+                   , {doc, "Record documentation"}]).
 
 %% @private
 sample_record() ->
@@ -248,6 +241,14 @@ sample_record() ->
     , {"float",  2.718281828}
     , {"bytes",  <<"bytes value">>}
     ]).
+
+%% @private
+define_field(Name, Type) ->
+  avro_record:define_field(Name, Type).
+
+%% @private
+define_field(Name, Type, Opts) ->
+  avro_record:define_field(Name, Type, Opts).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

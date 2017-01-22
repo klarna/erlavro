@@ -30,8 +30,9 @@ cast_test() ->
   ArrayType = avro_array:type(avro_primitive:string_type()),
   {ok, Array} = avro_array:cast(ArrayType, ["a", "b"]),
   ?assertEqual(ArrayType, ?AVRO_VALUE_TYPE(Array)),
-  ?assertEqual([avro_primitive:string("a"), avro_primitive:string("b")],
-    ?AVRO_VALUE_DATA(Array)).
+  ?assertEqual([ avro_primitive:string("a")
+               , avro_primitive:string("b")
+               ], ?AVRO_VALUE_DATA(Array)).
 
 prepend_test() ->
   ArrayType = avro_array:type(avro_primitive:string_type()),
@@ -44,10 +45,9 @@ new_direct_test() ->
   Type = avro_array:type(avro_primitive:int_type()),
   NewVersion = avro_array:new(Type, [1,2,3]),
   DirectVersion = avro_array:new_direct(Type,
-    [ avro_primitive:int(1)
-      , avro_primitive:int(2)
-      , avro_primitive:int(3)
-    ]),
+                                        [ avro_primitive:int(1)
+                                        , avro_primitive:int(2)
+                                        , avro_primitive:int(3)]),
   ?assertEqual(NewVersion, DirectVersion).
 
 %%%_* Emacs ====================================================================
