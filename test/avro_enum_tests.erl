@@ -36,7 +36,7 @@ non_unique_symbols_test() ->
 
 incorrect_name_test() ->
   ?assertError({invalid_name, "c-1"},
-    type("FooBar", ["a", "b", "c-1", "d", "c", "e"])).
+               type("FooBar", ["a", "b", "c-1", "d", "c", "e"])).
 
 correct_cast_from_enum_test() ->
   SourceType = type("MyEnum", ["a", "b", "c", "d"]),

@@ -38,7 +38,7 @@ interop_test() ->
   {Header1, Schema1, Objects1} = avro_ocf:decode_file(MyFile),
   ?assertEqual(Header#header{meta = []}, Header1#header{meta = []}),
   ?assertEqual(lists:keysort(1, Header#header.meta),
-    lists:keysort(1, Header1#header.meta)),
+               lists:keysort(1, Header1#header.meta)),
   ?assertEqual(Schema, Schema1),
   ?assertEqual(Objects, Objects1).
 

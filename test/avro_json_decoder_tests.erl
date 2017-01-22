@@ -180,8 +180,8 @@ parse_record_value_test() ->
   Value = parse_value(Json, TestRecord, none),
   ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Value)),
   ?assertEqual(avro_array:new(avro_record:get_field_type("array", TestRecord),
-                              [avro_primitive:string("ACTIVE"),
-                               avro_primitive:string("CLOSED")]),
+                              [ avro_primitive:string("ACTIVE")
+                              , avro_primitive:string("CLOSED")]),
                avro_record:get_value("array", Value)),
   ?assertEqual(avro_primitive:boolean(true),
                avro_union:get_value(avro_record:get_value("union", Value))).

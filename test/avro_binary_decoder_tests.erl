@@ -84,7 +84,7 @@ decode_utf8_string_test() ->
   Utf8 = unicode:characters_to_binary(Str, latin1, utf8),
   Enc = [size(Utf8) * 2, Utf8],
   ?assertEqual(binary_to_list(Utf8),
-    decode_t(Enc, avro_primitive:string_type())),
+               decode_t(Enc, avro_primitive:string_type())),
   ?assertEqual(Str, unicode:characters_to_list(Utf8, utf8)).
 
 decode_empty_array_test() ->
@@ -109,8 +109,8 @@ decode_map_test() ->
   ?assertEqual([{"a", 0}, {"b", 1}], decode_t(Data2, Type)).
 
 decode_union_test() ->
-  Type = avro_union:type([avro_primitive:null_type(),
-    avro_primitive:string_type()]),
+  Type = avro_union:type([ avro_primitive:null_type()
+                         , avro_primitive:string_type()]),
   Value1 = [0],
   Value2 = [2, 2, "a"],
   ?assertEqual(null, decode_t(Value1, Type)),
@@ -124,67 +124,67 @@ sample_record_type() ->
   avro_record:type(
     "SampleRecord",
     [ avro_record:define_field("bool", avro_primitive:boolean_type(),
-      [ {doc, "bool f"}
-        , {default, avro_primitive:boolean(false)}
-      ])
-      , avro_record:define_field("int", avro_primitive:int_type(),
-      [ {doc, "int f"}
-        , {default, avro_primitive:int(0)}
-      ])
-      , avro_record:define_field("long", avro_primitive:long_type(),
-      [ {doc, "long f"}
-        , {default, avro_primitive:long(42)}
-      ])
-      , avro_record:define_field("float", avro_primitive:float_type(),
-      [ {doc, "float f"}
-        , {default, avro_primitive:float(3.14)}
-      ])
-      , avro_record:define_field("double", avro_primitive:double_type(),
-      [ {doc, "double f"}
-        , {default, avro_primitive:double(6.67221937)}
-      ])
-      , avro_record:define_field("bytes", avro_primitive:bytes_type(),
-      [ {doc, "bytes f"}
-      ])
-      , avro_record:define_field("string", avro_primitive:string_type(),
-      [ {doc, "string f"}
-      ])
-      , avro_record:define_field("array",
-      avro_array:type(avro_primitive:long_type()),
-      [ {doc, "array f"}
-      ])
-      , avro_record:define_field("map",
-      avro_map:type(avro_primitive:long_type()),
-      [ {doc, "map f"}
-      ])
+                               [ {doc, "bool f"}
+                               , {default, avro_primitive:boolean(false)}
+                               ])
+    , avro_record:define_field("int", avro_primitive:int_type(),
+                               [ {doc, "int f"}
+                               , {default, avro_primitive:int(0)}
+                               ])
+    , avro_record:define_field("long", avro_primitive:long_type(),
+                               [ {doc, "long f"}
+                               , {default, avro_primitive:long(42)}
+                               ])
+    , avro_record:define_field("float", avro_primitive:float_type(),
+                               [ {doc, "float f"}
+                               , {default, avro_primitive:float(3.14)}
+                               ])
+    , avro_record:define_field("double", avro_primitive:double_type(),
+                               [ {doc, "double f"}
+                               , {default, avro_primitive:double(6.67221937)}
+                               ])
+    , avro_record:define_field("bytes", avro_primitive:bytes_type(),
+                               [ {doc, "bytes f"}
+                               ])
+    , avro_record:define_field("string", avro_primitive:string_type(),
+                               [ {doc, "string f"}
+                               ])
+    , avro_record:define_field("array",
+                               avro_array:type(avro_primitive:long_type()),
+                               [ {doc, "array f"}
+                               ])
+    , avro_record:define_field("map",
+                               avro_map:type(avro_primitive:long_type()),
+                               [ {doc, "map f"}
+                               ])
     ],
     [ {namespace, "com.klarna.test.bix"}
-      , {doc, "Record documentation"}]).
+    , {doc, "Record documentation"}]).
 
 sample_record_binary() ->
   [<<1>>, %% bool
-    <<200,1>>, %% int
-    <<170,252,130,205,245,210,205,182,3>>, % long
-    <<84, 248, 45, 64>>, % float
-    <<244, 214, 67, 84, 251, 33, 9, 64>>, % double
-    [22, <<98, 121, 116, 101, 115, 32, 118, 97, 108, 117, 101>>], % bytes
-    [12, <<115, 116, 114, 105, 110, 103>>], % string
-    [2, 0, 0], %% array
-    [0] %% map
+   <<200,1>>, %% int
+   <<170,252,130,205,245,210,205,182,3>>, % long
+   <<84, 248, 45, 64>>, % float
+   <<244, 214, 67, 84, 251, 33, 9, 64>>, % double
+   [22, <<98, 121, 116, 101, 115, 32, 118, 97, 108, 117, 101>>], % bytes
+   [12, <<115, 116, 114, 105, 110, 103>>], % string
+   [2, 0, 0], %% array
+   [0] %% map
   ].
 
 decode_record_test() ->
   Fields = decode_t(sample_record_binary(), sample_record_type()),
   ?assertMatch([ {"bool",   true}
-    , {"int",    100}
-    , {"long",   123456789123456789}
-    , {"float",  _}
-    , {"double", _}
-    , {"bytes",  <<"bytes value">>}
-    , {"string", "string"}
-    , {"array",  [0]}
-    , {"map",    []}
-  ], Fields).
+               , {"int",    100}
+               , {"long",   123456789123456789}
+               , {"float",  _}
+               , {"double", _}
+               , {"bytes",  <<"bytes value">>}
+               , {"string", "string"}
+               , {"array",  [0]}
+               , {"map",    []}
+               ], Fields).
 
 decode_with_hook_test() ->
   Binary = sample_record_binary(),
@@ -193,15 +193,15 @@ decode_with_hook_test() ->
   Hook = avro_decoder_hooks:pretty_print_hist(),
   Fields = decode(Binary, Schema, Lkup, Hook),
   ?assertMatch([ {"bool",   true}
-    , {"int",    100}
-    , {"long",   123456789123456789}
-    , {"float",  _}
-    , {"double", _}
-    , {"bytes",  <<"bytes value">>}
-    , {"string", "string"}
-    , {"array",  [0]}
-    , {"map",    []}
-  ], Fields).
+               , {"int",    100}
+               , {"long",   123456789123456789}
+               , {"float",  _}
+               , {"double", _}
+               , {"bytes",  <<"bytes value">>}
+               , {"string", "string"}
+               , {"array",  [0]}
+               , {"map",    []}
+               ], Fields).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

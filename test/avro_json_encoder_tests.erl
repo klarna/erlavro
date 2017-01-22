@@ -260,10 +260,11 @@ encode_fixed_value_test() ->
   ?assertEqual(<<"\"\\u0001\\u007f\"">>, Json).
 
 check_json_encode_record_properly_test() ->
-  MyRecordType = avro_record:type("MyRecord",
-    [avro_record:define_field("f1", avro_primitive:int_type()),
-      avro_record:define_field("f2", avro_primitive:string_type())],
-    [{namespace, "my.com"}]),
+  MyRecordType =
+    avro_record:type("MyRecord",
+                     [ define_field("f1", avro_primitive:int_type())
+                     , define_field("f2", avro_primitive:string_type())],
+                     [{namespace, "my.com"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Term = [{"f1", 1},{"f2","my string"}],
   {ok, AvroValue} = avro:cast(MyRecordType, Term),
@@ -271,14 +272,13 @@ check_json_encode_record_properly_test() ->
   JSON = encode(Store, "my.com.MyRecord", Term),
   ?assertEqual(ExpectedJSON, JSON),
   ?assertEqual(Term,
-    avro_json_decoder:decode_value(JSON, "my.com.MyRecord", Store,
-                                   [{is_wrapped, false}])).
+               avro_json_decoder:decode_value(JSON, "my.com.MyRecord",
+                                              Store, [{is_wrapped, false}])).
 
 check_json_encode_enum_properly_test() ->
   EnumType =
-    avro_enum:type("Enum",
-      ["A", "B", "C"],
-      [{namespace, "com.klarna.test.bix"}]),
+    avro_enum:type("Enum", ["A", "B", "C"],
+                   [{namespace, "com.klarna.test.bix"}]),
   Store = avro_schema_store:add_type(EnumType, avro_schema_store:new([])),
   EnumValue = ?AVRO_VALUE(EnumType, "B"),
   EnumValueJson = encode_value(EnumValue),
@@ -287,9 +287,8 @@ check_json_encode_enum_properly_test() ->
 
 check_json_encode_array_properly_test() ->
   Type = avro_array:type(avro_primitive:string_type()),
-  Value = avro_array:new(Type,
-    [ avro_primitive:string("a")
-    , avro_primitive:string("b")]),
+  Value = avro_array:new(Type, [ avro_primitive:string("a")
+                               , avro_primitive:string("b")]),
   ExpectedJSON = encode_value(Value),
   JSON = encode(fun(_) -> Type end, "some_array", ["a", "b"]),
   ?assertEqual(ExpectedJSON, JSON).
@@ -332,34 +331,26 @@ check_json_encode_fixed_properly_test() ->
 sample_record_type() ->
   avro_record:type(
     "SampleRecord",
-    [ avro_record:define_field("bool", avro_primitive:boolean_type(),
-      [ {doc, "bool f"}
-      , {default, avro_primitive:boolean(false)}
-      ])
-    , avro_record:define_field("int", avro_primitive:int_type(),
-      [ {doc, "int f"}
-      , {default, avro_primitive:int(0)}
-      ])
-    , avro_record:define_field("long", avro_primitive:long_type(),
-      [ {doc, "long f"}
-      , {default, avro_primitive:long(42)}
-      ])
-    , avro_record:define_field("float", avro_primitive:float_type(),
-      [ {doc, "float f"}
-      , {default, avro_primitive:float(3.14)}
-      ])
-    , avro_record:define_field("double", avro_primitive:double_type(),
-      [ {doc, "double f"}
-      , {default, avro_primitive:double(6.67221937)}
-      ])
-    , avro_record:define_field("bytes", avro_primitive:bytes_type(),
-      [ {doc, "bytes f"}
-      ])
-    , avro_record:define_field("string", avro_primitive:string_type(),
-      [ {doc, "string f"}
-      , {default,
-        avro_primitive:string("string value")}
-      ])
+    [ define_field("bool", avro_primitive:boolean_type(),
+                   [ {doc, "bool f"}
+                   , {default, avro_primitive:boolean(false)} ])
+    , define_field("int", avro_primitive:int_type(),
+                   [ {doc, "int f"}
+                   , {default, avro_primitive:int(0)} ])
+    , define_field("long", avro_primitive:long_type(),
+                   [ {doc, "long f"}
+                   , {default, avro_primitive:long(42)} ])
+    , define_field("float", avro_primitive:float_type(),
+                   [ {doc, "float f"}
+                   , {default, avro_primitive:float(3.14)} ])
+    , define_field("double", avro_primitive:double_type(),
+                   [ {doc, "double f"}
+                   , {default, avro_primitive:double(6.67221937)} ])
+    , define_field("bytes", avro_primitive:bytes_type(),
+                   [ {doc, "bytes f"} ])
+    , define_field("string", avro_primitive:string_type(),
+                   [ {doc, "string f"}
+                   , {default, avro_primitive:string("string value")} ])
     ],
     [ {namespace, "com.klarna.test.bix"}
     , {doc, "Record documentation"}]).
@@ -367,14 +358,14 @@ sample_record_type() ->
 %% @private
 sample_record() ->
   avro_record:new(sample_record_type(),
-    [ {"string", "string value"}
-    , {"double", 3.14159265358}
-    , {"long",   123456789123456789}
-    , {"bool",   true}
-    , {"int",    100}
-    , {"float",  2.718281828}
-    , {"bytes",  <<"bytes value">>}
-    ]).
+                  [ {"string", "string value"}
+                  , {"double", 3.14159265358}
+                  , {"long",   123456789123456789}
+                  , {"bool",   true}
+                  , {"int",    100}
+                  , {"float",  2.718281828}
+                  , {"bytes",  <<"bytes value">>}
+                  ]).
 
 %% @private
 encode_type(Type) ->
@@ -388,6 +379,14 @@ encode_value(Value) ->
 encode(StoreOrLkupFun, TypeOrName, Value) ->
   iolist_to_binary(
     avro_json_encoder:encode(StoreOrLkupFun, TypeOrName, Value)).
+
+%% @private
+define_field(Name, Type) ->
+  avro_record:define_field(Name, Type).
+
+%% @private
+define_field(Name, Type, Opts) ->
+  avro_record:define_field(Name, Type, Opts).
 
 %%%_* Emacs ============================================================
 %%% Local Variables:
