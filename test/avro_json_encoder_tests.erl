@@ -170,10 +170,8 @@ encode_record_test() ->
   ?assertEqual(Expected, Json).
 
 encode_enum_type_test() ->
-  EnumType =
-    avro_enum:type("Enum",
-      ["A", "B", "C"],
-      [{namespace, "com.klarna.test.bix"}]),
+  EnumType = avro_enum:type("Enum", ["A", "B", "C"],
+                            [{namespace, "com.klarna.test.bix"}]),
   EnumTypeJson = encode_type(EnumType),
   ?assertEqual(<<"{"
   "\"namespace\":\"com.klarna.test.bix\","
@@ -183,10 +181,8 @@ encode_enum_type_test() ->
   "}">>, EnumTypeJson).
 
 encode_enum_test() ->
-  EnumType =
-    avro_enum:type("Enum",
-      ["A", "B", "C"],
-      [{namespace, "com.klarna.test.bix"}]),
+  EnumType = avro_enum:type("Enum", ["A", "B", "C"],
+                            [{namespace, "com.klarna.test.bix"}]),
   EnumValue = ?AVRO_VALUE(EnumType, "B"),
   EnumValueJson = encode_value(EnumValue),
   ?assertEqual(<<"\"B\"">>, EnumValueJson).
@@ -198,15 +194,15 @@ encode_union_type_test() ->
   ?assertEqual(<<"[\"string\",\"int\"]">>, Json).
 
 encode_union_test() ->
-  UnionType = avro_union:type([ avro_primitive:string_type()
-    , avro_primitive:int_type()]),
+  UnionType = avro_union:type([avro_primitive:string_type(),
+                               avro_primitive:int_type()]),
   Value = avro_union:new(UnionType, avro_primitive:int(10)),
   Json = encode_value(Value),
   ?assertEqual(<<"{\"int\":10}">>, Json).
 
 encode_union_with_null_test() ->
-  UnionType = avro_union:type([ avro_primitive:string_type()
-    , avro_primitive:null_type()]),
+  UnionType = avro_union:type([avro_primitive:string_type(),
+                               avro_primitive:null_type()]),
   Value = avro_union:new(UnionType, avro_primitive:null()),
   Json = encode_value(Value),
   ?assertEqual(<<"null">>, Json).
@@ -218,33 +214,29 @@ encode_array_type_test() ->
 
 encode_array_test() ->
   Type = avro_array:type(avro_primitive:string_type()),
-  Value = avro_array:new(Type,
-    [ avro_primitive:string("a")
-      , avro_primitive:string("b")]),
+  Value = avro_array:new(Type, [avro_primitive:string("a"),
+                                avro_primitive:string("b")]),
   Json = encode_value(Value),
   ?assertEqual(<<"[\"a\",\"b\"]">>, Json).
 
 encode_map_type_test() ->
-  MapType = avro_map:type(avro_union:type(
-    [avro_primitive:int_type(),
-      avro_primitive:null_type()])),
+  MapType = avro_map:type(avro_union:type([avro_primitive:int_type(),
+                                           avro_primitive:null_type()])),
   Json = encode_type(MapType),
   ?assertEqual(<<"{\"type\":\"map\",\"values\":[\"int\",\"null\"]}">>, Json).
 
 encode_map_test() ->
-  MapType = avro_map:type(avro_union:type(
-    [avro_primitive:int_type(),
-      avro_primitive:null_type()])),
-  MapValue = avro_map:new(MapType,
-    [{"v1", 1}, {"v2", null}, {"v3", 2}]),
+  MapType = avro_map:type(avro_union:type([avro_primitive:int_type(),
+                                           avro_primitive:null_type()])),
+  MapValue = avro_map:new(MapType, [{"v1", 1}, {"v2", null}, {"v3", 2}]),
   Json = encode_value(MapValue),
-  ?assertEqual(<<"{\"v3\":{\"int\":2},\"v1\":{\"int\":1},\"v2\":null}">>, Json).
+  ?assertEqual(<<"{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}">>, Json).
 
 encode_fixed_type_test() ->
   Type = avro_fixed:type("FooBar", 2,
-    [ {namespace, "name.space"}
-      , {aliases, ["Alias1", "Alias2"]}
-    ]),
+                         [ {namespace, "name.space"}
+                         , {aliases, ["Alias1", "Alias2"]}
+                         ]),
   Json = encode_type(Type),
   ?assertEqual(<<"{"
   "\"namespace\":\"name.space\","
@@ -297,7 +289,7 @@ check_json_encode_map_properly_test() ->
   MapType = avro_map:type(avro_union:type(
     [avro_primitive:int_type(),
       avro_primitive:null_type()])),
-  Value = [{"v1", 1}, {"v2", null}, {"v3", 2}],
+  Value = [{<<"v1">>, 1}, {<<"v2">>, null}, {<<"v3">>, 2}],
   MapValue = avro_map:new(MapType, Value),
   JSON1 = encode_value(MapValue),
   JSON2 = encode(fun(_) -> MapType end, "some_map", Value),

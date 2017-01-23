@@ -467,19 +467,17 @@ parse_array(_, _, _, _, _) ->
 %% @private
 parse_map(?JSON_OBJ(Attrs), Type, ExtractFun, IsWrapped, Hook) ->
   ItemsType = avro_map:get_items_type(Type),
-  D = lists:foldl(
-        fun({KeyBin, Value}, D) ->
+  L = lists:map(
+        fun({KeyBin, Value}) ->
             V = Hook(Type, KeyBin, Value,
                      fun(JsonV) ->
                        parse(JsonV, ItemsType, ExtractFun, IsWrapped, Hook)
                      end),
-            dict:store(binary_to_list(KeyBin), V, D)
-        end,
-        dict:new(),
-        Attrs),
+            {KeyBin, V}
+        end, Attrs),
   case IsWrapped of
-    true  -> avro_map:new(Type, D);
-    false -> dict:to_list(D)
+    true  -> avro_map:new(Type, L);
+    false -> L
   end.
 
 %% @private

@@ -21,7 +21,7 @@ License: Apache License 2.0
 | enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
 | fixed | `binary()` | `binary()` | |
 | array | `list()` | `list()` | |
-| map | `[{Key::string(), Value::in()}]` | `[{Key::string(), Value::out()}]` | Will support `atom() | binary()` as Key for encoder in 2.0 |
+| map | `[{Key::atom()|iolist(), Value::in()}]` | `[{Key::binary(), Value::out()}]` | |
 | record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | Will support `atom()` as `FiledName` for encoder in 2.0 |
 | union | `in() | {Tag::string(), in()}`  | `out() | {Tag::string(), out()}` | Tag is the type name, See notes about unions below |
 

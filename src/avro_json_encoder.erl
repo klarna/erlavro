@@ -247,7 +247,7 @@ do_encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
 do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
 do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
-  L = dict:to_list(avro_map:to_dict(Map)),
+  L = avro_map:to_list(Map),
   lists:map(fun encode_field_with_value/1, L);
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   Data = avro_union:get_value(Union),

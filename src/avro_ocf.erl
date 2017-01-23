@@ -119,8 +119,8 @@ append_file(Fd, Header, SchemaStore, Schema, Objects) ->
 make_header(Type) ->
   TypeJson = avro_json_encoder:encode_type(Type),
   #header{ magic = <<"Obj", 1>>
-         , meta  = [ {"avro.schema", iolist_to_binary(TypeJson)}
-                   , {"avro.codec", <<"null">>}
+         , meta  = [ {<<"avro.schema">>, iolist_to_binary(TypeJson)}
+                   , {<<"avro.codec">>, <<"null">>}
                    ]
          , sync  = generate_sync_bytes()
          }.
