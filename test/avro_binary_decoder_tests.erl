@@ -75,7 +75,7 @@ decode_empty_bytes_test() ->
   ?assertEqual(<<>>, decode_t(<<0>>, avro_primitive:bytes_type())).
 
 decode_string_test() ->
-  Str = "Avro is popular",
+  Str = <<"Avro is popular">>,
   Enc = [30, Str],
   ?assertEqual(Str, decode_t(Enc, avro_primitive:string_type())).
 
@@ -83,8 +83,7 @@ decode_utf8_string_test() ->
   Str = "Avro är populär",
   Utf8 = unicode:characters_to_binary(Str, latin1, utf8),
   Enc = [size(Utf8) * 2, Utf8],
-  ?assertEqual(binary_to_list(Utf8),
-               decode_t(Enc, avro_primitive:string_type())),
+  ?assertEqual(Utf8, decode_t(Enc, avro_primitive:string_type())),
   ?assertEqual(Str, unicode:characters_to_list(Utf8, utf8)).
 
 decode_empty_array_test() ->
@@ -114,7 +113,7 @@ decode_union_test() ->
   Value1 = [0],
   Value2 = [2, 2, "a"],
   ?assertEqual(null, decode_t(Value1, Type)),
-  ?assertEqual("a", decode_t(Value2, Type)).
+  ?assertEqual(<<"a">>, decode_t(Value2, Type)).
 
 decode_fixed_test() ->
   Type = avro_fixed:type("FooBar", 2),
@@ -181,7 +180,7 @@ decode_record_test() ->
                , {"float",  _}
                , {"double", _}
                , {"bytes",  <<"bytes value">>}
-               , {"string", "string"}
+               , {"string", <<"string">>}
                , {"array",  [0]}
                , {"map",    []}
                ], Fields).
@@ -198,7 +197,7 @@ decode_with_hook_test() ->
                , {"float",  _}
                , {"double", _}
                , {"bytes",  <<"bytes value">>}
-               , {"string", "string"}
+               , {"string", <<"string">>}
                , {"array",  [0]}
                , {"map",    []}
                ], Fields).
