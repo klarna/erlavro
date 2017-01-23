@@ -102,7 +102,7 @@ cast_from_dict(ItemsType, Dict) ->
         end;
       (Key, _Value, _Acc) ->
         %% If Key is not a string
-        {error, {wrong_key_value, Key}}
+        {error, {bad_key, Key}}
     end,
     dict:new(),
     Dict).

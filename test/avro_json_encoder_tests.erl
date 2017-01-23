@@ -266,7 +266,7 @@ check_json_encode_record_properly_test() ->
                      , define_field("f2", avro_primitive:string_type())],
                      [{namespace, "my.com"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Term = [{"f1", 1},{"f2","my string"}],
+  Term = [{"f1", 1},{"f2",<<"my string">>}],
   {ok, AvroValue} = avro:cast(MyRecordType, Term),
   ExpectedJSON = encode_value(AvroValue),
   JSON = encode(Store, "my.com.MyRecord", Term),

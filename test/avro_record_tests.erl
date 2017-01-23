@@ -112,7 +112,7 @@ to_term_test() ->
   ?assertEqual(Name, "name.space.Test"),
   ?assertEqual(2, length(Fields)),
   ?assertEqual({"invno", 1}, lists:keyfind("invno", 1, Fields)),
-  ?assertEqual({"name", "some name"}, lists:keyfind("name", 1, Fields)).
+  ?assertEqual({"name", <<"some name">>}, lists:keyfind("name", 1, Fields)).
 
 cast_test() ->
   RecordType = type("Record",

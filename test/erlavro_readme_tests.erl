@@ -42,7 +42,7 @@ binary_encode_decode_test() ->
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, []),
   Decoder = avro:make_decoder(Store, []),
-  Term = [{"f1", 1}, {"f2", "my string"}],
+  Term = [{"f1", 1}, {"f2", <<"my string">>}],
   Bin = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", Bin),
   ok.
@@ -57,7 +57,7 @@ json_encode_decode_test() ->
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
   Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
-  Term = [{"f1", 1}, {"f2", "my string"}],
+  Term = [{"f1", 1}, {"f2", <<"my string">>}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),
   io:put_chars(user, JSON),
@@ -91,8 +91,8 @@ encode_wrapped(CodecOptions) ->
   %% Encode Records with type info wrapped
   %% so they can be used as a drop-in part of wrapper object
   WrappedEncoder = avro:make_encoder(Lkup, [wrapped | CodecOptions]),
-  T1 = [{"f1", null}, {"f2", "str1"}],
-  T2 = [{"f1", "str2"}, {"f2", 2}],
+  T1 = [{"f1", null}, {"f2", <<"str1">>}],
+  T2 = [{"f1", <<"str2">>}, {"f2", 2}],
   %% Encode the records with type info wrapped
   R1 = WrappedEncoder(MyRecordType1, T1),
   R2 = WrappedEncoder(MyRecordType2, T2),
@@ -106,8 +106,8 @@ encode_wrapped(CodecOptions) ->
   %% Tag the decoded values
   Hook = avro_decoder_hooks:tag_unions(),
   Decoder = avro:make_decoder(Lkup, [{hook, Hook} | CodecOptions]),
-  [ {"com.example.MyRecord1", [{"f1", null}, {"f2", "str1"}]}
-  , {"com.example.MyRecord2", [{"f1", "str2"}, {"f2", 2}]}
+  [ {"com.example.MyRecord1", [{"f1", null}, {"f2", <<"str1">>}]}
+  , {"com.example.MyRecord2", [{"f1", <<"str2">>}, {"f2", 2}]}
   ] = Decoder(MyArray, Bin),
   ok.
 

@@ -128,7 +128,7 @@ cast(Type, Value) when ?AVRO_IS_BYTES_TYPE(Type) andalso
 
 cast(Type, Value) when ?AVRO_IS_STRING_TYPE(Type) andalso
                        (is_list(Value) orelse is_binary(Value)) ->
-  {ok, ?AVRO_VALUE(Type, Value)};
+  {ok, ?AVRO_VALUE(Type, erlang:iolist_to_binary(Value))};
 
 %% Casts from other primitive Avro types so that we don't lose data
 

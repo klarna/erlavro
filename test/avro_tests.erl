@@ -47,7 +47,7 @@ get_type_fullname_test() ->
                avro:get_type_fullname(avro_primitive:int_type())).
 
 cast_primitive_test() ->
-  ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_STRING, "abc")},
+  ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_STRING, <<"abc">>)},
                avro:cast(avro_primitive:string_type(), "abc")),
   ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_INT, 1)}, avro:cast("int", 1)),
   ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_LONG, 1)}, avro:cast("long", 1)).

@@ -78,7 +78,7 @@ decode_schema(JsonSchema, ExtractTypeFun) ->
 %%       float:  float().
 %%       double: float().
 %%       bytes:  binary().
-%%       string: string().
+%%       string: binary().
 %%       enum:   string().
 %%       fixed:  binary().
 %%       union:  unwrapped().
@@ -395,7 +395,7 @@ parse_prim(V, Type) when ?AVRO_IS_BYTES_TYPE(Type) andalso
   avro_primitive:bytes(Bin);
 parse_prim(V, Type) when ?AVRO_IS_STRING_TYPE(Type) andalso
                          is_binary(V) ->
-  avro_primitive:string(binary_to_list(V)).
+  avro_primitive:string(V).
 
 %% @private
 parse_bytes(BytesStr) ->
@@ -408,7 +408,7 @@ parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
   Byte = erlang:list_to_integer([B1, B0], 16),
   parse_bytes(Rest, [Byte | Acc]);
 parse_bytes(_, _) ->
-  erlang:error(wrong_bytes_string).
+  erlang:error(bad_bytes).
 
 %% @private
 parse_record(?JSON_OBJ(Attrs), Type, ExtractFun, IsWrapped, Hook) ->

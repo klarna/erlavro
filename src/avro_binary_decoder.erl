@@ -112,7 +112,8 @@ dec(Bin, T, Lkup, Hook) when ?AVRO_IS_MAP_TYPE(T) ->
   ItemsType = avro_map:get_items_type(T),
   ItemDecodeFun =
     fun(_Index, BinIn) ->
-      {Key, Tail1} = prim(BinIn, "string"),
+      {Key0, Tail1} = prim(BinIn, "string"),
+      Key = binary_to_list(Key0), %% TODO: no need when map key is binary
       {Value, Tail} =
         Hook(T, Key, Tail1,
              fun(B) -> do_decode(B, ItemsType, Lkup, Hook) end),
@@ -172,8 +173,7 @@ prim(Bin, "double") ->
 prim(Bin, "bytes") ->
   bytes(Bin);
 prim(Bin, "string") ->
-  {Bytes, Tail} = bytes(Bin),
-  {binary_to_list(Bytes), Tail}.
+  bytes(Bin).
 
 %% @private
 bytes(Bin) ->

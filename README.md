@@ -17,7 +17,7 @@ License: Apache License 2.0
 | float | `integer() | float()` | `float()` | |
 | double | `integer() | float()` | `float()` | |
 | bytes | `binary()` | `binary()` | |
-| string | `[byte()] | binary()` | `[byte()]` | NOT `iolist()` for encoder. Will change decoder output to `binary()` in 2.0 |
+| string | `iolist()` | `binary()` | |
 | enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
 | fixed | `binary()` | `binary()` | |
 | array | `list()` | `list()` | |
@@ -84,7 +84,7 @@ true
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, []),
   Decoder = avro:make_decoder(Store, []),
-  Term = [{"f1", 1}, {"f2", "my string"}],
+  Term = [{"f1", 1}, {"f2", <<"my string">>}],
   Bin = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", Bin),
   ok.
@@ -102,7 +102,7 @@ true
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
   Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
-  Term = [{"f1", 1}, {"f2", "my string"}],
+  Term = [{"f1", 1}, {"f2", <<"my string">>}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),
   io:put_chars(user, JSON),
@@ -141,8 +141,8 @@ JSON to expect:
   %% Encode Records with type info wrapped
   %% so they can be used as a drop-in part of wrapper object
   WrappedEncoder = avro:make_encoder(Lkup, [wrapped | CodecOptions]),
-  T1 = [{"f1", null}, {"f2", "str1"}],
-  T2 = [{"f1", "str2"}, {"f2", 2}],
+  T1 = [{"f1", null}, {"f2", <<"str1">>}],
+  T2 = [{"f1", <<"str2">>}, {"f2", 2}],
   %% Encode the records with type info wrapped
   R1 = WrappedEncoder(MyRecordType1, T1),
   R2 = WrappedEncoder(MyRecordType2, T2),
@@ -156,8 +156,8 @@ JSON to expect:
   %% Tag the decoded values
   Hook = avro_decoder_hooks:tag_unions(),
   Decoder = avro:make_decoder(Lkup, [{hook, Hook} | CodecOptions]),
-  [ {"com.example.MyRecord1", [{"f1", null}, {"f2", "str1"}]}
-  , {"com.example.MyRecord2", [{"f1", "str2"}, {"f2", 2}]}
+  [ {"com.example.MyRecord1", [{"f1", null}, {"f2", <<"str1">>}]}
+  , {"com.example.MyRecord2", [{"f1", <<"str2">>}, {"f2", 2}]}
   ] = Decoder(MyArray, Bin),
   ok.
 ```
