@@ -25,38 +25,21 @@
 %% API
 -export([type/2]).
 -export([type/3]).
--export([type/4]). %% DEPRECATED
--export([type/6]). %% DEPRECATED
 -export([define_field/2]).
 -export([define_field/3]).
--export([field/3]). %% DEPRECATED
--export([field/4]). %% DEPRECATED
 -export([get_field_type/2]).
 -export([get_all_field_types/1]).
 
 -export([cast/2]).
 
 -export([new/2]).
--export([new_encoded/3]). %% DEPRECATED
--export([get/2]). %% DEPRECATED
 -export([get_value/2]).
--export([set/2]). %% DEPRECATED
--export([set/3]). %% DEPRECATED
 -export([set_values/2]).
 -export([set_value/3]).
 -export([update/3]).
 -export([to_list/1]).
 -export([to_term/1]).
 -export([encode/3]).
-
--deprecated({new_encoded, 3, eventually}).
--deprecated({type, 4, eventually}).
--deprecated({type, 6, eventually}).
--deprecated({field, 3 ,eventually}).
--deprecated({field, 4, eventually}).
--deprecated({get, 2, eventually}).
--deprecated({set, 2, eventually}).
--deprecated({set, 3, eventually}).
 
 -include("avro_internal.hrl").
 
@@ -105,21 +88,6 @@ type(Name, Fields, Opts) ->
   avro_util:verify_type(Type),
   Type.
 
-%% @deprecated Use type/2,3 instead
-type(Name, Namespace, Doc, Fields) ->
-  type(Name, Fields,
-       [ {namespace, Namespace}
-       , {doc, Doc}
-       ]).
-
-%% @deprecated Use type/2,3 instead
-type(Name, Namespace, Doc, Fields, Aliases, EnclosingNs) ->
-  type(Name, Fields,
-       [ {namespace, Namespace}
-       , {doc, Doc}
-       , {aliases, Aliases}
-       , {enclosing_ns, EnclosingNs}
-       ]).
 
 define_field(Name, Type) ->
   define_field(Name, Type, []).
@@ -143,17 +111,6 @@ define_field(Name, Type, Opts) ->
   , order   = Order
   , aliases = Aliases
   }.
-
-%% @deprecated Use define_field instead
-field(Name, Type, Doc) ->
-  field(Name, Type, Doc, undefined).
-
-%% @deprecated Use define_field instead
-field(Name, Type, Doc, Default) ->
-  define_field(Name, Type,
-               [ {doc, Doc}
-               , {default, Default}
-               ]).
 
 %% Returns type of the specified field. Aliases can be used for FieldName.
 get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
@@ -196,28 +153,6 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
     {error, Err} -> erlang:error(Err)
   end.
 
-%% @deprecated Create a new record and encod it right away.
-%% NOTE: deprecated, use avro:encode_wrapped/4
-%% @end
--spec new_encoded(#avro_record_type{}, term(), json_binary | avro_encoding()) ->
-        avro_encoded_value().
-new_encoded(Type, Value, json_binary) ->
-  %% this clause is for backward compatibility
-  %% 'json_binary' is used before 1.3
-  new_encoded(Type, Value, avro_json);
-new_encoded(Type, Value, EncodeTo) ->
-  MyName = avro:get_type_fullname(Type),
-  %% Assuming Type is fully constructed. i.e. no type reference
-  %% only self-recursive type lookup is supported
-  Lkup = fun(Name) when Name =:= MyName -> Type;
-            (Name)                      -> erlang:error({unexpected, Name})
-         end,
-  avro:encode_wrapped(Lkup, Type, Value, EncodeTo).
-
-%% @deprecated Use get_value instead
-get(FieldName, Record) ->
-  get_value(FieldName, Record).
-
 -spec get_value(string(), avro_value()) -> avro_value() | no_return().
 get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
@@ -226,10 +161,6 @@ get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
     {_N, V} -> V;
     false   -> erlang:error({unknown_field, FieldName})
   end.
-
-%% @deprecated Use set_values/2 instead
-set(Values, Record) ->
-  set_values(Values, Record).
 
 %% Set values for multiple fields in one call
 -spec set_values([{string(), any()}], avro_value()) ->
@@ -241,10 +172,6 @@ set_values(Values, Record) ->
     end,
     Record,
     Values).
-
-%% @deprecated Use set_value/3 instead
-set(FieldName, Value, Record) ->
-  set_value(FieldName, Value, Record).
 
 %% Set value for the specified field
 -spec set_value(string(), avro_value(), avro_value()) ->
@@ -267,7 +194,7 @@ set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
 
 %% Update the value of a field using provided function.
 %% update(FieldName, Fun, Record) is equivalent to
-%% set(FieldName, Fun(get(FieldName,Record)), Record),
+%% set_value(FieldName, Fun(get(FieldName,Record)), Record),
 %% but faster.
 -spec update(string(), function(), avro_value()) ->
         avro_value() | no_return().
@@ -304,7 +231,7 @@ encode(Type, Value, EncodeFun) ->
   TypeFullName = avro:get_type_fullname(Type),
   FieldValues = get_values_for_encode(Value, TypeFullName),
   TypeAndValueList = zip_record_field_types_with_key_value(
-    TypeFullName, FieldTypes, FieldValues),
+                       TypeFullName, FieldTypes, FieldValues),
   lists:map(EncodeFun, TypeAndValueList).
 
 %%%===================================================================
