@@ -1,4 +1,4 @@
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -18,7 +18,8 @@
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
 %%% @doc Avro Json decoder
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+
 -module(avro_json_decoder).
 
 %% API
@@ -32,39 +33,40 @@
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
--export([parse_value/3, parse_schema/3, parse/5]).
+-export([ parse_value/3
+        , parse_schema/3
+        , parse/5
+        ]).
 -endif.
 
 -type option_name() :: is_wrapped.
 
 -type options() :: [{option_name(), term()}].
 -type hook() :: decoder_hook_fun().
+-type json_value() :: jsone:json_value().
 
 -define(JSON_OBJ(__FIELDS__), {__FIELDS__}).
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+%%%_* APIs =====================================================================
 
+%% @doc Decode JSON schema.
 -spec decode_schema(iodata()) -> avro_type().
 decode_schema(Json) ->
   decode_schema(Json, fun(_) -> erlang:error(no_function) end).
 
-%% Decode Avro schema specified as Json string.
-%% ExtractTypeFun should be a function returning Avro type by its full name,
-%% it is needed to parse default values.
+%% @doc Decode Avro schema specified as Json string.
+%% Schema store or lookup function is needed to parse default values.
+%% @end
 -spec decode_schema(iodata(), schema_store() | lkup_fun()) -> avro_type().
 decode_schema(JsonSchema, Store) when not is_function(Store) ->
-  ExtractTypeFun = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  decode_schema(JsonSchema, ExtractTypeFun);
-decode_schema(JsonSchema, ExtractTypeFun) ->
+  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  decode_schema(JsonSchema, Lkup);
+decode_schema(JsonSchema, Lkup) ->
   Decoded = decode_json(JsonSchema),
-  parse_schema(Decoded, "", ExtractTypeFun).
+  parse_schema(Decoded, ?NS_GLOBAL, Lkup).
 
-%% @doc Decode value specified as Json string according to Avro schema
-%% in Schema. ExtractTypeFun should be provided to retrieve types
-%% specified by their names inside Schema.
-%%
+%% @doc Decode JSON encoded payload to wrapped (boxed) #avro_value{} record,
+%% or unwrapped (unboxed) Erlang term.
 %% Options:
 %%  is_wrapped (optional, default = true)
 %%     By default, this function returns #avro_value{} i.e. all values are
@@ -79,27 +81,27 @@ decode_schema(JsonSchema, ExtractTypeFun) ->
 %%       double: float().
 %%       bytes:  binary().
 %%       string: binary().
-%%       enum:   string().
+%%       enum:   binary().
 %%       fixed:  binary().
-%%       union:  unwrapped().
-%%       array:  [unwrapped()].
-%%       map:    [{Key :: string(), Value :: unwrapped()}].
-%%       record: [{FieldName() :: string(), unwrapped()}]}
+%%       union:  avro:out().
+%%       array:  [avro:out()].
+%%       map:    [{Key :: string(), Value :: avro:out()}].
+%%       record: [{FieldName() :: binary(), FieldValue :: avro:out()}]}
 %% @end
 -spec decode_value(binary(), avro_type_or_name(),
                    schema_store() | lkup_fun(),
-                   options(), hook()) -> avro_value() | term().
+                   options(), hook()) -> avro_value() | avro:out().
 decode_value(JsonValue, Schema, Store, Options, Hook)
  when not is_function(Store) ->
-  ExtractTypeFun = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  decode_value(JsonValue, Schema, ExtractTypeFun, Options, Hook);
-decode_value(JsonValue, Schema, ExtractTypeFun, Options, Hook) ->
+  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  decode_value(JsonValue, Schema, Lkup, Options, Hook);
+decode_value(JsonValue, Schema, Lkup, Options, Hook) ->
   DecodedJson = decode_json(JsonValue),
   IsWrapped = case lists:keyfind(is_wrapped, 1, Options) of
                 {is_wrapped, V} -> V;
                 false           -> true %% parse to wrapped value by default
               end,
-  parse(DecodedJson, Schema, ExtractTypeFun, IsWrapped, Hook).
+  parse(DecodedJson, Schema, Lkup, IsWrapped, Hook).
 
 %% @doc Decode value with default options and default hook.
 -spec decode_value(binary(),
@@ -112,226 +114,235 @@ decode_value(JsonValue, Schema, StoreOrLkupFun) ->
 -spec decode_value(binary(),
                    avro_type_or_name(),
                    schema_store() | lkup_fun(),
-                   options()) -> avro_value() | term().
+                   options()) -> avro_value() | avro:out().
 decode_value(JsonValue, Schema, StoreOrLkupFun, Options) ->
   decode_value(JsonValue, Schema, StoreOrLkupFun,
                Options, ?DEFAULT_DECODER_HOOK).
 
-%%%===================================================================
-%%% Schema parsing
-%%%===================================================================
+%%%_* Internal functions =======================================================
 
 %% @private
-parse_schema(?JSON_OBJ(Attrs), EnclosingNs, ExtractTypeFun) ->
-  %% Json object: this is a type definition (except for unions)
-  parse_type(Attrs, EnclosingNs, ExtractTypeFun);
-parse_schema(Array, EnclosingNs, ExtractTypeFun) when is_list(Array) ->
+-spec parse_schema(json_value(), namespace(), lkup_fun()) ->
+        avro_type() | no_return().
+parse_schema(?JSON_OBJ(Attrs), EnclosingNs, Lkup) ->
+  %% Json object: this is a complex type definition (except for unions)
+  parse_type(Attrs, EnclosingNs, Lkup);
+parse_schema(Array, EnclosingNs, Lkup) when is_list(Array) ->
   %% Json array: this is an union definition
-  parse_union_type(Array, EnclosingNs, ExtractTypeFun);
-parse_schema(NameBin, EnclosingNs, _ExtractTypeFun) when is_binary(NameBin) ->
-  %% Json string: this is a type name. If the name corresponds to one
-  %% of primitive types then return it, otherwise make full name.
-  case type_from_name(NameBin) of
-    undefined ->
-      Name = binary_to_list(NameBin),
-      avro_util:verify_dotted_name(Name),
-      avro:build_type_fullname(Name, EnclosingNs, EnclosingNs);
-    Type ->
-      Type
+  parse_union_type(Array, EnclosingNs, Lkup);
+parse_schema(Name, EnclosingNs, _Lkup) when is_binary(Name) ->
+  %% Json string: this is a type name.
+  %% Return #avro_primitive_type{} for primitive types
+  %% otherwise make full name.
+  try
+    primitive_type(Name)
+  catch error : {unknown_type, _} ->
+    ok = avro_util:verify_dotted_name(Name),
+    avro:build_type_fullname(Name, EnclosingNs, EnclosingNs)
   end;
-parse_schema(_, _EnclosingNs, _ExtractTypeFun) ->
+parse_schema(JsonValue, _EnclosingNs, _Lkup) ->
   %% Other Json value
-  erlang:error(unexpected_element_in_schema).
+  erlang:error({unexpected_schema_json, JsonValue}).
 
-%% @private
-parse_type(Attrs, EnclosingNs, ExtractTypeFun) ->
-  TypeAttr = avro_util:get_opt(<<"type">>, Attrs),
-  case TypeAttr of
-    <<?AVRO_RECORD>> -> parse_record_type(Attrs, EnclosingNs, ExtractTypeFun);
-    <<?AVRO_ENUM>>   -> parse_enum_type(Attrs, EnclosingNs);
-    <<?AVRO_ARRAY>>  -> parse_array_type(Attrs, EnclosingNs, ExtractTypeFun);
-    <<?AVRO_MAP>>    -> parse_map_type(Attrs, EnclosingNs, ExtractTypeFun);
-    <<?AVRO_FIXED>>  -> parse_fixed_type(Attrs, EnclosingNs);
-    _                -> case type_from_name(TypeAttr) of
-                          undefined -> erlang:error(unknown_type);
-                          Type      -> Type
-                        end
+%% @private Parse JSON object to avro type definition.
+-spec parse_type([{binary(), json_value()}], namespace(), lkup_fun()) ->
+        avro_type() | no_return().
+parse_type(Attrs, EnclosingNs, Lkup) ->
+  case avro_util:get_opt(<<"type">>, Attrs) of
+    ?AVRO_RECORD ->
+      parse_record_type(Attrs, EnclosingNs, Lkup);
+    ?AVRO_ENUM ->
+      parse_enum_type(Attrs, EnclosingNs);
+    ?AVRO_ARRAY ->
+      parse_array_type(Attrs, EnclosingNs, Lkup);
+    ?AVRO_MAP ->
+      parse_map_type(Attrs, EnclosingNs, Lkup);
+    ?AVRO_FIXED ->
+      parse_fixed_type(Attrs, EnclosingNs);
+    Name ->
+      primitive_type(Name)
   end.
 
 %% @private
-parse_record_type(Attrs, EnclosingNs, ExtractTypeFun) ->
+-spec primitive_type(binary()) -> primitive_type() | no_return().
+primitive_type(?AVRO_NULL)    -> avro_primitive:null_type();
+primitive_type(?AVRO_BOOLEAN) -> avro_primitive:boolean_type();
+primitive_type(?AVRO_INT)     -> avro_primitive:int_type();
+primitive_type(?AVRO_LONG)    -> avro_primitive:long_type();
+primitive_type(?AVRO_FLOAT)   -> avro_primitive:float_type();
+primitive_type(?AVRO_DOUBLE)  -> avro_primitive:double_type();
+primitive_type(?AVRO_BYTES)   -> avro_primitive:bytes_type();
+primitive_type(?AVRO_STRING)  -> avro_primitive:string_type();
+primitive_type(Other)         -> erlang:error({unknown_type, Other}).
+
+%% @private
+-spec parse_record_type([{binary(), json_value()}],
+                        namespace(), lkup_fun()) -> record_type() | no_return().
+parse_record_type(Attrs, EnclosingNs, Lkup) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
   NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
   Doc     = avro_util:get_opt(<<"doc">>,       Attrs, <<"">>),
   Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
   Fields  = avro_util:get_opt(<<"fields">>,    Attrs),
-  Name    = binary_to_list(NameBin),
-  Ns      = binary_to_list(NsBin),
+  Name    = NameBin,
+  Ns      = NsBin,
   %% Based on the record's own namespace and the enclosing namespace
   %% new enclosing namespace for all types inside the record is
   %% calculated.
   {_, RecordNs} = avro:split_type_name(Name, Ns, EnclosingNs),
   avro_record:type(Name,
-                   parse_record_fields(Fields, RecordNs, ExtractTypeFun),
+                   parse_record_fields(Fields, RecordNs, Lkup),
                    [ {namespace, Ns}
-                   , {doc, binary_to_list(Doc)}
+                   , {doc, Doc}
                    , {aliases, Aliases}
                    , {enclosing_ns, EnclosingNs}
                    ]).
 
 %% @private
-parse_record_fields(Fields, EnclosingNs, ExtractTypeFun) ->
+-spec parse_record_fields([{name(), json_value()}], namespace(), lkup_fun()) ->
+        [record_field()] | no_return().
+parse_record_fields(Fields, EnclosingNs, Lkup) ->
   lists:map(fun(?JSON_OBJ(FieldAttrs)) ->
-                parse_record_field(FieldAttrs, EnclosingNs, ExtractTypeFun);
+                parse_record_field(FieldAttrs, EnclosingNs, Lkup);
                (_) ->
-                erlang:error(wrong_record_field_specification)
+                erlang:error(bad_record_field)
             end,
             Fields).
 
 %% @private
-parse_record_field(Attrs, EnclosingNs, ExtractTypeFun) ->
+-spec parse_record_field([{binary(), json_value()}], namespace(), lkup_fun()) ->
+        record_field() | no_return().
+parse_record_field(Attrs, EnclosingNs, Lkup) ->
   Name      = avro_util:get_opt(<<"name">>,    Attrs),
   Doc       = avro_util:get_opt(<<"doc">>,     Attrs, <<"">>),
   Type      = avro_util:get_opt(<<"type">>,    Attrs),
   Default   = avro_util:get_opt(<<"default">>, Attrs, undefined),
   Order     = avro_util:get_opt(<<"order">>,   Attrs, <<"ascending">>),
   Aliases   = avro_util:get_opt(<<"aliases">>, Attrs, []),
-  FieldType = parse_schema(Type, EnclosingNs, ExtractTypeFun),
+  FieldType = parse_schema(Type, EnclosingNs, Lkup),
   #avro_record_field
-  { name    = binary_to_list(Name)
-  , doc     = binary_to_list(Doc)
+  { name    = Name
+  , doc     = Doc
   , type    = FieldType
-  , default = parse_default_value(Default, FieldType, ExtractTypeFun)
+  , default = parse_default_value(Default, FieldType, Lkup)
   , order   = parse_order(Order)
   , aliases = parse_aliases(Aliases)
   }.
 
 %% @private
-parse_default_value(undefined, _FieldType, _ExtractTypeFun) ->
+-spec parse_default_value(undefined | json_value(), avro_type(), lkup_fun()) ->
+        undefined | avro_value().
+parse_default_value(undefined, _FieldType, _Lkup) ->
   undefined;
-parse_default_value(Value, FieldType, ExtractTypeFun)
+parse_default_value(Value, FieldType, Lkup)
   when ?AVRO_IS_UNION_TYPE(FieldType) ->
   %% Strange agreement about unions: default value for an union field
   %% corresponds to the first type in this union.
   %% Why not to use normal union values format?
   [FirstType|_] = avro_union:get_types(FieldType),
-  avro_union:new(FieldType, parse_value(Value, FirstType, ExtractTypeFun));
-parse_default_value(Value, FieldType, ExtractTypeFun) ->
-  parse_value(Value, FieldType, ExtractTypeFun).
+  avro_union:new(FieldType, parse_value(Value, FirstType, Lkup));
+parse_default_value(Value, FieldType, Lkup) ->
+  parse_value(Value, FieldType, Lkup).
 
 %% @private
+-spec parse_order(binary()) -> ascending | descending | ignore | no_return().
 parse_order(<<"ascending">>)  -> ascending;
-parse_order(<<"descending">>) -> ascending;
+parse_order(<<"descending">>) -> descending;
 parse_order(<<"ignore">>)     -> ignore;
 parse_order(Order)            -> erlang:error({unknown_sort_order, Order}).
 
 %% @private
+-spec parse_enum_type(json_value(), namespace()) -> enum_type().
 parse_enum_type(Attrs, EnclosingNs) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
   NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
   Doc     = avro_util:get_opt(<<"doc">>,       Attrs, <<"">>),
   Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
   Symbols = avro_util:get_opt(<<"symbols">>,   Attrs),
-  avro_enum:type(binary_to_list(NameBin),
+  avro_enum:type(NameBin,
                  parse_enum_symbols(Symbols),
-                 [ {namespace,    binary_to_list(NsBin)}
-                 , {doc,          binary_to_list(Doc)}
+                 [ {namespace,    NsBin}
+                 , {doc,          Doc}
                  , {aliases,      parse_aliases(Aliases)}
                  , {enclosing_ns, EnclosingNs}
                  ]).
 
 %% @private
-parse_enum_symbols(SymbolsArray) when is_list(SymbolsArray) ->
-  lists:map(
-    fun(SymBin) when is_binary(SymBin) ->
-        erlang:binary_to_list(SymBin);
-       (_) ->
-        erlang:error(wrong_enum_symbols_specification)
-    end,
-    SymbolsArray);
-parse_enum_symbols(_) ->
-  erlang:error(wrong_enum_symbols_specification).
+-spec parse_enum_symbols([binary()]) -> [enum_symbol()].
+parse_enum_symbols([_|_] = SymbolsArray) ->
+  SymbolsArray.
 
 %% @private
-parse_array_type(Attrs, EnclosingNs, ExtractTypeFun) ->
+-spec parse_array_type(json_value(), namespace(), lkup_fun()) -> array_type().
+parse_array_type(Attrs, EnclosingNs, Lkup) ->
   Items = avro_util:get_opt(<<"items">>, Attrs),
-  avro_array:type(parse_schema(Items, EnclosingNs, ExtractTypeFun)).
+  avro_array:type(parse_schema(Items, EnclosingNs, Lkup)).
 
 %% @private
-parse_map_type(Attrs, EnclosingNs, ExtractTypeFun) ->
+-spec parse_map_type(json_value(), namespace(), lkup_fun()) -> map_type().
+parse_map_type(Attrs, EnclosingNs, Lkup) ->
   Values = avro_util:get_opt(<<"values">>, Attrs),
-  avro_map:type(parse_schema(Values, EnclosingNs, ExtractTypeFun)).
+  avro_map:type(parse_schema(Values, EnclosingNs, Lkup)).
 
 %% @private
+-spec parse_fixed_type(json_value(), namespace()) -> fixed_type().
 parse_fixed_type(Attrs, EnclosingNs) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
   NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
   Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
   Size    = avro_util:get_opt(<<"size">>, Attrs),
-  avro_fixed:type(binary_to_list(NameBin),
+  avro_fixed:type(NameBin,
                   parse_fixed_size(Size),
-                  [ {namespace,    binary_to_list(NsBin)}
+                  [ {namespace,    NsBin}
                   , {aliases,      parse_aliases(Aliases)}
                   , {enclosing_ns, EnclosingNs}
                   ]).
 
 %% @private
-parse_fixed_size(N) when is_integer(N) andalso N > 0 ->
-  N;
-parse_fixed_size(_) ->
-  erlang:error(wrong_fixed_size_specification).
+-spec parse_fixed_size(integer()) -> pos_integer().
+parse_fixed_size(N) when is_integer(N) andalso N > 0 -> N;
+parse_fixed_size(S) -> erlang:error({bad_fixed_size, S}).
 
 %% @private
-parse_union_type(Attrs, EnclosingNs, ExtractTypeFun) ->
+-spec parse_union_type(json_value(), namespace(), lkup_fun()) -> union_type().
+parse_union_type(Attrs, EnclosingNs, Lkup) ->
   Types = lists:map(
             fun(Schema) ->
-                parse_schema(Schema, EnclosingNs, ExtractTypeFun)
+                parse_schema(Schema, EnclosingNs, Lkup)
             end,
             Attrs),
   avro_union:type(Types).
 
 %% @private
+-spec parse_aliases([name()]) -> [name()] | no_return().
 parse_aliases(AliasesArray) when is_list(AliasesArray) ->
   lists:map(
     fun(AliasBin) when is_binary(AliasBin) ->
-        Alias = binary_to_list(AliasBin),
-        avro_util:verify_dotted_name(Alias),
-        Alias;
+        ok = avro_util:verify_dotted_name(AliasBin),
+        AliasBin;
        (_) ->
-        erlang:error(wrong_aliases_specification)
+        erlang:error({bad_aliases, AliasesArray})
     end,
     AliasesArray);
-parse_aliases(_) ->
-  erlang:error(wrong_aliases_specification).
+parse_aliases(Aliases) ->
+  erlang:error({bad_aliases, Aliases}).
 
 %% @private
-%% Primitive types can be specified as their names
-type_from_name(<<?AVRO_NULL>>)    -> avro_primitive:null_type();
-type_from_name(<<?AVRO_BOOLEAN>>) -> avro_primitive:boolean_type();
-type_from_name(<<?AVRO_INT>>)     -> avro_primitive:int_type();
-type_from_name(<<?AVRO_LONG>>)    -> avro_primitive:long_type();
-type_from_name(<<?AVRO_FLOAT>>)   -> avro_primitive:float_type();
-type_from_name(<<?AVRO_DOUBLE>>)  -> avro_primitive:double_type();
-type_from_name(<<?AVRO_BYTES>>)   -> avro_primitive:bytes_type();
-type_from_name(<<?AVRO_STRING>>)  -> avro_primitive:string_type();
-type_from_name(_)                 -> undefined.
-
-%%%===================================================================
-%%% Values parsing
-%%%===================================================================
+-spec parse_value(json_value(), avro_type(), lkup_fun()) ->
+        avro_value() | no_return().
+parse_value(Value, Type, Lkup) ->
+  parse(Value, Type, Lkup, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
 
 %% @private
-parse_value(Value, Type, ExtractFun) ->
-  parse(Value, Type, ExtractFun, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
-
-%% @private
-parse(Value, TypeName, ExtractFun, IsWrapped, Hook) when ?IS_NAME(TypeName) ->
+-spec parse(json_value(), avro_type_or_name(), lkup_fun(), boolean(), hook()) ->
+        avro_value() | avro:out() | no_return().
+parse(Value, TypeName, Lkup, IsWrapped, Hook) when ?IS_NAME_RAW(TypeName) ->
   %% Type is defined by its name
-  Type = ExtractFun(TypeName),
-  parse(Value, Type, ExtractFun, IsWrapped, Hook);
-parse(Value, Type, _ExtractFun, IsWrapped, Hook)
+  Type = Lkup(?NAME(TypeName)),
+  parse(Value, Type, Lkup, IsWrapped, Hook);
+parse(Value, Type, _Lkup, IsWrapped, Hook)
  when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
- Hook(Type, "", Value,
+ Hook(Type, <<>>, Value,
       fun(JsonV) ->
         WrappedValue = parse_prim(JsonV, Type),
         case IsWrapped of
@@ -339,36 +350,36 @@ parse(Value, Type, _ExtractFun, IsWrapped, Hook)
           false -> avro_primitive:get_value(WrappedValue)
         end
       end);
-parse(V, Type, _ExtractFun, IsWrapped, Hook) when ?AVRO_IS_ENUM_TYPE(Type),
-                                                  is_binary(V) ->
-  Hook(Type, "", V,
+parse(V, Type, _Lkup, IsWrapped, Hook) when ?AVRO_IS_ENUM_TYPE(Type),
+                                            is_binary(V) ->
+  Hook(Type, <<>>, V,
        fun(JsonV) ->
          case IsWrapped of
-           true  -> avro_enum:new(Type, binary_to_list(JsonV));
-           false -> binary_to_list(JsonV)
+           true  -> avro_enum:new(Type, JsonV);
+           false -> JsonV
          end
        end);
-parse(V, Type, _ExtractFun, IsWrapped, Hook) when ?AVRO_IS_FIXED_TYPE(Type) ->
-  Hook(Type, "", V,
+parse(V, Type, _Lkup, IsWrapped, Hook) when ?AVRO_IS_FIXED_TYPE(Type) ->
+  Hook(Type, <<>>, V,
        fun(JsonV) ->
          case IsWrapped of
            true  -> avro_fixed:new(Type, parse_bytes(JsonV));
            false -> parse_bytes(JsonV)
          end
        end);
-parse(V, Type, ExtractFun, IsWrapped, Hook) when ?AVRO_IS_RECORD_TYPE(Type) ->
-  parse_record(V, Type, ExtractFun, IsWrapped, Hook);
-parse(V, Type, ExtractFun, IsWrapped, Hook) when ?AVRO_IS_ARRAY_TYPE(Type) ->
-  parse_array(V, Type, ExtractFun, IsWrapped, Hook);
-parse(V, Type, ExtractFun, IsWrapped, Hook) when ?AVRO_IS_MAP_TYPE(Type) ->
-  parse_map(V, Type, ExtractFun, IsWrapped, Hook);
-parse(V, Type, ExtractFun, IsWrapped, Hook) when ?AVRO_IS_UNION_TYPE(Type) ->
-  parse_union(V, Type, ExtractFun, IsWrapped, Hook);
-parse(Value, Type, _ExtractFun, _IsWrapped, _Hook) ->
+parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_RECORD_TYPE(Type) ->
+  parse_record(V, Type, Lkup, IsWrapped, Hook);
+parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+  parse_array(V, Type, Lkup, IsWrapped, Hook);
+parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_MAP_TYPE(Type) ->
+  parse_map(V, Type, Lkup, IsWrapped, Hook);
+parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_UNION_TYPE(Type) ->
+  parse_union(V, Type, Lkup, IsWrapped, Hook);
+parse(Value, Type, _Lkup, _IsWrapped, _Hook) ->
   erlang:error({value_does_not_correspond_to_schema, Type, Value}).
 
-%% @private
-%% Parse primitive values, return wrapped value.
+%% @private Parse primitive values, return wrapped (boxed) value.
+-spec parse_prim(json_value(), avro_type()) -> avro_value().
 parse_prim(null, Type) when ?AVRO_IS_NULL_TYPE(Type) ->
   avro_primitive:null();
 parse_prim(V, Type) when ?AVRO_IS_BOOLEAN_TYPE(Type) andalso is_boolean(V) ->
@@ -398,10 +409,12 @@ parse_prim(V, Type) when ?AVRO_IS_STRING_TYPE(Type) andalso
   avro_primitive:string(V).
 
 %% @private
+-spec parse_bytes(binary()) -> binary().
 parse_bytes(BytesStr) ->
   list_to_binary(parse_bytes(BytesStr, [])).
 
 %% @private
+-spec parse_bytes(binary(), [byte()]) -> [byte()] | no_return().
 parse_bytes(<<>>, Acc) ->
   lists:reverse(Acc);
 parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
@@ -411,10 +424,13 @@ parse_bytes(_, _) ->
   erlang:error(bad_bytes).
 
 %% @private
-parse_record(?JSON_OBJ(Attrs), Type, ExtractFun, IsWrapped, Hook) ->
+-spec parse_record(json_value(), record_type(),
+                   lkup_fun(), boolean(), hook()) ->
+        avro_value() | avro:out() | no_return().
+parse_record(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
   Hook(Type, none, Attrs,
        fun(JsonValues) ->
-         Fields = convert_attrs_to_record_fields(JsonValues, Type, ExtractFun,
+         Fields = convert_attrs_to_record_fields(JsonValues, Type, Lkup,
                                                  IsWrapped, Hook),
          case IsWrapped of
            true  -> avro_record:new(Type, Fields);
@@ -422,32 +438,37 @@ parse_record(?JSON_OBJ(Attrs), Type, ExtractFun, IsWrapped, Hook) ->
          end
        end);
 parse_record(_, _, _, _, _) ->
-  erlang:error(wrong_record_value).
+  erlang:error(bad_record_value).
 
 %% @private
-convert_attrs_to_record_fields(Attrs, Type, ExtractFun, IsWrapped, Hook) ->
+-spec convert_attrs_to_record_fields(json_value(), avro_type(), lkup_fun(),
+                                     boolean(), hook()) ->
+        {name(), avro_value() | avro:out()} | no_return().
+convert_attrs_to_record_fields(Attrs, Type, Lkup, IsWrapped, Hook) ->
   lists:map(
-    fun({FieldNameBin, Value}) ->
-        FieldName = binary_to_list(FieldNameBin),
+    fun({FieldName, Value}) ->
         FieldType = avro_record:get_field_type(FieldName, Type),
         FieldValue =
           Hook(Type, FieldName, Value,
                fun(JsonV) ->
-                 parse(JsonV, FieldType, ExtractFun, IsWrapped, Hook)
+                 parse(JsonV, FieldType, Lkup, IsWrapped, Hook)
                end),
         {FieldName, FieldValue}
     end,
     Attrs).
 
 %% @private
-parse_array(V, Type, ExtractFun, IsWrapped, Hook) when is_list(V) ->
+-spec parse_array([json_value()], array_type(),
+                  lkup_fun(), boolean(), hook()) ->
+        [avro_value() | avro:out()] | no_return().
+parse_array(V, Type, Lkup, IsWrapped, Hook) when is_list(V) ->
   ItemsType = avro_array:get_items_type(Type),
   {_Index, ParsedArray} =
     lists:foldl(
       fun(Item, {Index, Acc}) ->
         ParsedItem = Hook(Type, Index, Item,
                           fun(JsonV) ->
-                            parse(JsonV, ItemsType, ExtractFun, IsWrapped, Hook)
+                            parse(JsonV, ItemsType, Lkup, IsWrapped, Hook)
                           end),
         {Index+1, [ParsedItem | Acc]}
       end,
@@ -462,16 +483,18 @@ parse_array(V, Type, ExtractFun, IsWrapped, Hook) when is_list(V) ->
       Items
   end;
 parse_array(_, _, _, _, _) ->
-  erlang:error(wrong_array_value).
+  erlang:error(bad_array_value).
 
 %% @private
-parse_map(?JSON_OBJ(Attrs), Type, ExtractFun, IsWrapped, Hook) ->
+-spec parse_map(json_value(), map_type(), lkup_fun(), boolean(), hook()) ->
+        avro_value() | avro:out() | no_return().
+parse_map(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
   ItemsType = avro_map:get_items_type(Type),
   L = lists:map(
         fun({KeyBin, Value}) ->
             V = Hook(Type, KeyBin, Value,
                      fun(JsonV) ->
-                       parse(JsonV, ItemsType, ExtractFun, IsWrapped, Hook)
+                       parse(JsonV, ItemsType, Lkup, IsWrapped, Hook)
                      end),
             {KeyBin, V}
         end, Attrs),
@@ -481,31 +504,39 @@ parse_map(?JSON_OBJ(Attrs), Type, ExtractFun, IsWrapped, Hook) ->
   end.
 
 %% @private
-parse_union(null = Value, Type, ExtractFun, IsWrapped, Hook) ->
+-spec parse_union(json_value(), union_type(),
+                  lkup_fun(), boolean(), hook()) ->
+        avro_value() | avro:out() | no_return().
+parse_union(null = Value, Type, Lkup, IsWrapped, Hook) ->
   %% Union values specified as null
-  parse_union_ex(?AVRO_NULL, Value, Type, ExtractFun, IsWrapped, Hook);
-parse_union(?JSON_OBJ([{ValueTypeNameBin, Value}]),
-            Type, ExtractFun, IsWrapped, Hook) ->
+  parse_union_ex(?AVRO_NULL, Value, Type, Lkup, IsWrapped, Hook);
+parse_union(?JSON_OBJ([{ValueTypeName, Value}]),
+            Type, Lkup, IsWrapped, Hook) ->
   %% Union value specified as {"type": <value>}
-  ValueTypeName = binary_to_list(ValueTypeNameBin),
-  parse_union_ex(ValueTypeName, Value, Type, ExtractFun, IsWrapped, Hook);
+  parse_union_ex(ValueTypeName, Value, Type, Lkup, IsWrapped, Hook);
 parse_union(_, _, _, _, _) ->
-  erlang:error(wrong_union_value).
+  erlang:error(bad_union_value).
 
 %% @private
-parse_union_ex(ValueTypeName, Value, UnionType, ExtractFun, IsWrapped, Hook) ->
+-spec parse_union_ex(name(), json_value(), union_type(),
+                     lkup_fun(), boolean(), hook()) ->
+        avro_value() | avro:out() | no_return().
+parse_union_ex(ValueTypeName, Value, UnionType, Lkup, IsWrapped, Hook) ->
   Hook(UnionType, ValueTypeName, Value,
        fun(In) ->
           do_parse_union_ex(ValueTypeName, In, UnionType,
-                            ExtractFun, IsWrapped, Hook)
+                            Lkup, IsWrapped, Hook)
        end).
 
 %% @private
+-spec do_parse_union_ex(name(), json_value(), union_type(),
+                        lkup_fun(), boolean(), hook()) ->
+        avro_value() | avro:out() | no_return().
 do_parse_union_ex(ValueTypeName, Value, UnionType,
-                  ExtractFun, IsWrapped, Hook) ->
+                  Lkup, IsWrapped, Hook) ->
   case avro_union:lookup_child_type(UnionType, ValueTypeName) of
     {ok, ValueType} ->
-      ParsedValue = parse(Value, ValueType, ExtractFun, IsWrapped, Hook),
+      ParsedValue = parse(Value, ValueType, Lkup, IsWrapped, Hook),
       case IsWrapped of
         true ->
           %% Here we can create the value directly because we know that
@@ -516,10 +547,11 @@ do_parse_union_ex(ValueTypeName, Value, UnionType,
           ParsedValue
       end;
     false ->
-      erlang:error(unknown_type_of_union_value)
+      erlang:error({unknown_union_member, ValueTypeName})
   end.
 
 %% @private Always use tuple as object foramt.
+-spec decode_json(binary()) -> json_value().
 decode_json(JSON) -> jsone:decode(JSON, [{object_format, tuple}]).
 
 %%%_* Emacs ============================================================

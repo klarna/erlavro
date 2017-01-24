@@ -1,4 +1,5 @@
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+%%%
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -26,39 +27,46 @@
 %%%
 %%% Unions may not immediately contain other unions.
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+
 -module(avro_union).
 
 %% API
--export([ type/1
-        , get_types/1
-        , lookup_child_type/2
+-export([ cast/2
+        , encode/3
         , get_child_type_name/1
         , get_child_type_index/1
-        , get_child_type_index/2
-        ]).
--export([ cast/2
-        , to_term/1
-        ]).
-
--export([ new/2
+        , get_types/1
         , get_value/1
-        , set_value/2
-        , encode/3
+        , lookup_child_type/2
+        , new/2
+        , to_term/1
+        , type/1
         ]).
 
 %% API functions which should be used only inside erlavro
 -export([new_direct/2]).
 
+-export_type([ types_dict/0
+             ]).
+
 -include("avro_internal.hrl").
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+-type types_dict() :: dict:dict(fullname(), {union_index(), avro_type()}).
+-type encode_result() :: avro_binary() | avro_json().
+-type encode_fun() :: fun((avro_type(), avro:in(),
+                           union_index()) -> encode_result()).
 
+%%%_* APIs =====================================================================
+
+%% @doc Define a union type.
+%% A union should have at least one member.
+%% @end
+-spec type([avro_type_or_name()]) -> union_type() | no_return().
 type([]) ->
-  erlang:error(avro_union_should_have_at_least_one_type);
-type(Types) when ?IS_NAME(Types) ->
+  erlang:error(<<"avro union should have at least one member type">>);
+type([_ | _ ] = Types0) ->
+  Types = lists:map(fun avro_util:canonicalize_type_or_name/1, Types0),
   Count = length(Types),
   IndexedTypes = lists:zip(lists:seq(0, Count - 1), Types),
   TypesDict =
@@ -71,33 +79,96 @@ type(Types) when ?IS_NAME(Types) ->
   , types_dict = TypesDict
   }.
 
+%% @doc Get the union member types in a list.
+-spec get_types(union_type()) -> [avro_type()].
 get_types(#avro_union_type{types = IndexedTypes}) ->
   {_Ids, Types} = lists:unzip(IndexedTypes),
   Types.
 
-%% Search for a type by its full name through the children types
-%% of the union
--spec lookup_child_type(#avro_union_type{}, fullname() | union_index()) ->
+%% @doc Search for a union member by its index or full name.
+-spec lookup_child_type(union_type(), name_raw() | union_index()) ->
         false | {ok, avro_type()}.
-lookup_child_type(Union, TypeName) ->
-  case lookup(TypeName, Union) of
+lookup_child_type(Union, NameOrId) when ?IS_NAME_RAW(NameOrId) orelse
+                                        is_integer(NameOrId) ->
+  case lookup(NameOrId, Union) of
     {ok, {_TypeId, Type}} -> {ok, Type};
     false                 -> false
   end.
 
--spec get_child_type_index(#avro_value{}) -> union_index().
+%% @doc Get member type index.
+-spec get_child_type_index(avro_value()) -> union_index().
 get_child_type_index(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   UnionType = ?AVRO_VALUE_TYPE(Union),
   TypeName = get_child_type_name(Union),
   {ok, Index} = get_child_type_index(UnionType, TypeName),
   Index.
 
--spec get_child_type_name(#avro_value{}) -> fullname().
+%% @doc Get typeed member's full type name.
+%% This is used to encode wrapped (boxed) value to JSON format,
+%% where member type full name instead of member index is used.
+%% @end
+-spec get_child_type_name(avro_value()) -> fullname().
 get_child_type_name(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   TypedData = ?AVRO_VALUE_DATA(Union),
   get_type_fullname_ex(?AVRO_VALUE_TYPE(TypedData)).
 
--spec get_child_type_index(#avro_union_type{}, fullname()) ->
+
+%% @doc Create a wrapped (boxed) value.
+-spec new(union_type(), avro:in()) -> avro_value() | no_return().
+new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
+  case cast(Type, Value) of
+    {ok, Union}  -> Union;
+    {error, Err} -> erlang:error(Err)
+  end.
+
+%% @hidden Special optimized version of new which assumes that Value
+%% is already casted to one of the union types. Should only
+%% be used inside erlavro.
+%% @end
+new_direct(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
+  ?AVRO_VALUE(Type, Value).
+
+%% @doc Get current value of a union type variable
+get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+  ?AVRO_VALUE_DATA(Union).
+
+%% @doc Encode shared logic for JSON and binary encoder.
+%% Encoding logic is implemented in EncodeFun.
+%% @end
+-spec encode(avro_type_or_name(), avro:in(), encode_fun()) ->
+        encode_result() | no_return().
+encode(Type, {MemberId, Value}, EncodeFun) ->
+  case lookup(MemberId, Type) of
+    {ok, {MemberIdInteger, MemberType}} ->
+      %% the union input value is tagged with a union member name or id
+      EncodeFun(MemberType, Value, MemberIdInteger);
+    false ->
+      erlang:error({unknown_tag, Type, MemberId})
+  end;
+encode(Type, Value, EncodeFun) ->
+  MemberTypes = avro_union:get_types(Type),
+  try_encode_union_loop(Type, MemberTypes, Value, 0, EncodeFun).
+
+%% @hidden Note: in some cases casting to an union type can be ambiguous, for
+%% example when it contains both string and enum types. In such cases
+%% it is recommended to explicitly specify types for values, or not
+%% use such combinations of types at all.
+%% @end
+-spec cast(union_type(), avro:in()) -> {ok, avro_value()} | {error, any()}.
+cast(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
+  do_cast(Type, Value).
+
+%% @doc Recursively unbox typed value.
+-spec to_term(avro_value()) -> term().
+to_term(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+  avro:to_term(?AVRO_VALUE_DATA(Union)).
+
+%%%_* Internal functions =======================================================
+
+%% @private Get union member type index.
+%% This is used to encode wrapped (boxed) value to binary format.
+%% @end
+-spec get_child_type_index(union_type(), name_raw()) ->
         false | {ok, union_index()}.
 get_child_type_index(Union, TypeName) when ?AVRO_IS_UNION_TYPE(Union) ->
   case lookup(TypeName, Union) of
@@ -105,65 +176,10 @@ get_child_type_index(Union, TypeName) when ?AVRO_IS_UNION_TYPE(Union) ->
     false                 -> false
   end.
 
-new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
-  case cast(Type, Value) of
-    {ok, Union}  -> Union;
-    {error, Err} -> erlang:error(Err)
-  end.
-
-%% Special optimized version of new which assumes that Value
-%% is already casted to one of the union types. Should only
-%% be used inside erlavro.
-new_direct(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
-  ?AVRO_VALUE(Type, Value).
-
-%% Get current value of a union type variable
-get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
-  ?AVRO_VALUE_DATA(Union).
-
-%% Sets new value to a union type variable
-set_value(Union, Value) when ?AVRO_IS_UNION_VALUE(Union) ->
-  ?AVRO_UPDATE_VALUE(Union, Value).
-
--spec encode(avro_type_or_name(), term(), fun()) -> term().
-encode(Type, {MemberId, TryValue} = Value, EncodeFun) ->
-  case lookup(MemberId, Type) of
-    {ok, {MemberIdInteger, MemberType}} ->
-      %% the union input value is tagged with a union member name or id
-      EncodeFun(MemberType, TryValue, MemberIdInteger);
-    false ->
-      %% no union tag, try to loop over the members
-      do_encode(Type, Value, EncodeFun)
-  end;
-encode(Type, Value, EncodeFun) ->
-  do_encode(Type, Value, EncodeFun).
-
-%%%===================================================================
-%%% API: casting
-%%%===================================================================
-
-%% Note: in some cases casting to an union type can be ambiguous, for
-%% example when it contains both string and enum types. In such cases
-%% it is recommended to explicitly specify types for values, or not
-%% use such combinations of types at all.
-
--spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
-cast(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
-  do_cast(Type, Value).
-
--spec to_term(avro_value()) -> term().
-to_term(Union) -> avro:to_term(get_value(Union)).
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-
 %% @private
-do_encode(Type, Union, EncodeFun) ->
-  MemberTypes = avro_union:get_types(Type),
-  try_encode_union_loop(Type, MemberTypes, Union, 0, EncodeFun).
-
-%% @private
+-spec try_encode_union_loop(union_type(), [avro_type()], avro:in(),
+                            union_index(), encode_fun()) ->
+        encode_result() | no_return().
 try_encode_union_loop(UnionType, [], Value, _Index, _EncodeFun) ->
   erlang:error({failed_to_encode_union, UnionType, Value});
 try_encode_union_loop(UnionType, [MemberT | Rest], Value, Index, EncodeFun) ->
@@ -174,6 +190,7 @@ try_encode_union_loop(UnionType, [MemberT | Rest], Value, Index, EncodeFun) ->
   end.
 
 %% @private
+-spec build_types_dict([{union_index(), avro_type()}]) -> types_dict().
 build_types_dict(IndexedTypes) ->
   lists:foldl(
     fun({Index, Type}, D) ->
@@ -182,16 +199,17 @@ build_types_dict(IndexedTypes) ->
     dict:new(),
     IndexedTypes).
 
-%% @private
-%% If type is specified by its name then return this name,
+%% @private If type is specified by its name then return this name,
 %% otherwise return type's full name.
+%% @end
+-spec get_type_fullname_ex(fullname() | avro_type()) -> fullname().
 get_type_fullname_ex(TypeName) when ?IS_NAME(TypeName) ->
   TypeName;
 get_type_fullname_ex(Type) ->
   avro:get_type_fullname(Type).
 
 %% @private
--spec lookup(fullname() | union_index(), #avro_union_type{}) ->
+-spec lookup(name_raw() | union_index(), union_type()) ->
         {ok, {union_index(), avro_type()}} | false.
 lookup(TypeId, #avro_union_type{types = Types}) when is_integer(TypeId) ->
   case lists:keyfind(TypeId, 1, Types) of
@@ -206,9 +224,13 @@ lookup(TypeName, #avro_union_type{types_dict = Dict}) when ?IS_NAME(TypeName) ->
   case dict:find(TypeName, Dict) of
     {ok, _IndexedType} = Res -> Res;
     error                    -> false
-  end.
+  end;
+lookup(TypeName, Union) when ?IS_NAME_RAW(TypeName) ->
+  lookup(?NAME(TypeName), Union).
 
 %% @private
+-spec scan(name(), [{union_index(), avro_type()}]) ->
+        {ok, {union_index(), avro_type()}} | false.
 scan(_TypeName, []) -> false;
 scan(TypeName, [{Id, Type} | Rest]) ->
   CandidateTypeName = get_type_fullname_ex(Type),
@@ -218,6 +240,15 @@ scan(TypeName, [{Id, Type} | Rest]) ->
   end.
 
 %% @private
+-spec do_cast(union_type(), avro:in()) -> avro_value().
+do_cast(Type, {MemberId, Value}) ->
+  case lookup(MemberId, Type) of
+    {ok, {_MemberIdInteger, MemberType}} ->
+      %% the union input value is tagged with a union member name or id
+      avro:cast(MemberType, Value);
+    false ->
+      erlang:error({unknown_tag, Type, MemberId})
+  end;
 do_cast(Type, Value) when ?AVRO_IS_UNION_VALUE(Value) ->
   %% Unions can't have other unions as their subtypes, so in this case
   %% we cast the value of the source union, not the union itself.
@@ -239,7 +270,7 @@ cast_over_types([{_Id,Type} | Rest], Value) ->
   end.
 
 
-%%%_* Emacs ============================================================
+%%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
 %%% erlang-indent-level: 2

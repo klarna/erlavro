@@ -1,5 +1,5 @@
 %% coding: latin-1
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -23,7 +23,8 @@
 %%% but keeps all information (attributes are kept even if they are
 %%% not relevant for parsing).
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+
 -module(avro_json_encoder).
 
 %% API
@@ -33,17 +34,16 @@
 
 -include("avro_internal.hrl").
 
+-type json_value() :: jsone:json_value().
 -define(INLINE(JSON), {{json, JSON}}).
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+%%%_* APIs =====================================================================
 
 %% @doc Encode avro schema in JSON format.
 %% @end
 -spec encode_type(avro_type()) -> iodata().
 encode_type(Type) ->
-  encode_json(do_encode_type(Type, _Namespace = ?NAMESPACE_NONE)).
+  encode_json(do_encode_type(Type, _Namespace = ?NS_GLOBAL)).
 
 %% @doc Encode avro value in JSON format.
 %% @end
@@ -56,26 +56,27 @@ encode_value(Value) ->
 %% i.e. data can be recursive, but recursive types are resolved by
 %% schema lookup
 %% @end
--spec encode(schema_store() | lkup_fun(), avro_type_or_name(), term()) ->
-  iodata().
+-spec encode(schema_store() | lkup_fun(), avro_type_or_name(), avro:in()) ->
+        iodata().
 encode(Store, TypeOrName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeOrName, Value);
 encode(Lkup, TypeOrName, Value) ->
   encode_json(do_encode(Lkup, TypeOrName, Value)).
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+%%%_* Internal functions =======================================================
 
 %% @private
+-spec encode_json(json_value()) -> iodata().
 encode_json(Input) -> jsone:encode(Input, [native_utf8]).
 
 %% @private
+-spec do_encode(lkup_fun(), avro_type_or_name(), avro_value() | avro:in()) ->
+        json_value().
 do_encode(_Lkup, Type, #avro_value{type = Type} = V) ->
   do_encode_value(V);
-do_encode(Lkup, TypeName, Value) when ?IS_NAME(TypeName) ->
-  do_encode(Lkup, Lkup(TypeName), Value);
+do_encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
+  do_encode(Lkup, Lkup(?NAME(TypeName)), Value);
 do_encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro_primitive:cast(Type, Value),
   do_encode_value(AvroValue);
@@ -128,10 +129,10 @@ do_encode_type(#avro_record_type{} = T, EnclosingNamespace) ->
   {Name, NewEnclosingNamespace} = avro:split_type_name(T, EnclosingNamespace),
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
-                     ?NAMESPACE_NONE, fun encode_string/1)
-    , {type,   encode_string("record")}
+                     ?NS_GLOBAL, fun encode_string/1)
+    , {type,   encode_string(?AVRO_RECORD)}
     , {name,   encode_string(Name)}
-    , optional_field(doc,       Doc,       "", fun encode_string/1)
+    , optional_field(doc,       Doc,  ?NO_DOC, fun encode_string/1)
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
     , {fields, lists:map(fun(F) -> encode_field(F, NewEnclosingNamespace) end,
                          Fields)}
@@ -145,20 +146,20 @@ do_encode_type(#avro_enum_type{} = T, EnclosingNamespace) ->
                  , symbols   = Symbols} = T,
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
-                     ?NAMESPACE_NONE, fun encode_string/1)
-    , {type,    encode_string("enum")}
+                     ?NS_GLOBAL, fun encode_string/1)
+    , {type,    encode_string(?AVRO_ENUM)}
     , {name,    encode_string(Name)}
-    , optional_field(doc,       Doc,       "", fun encode_string/1)
+    , optional_field(doc,       Doc,  ?NO_DOC, fun encode_string/1)
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
     , {symbols, lists:map(fun encode_string/1, Symbols)}
     ],
   lists:flatten(SchemaObjectFields);
 do_encode_type(#avro_array_type{type = Type}, EnclosingNamespace) ->
-  [ {type,  encode_string("array")}
+  [ {type,  encode_string(?AVRO_ARRAY)}
   , {items, do_encode_type(Type, EnclosingNamespace)}
   ];
 do_encode_type(#avro_map_type{type = Type}, EnclosingNamespace) ->
-  [ {type,   encode_string("map")}
+  [ {type,   encode_string(?AVRO_MAP)}
   , {values, do_encode_type(Type, EnclosingNamespace)}
   ];
 do_encode_type(#avro_union_type{types = Types}, EnclosingNamespace) ->
@@ -171,8 +172,8 @@ do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace) ->
                   , size = Size} = T,
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
-                     ?NAMESPACE_NONE, fun encode_string/1)
-    , {type, encode_string("fixed")}
+                     ?NS_GLOBAL, fun encode_string/1)
+    , {type, encode_string(?AVRO_FIXED)}
     , {name, encode_string(Name)}
     , {size, encode_integer(Size)}
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
@@ -191,7 +192,7 @@ encode_field(Field, EnclosingNamespace) ->
   , {type, do_encode_type(Type, EnclosingNamespace)}
   ]
   ++ optional_field(default, Default, undefined, fun do_encode_value/1)
-  ++ optional_field(doc,     Doc,     "",        fun encode_string/1)
+  ++ optional_field(doc,     Doc,     ?NO_DOC,   fun encode_string/1)
   ++ optional_field(order,   Order,   ascending, fun encode_order/1)
   ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1).
 
@@ -199,10 +200,12 @@ encode_field(Field, EnclosingNamespace) ->
 %% Ignore namespace to encode if it is the same as enclosing namesapce
 %% @end
 -spec ns(namespace(), namespace()) -> namespace().
-ns(Namespace, Namespace)           -> ?NAMESPACE_NONE;
+ns(Namespace, Namespace)           -> ?NS_GLOBAL;
 ns(Namespace, _EnclosingNamespace) -> Namespace.
 
 %% @private
+encode_string(Atom) when is_atom(Atom) ->
+  encode_string(atom_to_list(Atom));
 encode_string(String) ->
   erlang:iolist_to_binary(String).
 
@@ -220,6 +223,7 @@ encode_order(descending) -> <<"descending">>;
 encode_order(ignore)     -> <<"ignore">>.
 
 %% @private
+-spec do_encode_value(avro_value()) -> json_value().
 do_encode_value(?AVRO_ENCODED_VALUE_JSON(_Type, _Value = Encoded)) ->
   ?INLINE(Encoded);
 do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
@@ -250,7 +254,7 @@ do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
   L = avro_map:to_list(Map),
   lists:map(fun encode_field_with_value/1, L);
 do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
-  Data = avro_union:get_value(Union),
+  Data = ?AVRO_VALUE_DATA(Union),
   case ?AVRO_IS_NULL_VALUE(Data) of
     true ->
       null; %% Nulls don't need a type to be specified

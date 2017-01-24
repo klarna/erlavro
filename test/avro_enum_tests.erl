@@ -34,37 +34,36 @@ empty_symbols_test() ->
 non_unique_symbols_test() ->
   ?assertError(non_unique_symbols, type("FooBar", ["a", "c", "d", "c", "e"])).
 
-incorrect_name_test() ->
-  ?assertError({invalid_name, "c-1"},
+invalid_name_test() ->
+  ?assertError({invalid_name, <<"c-1">>},
                type("FooBar", ["a", "b", "c-1", "d", "c", "e"])).
 
-correct_cast_from_enum_test() ->
+cast_from_enum_test() ->
   SourceType = type("MyEnum", ["a", "b", "c", "d"]),
   SourceValue = new(SourceType, "b"),
   TargetType = SourceType,
   ?assertEqual({ok, SourceValue}, cast(TargetType, SourceValue)).
 
-incorrect_cast_from_enum_test() ->
+bad_cast_from_enum_test() ->
   SourceType = type("MyEnum", ["a", "b", "c", "d"]),
   SourceValue = new(SourceType, "b"),
   TargetType = type("MyEnum2", ["a", "b", "c", "d"]),
   ?assertEqual({error, type_name_mismatch}, cast(TargetType, SourceValue)).
 
-
-correct_cast_from_string_test() ->
+cast_from_string_test() ->
   Type = type("MyEnum", ["a", "b", "c", "d"]),
   {ok, Enum} = cast(Type, "b"),
   ?assertEqual(Type, ?AVRO_VALUE_TYPE(Enum)),
-  ?assertEqual("b", get_value(Enum)).
+  ?assertEqual(<<"b">>, get_value(Enum)).
 
-incorrect_cast_from_string_test() ->
+bad_cast_from_string_test() ->
   Type = type("MyEnum", ["a", "b", "c", "d"]),
   ?assertEqual({error, {cast_error, Type, "e"}}, cast(Type, "e")).
 
 get_value_test() ->
   Type = type("MyEnum", ["a", "b", "c", "d"]),
   Value = new(Type, "b"),
-  ?assertEqual("b", get_value(Value)).
+  ?assertEqual(<<"b">>, get_value(Value)).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

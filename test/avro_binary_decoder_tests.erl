@@ -104,8 +104,8 @@ decode_map_test() ->
   Type = avro_map:type(avro_primitive:int_type()),
   Data1 = [4, 2, "a", 0, 2, "b", 2, 0], %% Count + Items
   Data2 = [3, 12, 2, "a", 0, 2, "b", 2, 0], %% -Count + Size + Items
-  ?assertEqual([{"a", 0}, {"b", 1}], decode_t(Data1, Type)),
-  ?assertEqual([{"a", 0}, {"b", 1}], decode_t(Data2, Type)).
+  ?assertEqual([{<<"a">>, 0}, {<<"b">>, 1}], decode_t(Data1, Type)),
+  ?assertEqual([{<<"a">>, 0}, {<<"b">>, 1}], decode_t(Data2, Type)).
 
 decode_union_test() ->
   Type = avro_union:type([ avro_primitive:null_type()
@@ -174,15 +174,15 @@ sample_record_binary() ->
 
 decode_record_test() ->
   Fields = decode_t(sample_record_binary(), sample_record_type()),
-  ?assertMatch([ {"bool",   true}
-               , {"int",    100}
-               , {"long",   123456789123456789}
-               , {"float",  _}
-               , {"double", _}
-               , {"bytes",  <<"bytes value">>}
-               , {"string", <<"string">>}
-               , {"array",  [0]}
-               , {"map",    []}
+  ?assertMatch([ {<<"bool">>,   true}
+               , {<<"int">>,    100}
+               , {<<"long">>,   123456789123456789}
+               , {<<"float">>,  _}
+               , {<<"double">>, _}
+               , {<<"bytes">>,  <<"bytes value">>}
+               , {<<"string">>, <<"string">>}
+               , {<<"array">>,  [0]}
+               , {<<"map">>,    []}
                ], Fields).
 
 decode_with_hook_test() ->
@@ -191,15 +191,15 @@ decode_with_hook_test() ->
   Lkup = fun(_) -> exit(error) end,
   Hook = avro_decoder_hooks:pretty_print_hist(),
   Fields = decode(Binary, Schema, Lkup, Hook),
-  ?assertMatch([ {"bool",   true}
-               , {"int",    100}
-               , {"long",   123456789123456789}
-               , {"float",  _}
-               , {"double", _}
-               , {"bytes",  <<"bytes value">>}
-               , {"string", <<"string">>}
-               , {"array",  [0]}
-               , {"map",    []}
+  ?assertMatch([ {<<"bool">>,   true}
+               , {<<"int">>,    100}
+               , {<<"long">>,   123456789123456789}
+               , {<<"float">>,  _}
+               , {<<"double">>, _}
+               , {<<"bytes">>,  <<"bytes value">>}
+               , {<<"string">>, <<"string">>}
+               , {<<"array">>,  [0]}
+               , {<<"map">>,    []}
                ], Fields).
 
 %%%_* Emacs ====================================================================

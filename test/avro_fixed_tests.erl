@@ -23,11 +23,11 @@
 -include_lib("eunit/include/eunit.hrl").
 
 neg_size_test() ->
-  ?assertError(invalid_size, avro_fixed:type("FooBar", -1)).
+  ?assertError({invalid_size, -1}, avro_fixed:type("FooBar", -1)).
 
 short_create_test() ->
   Type = avro_fixed:type("FooBar", 16),
-  ?assertEqual("FooBar", avro:get_type_fullname(Type)),
+  ?assertEqual(<<"FooBar">>, avro:get_type_fullname(Type)),
   ?assertEqual(16, avro_fixed:get_size(Type)).
 
 full_create_test() ->
@@ -36,7 +36,7 @@ full_create_test() ->
                          , {aliases, ["Zoo", "Bee"]}
                          , {enclosing_ns, "enc.losing"}
                          ]),
-  ?assertEqual("name.space.FooBar", avro:get_type_fullname(Type)),
+  ?assertEqual(<<"name.space.FooBar">>, avro:get_type_fullname(Type)),
   ?assertEqual(16, avro_fixed:get_size(Type)).
 
 incorrect_cast_from_fixed_test() ->
@@ -66,8 +66,10 @@ integer_cast_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value1 = avro_fixed:new(Type, 67),   %% 1 byte
   Value2 = avro_fixed:new(Type, 1017), %% 2 bytes
-  ?assertEqual(67, avro_fixed:to_integer(Value1)),
-  ?assertEqual(1017, avro_fixed:to_integer(Value2)).
+  Data1 = avro_fixed:get_value(Value1),
+  Data2 = avro_fixed:get_value(Value2),
+  ?assertEqual(67, binary:decode_unsigned(Data1)),
+  ?assertEqual(1017, binary:decode_unsigned(Data2)).
 
 get_value_test() ->
   Type = avro_fixed:type("FooBar", 2),

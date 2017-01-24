@@ -19,7 +19,7 @@
 %%%-------------------------------------------------------------------
 -module(avro_tests).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -define(PRIMITIVE_VALUE(Name, Value),
@@ -31,19 +31,19 @@ get_test_type(Name, Namespace) ->
   avro_fixed:type(Name, 16, [{namespace, Namespace}]).
 
 split_type_name_test() ->
-  ?assertEqual({"tname", ""},
+  ?assertEqual({<<"tname">>, <<"">>},
                avro:split_type_name("tname", "", "")),
-  ?assertEqual({"tname", "name.space"},
+  ?assertEqual({<<"tname">>, <<"name.space">>},
                avro:split_type_name("tname", "name.space", "enc.losing")),
-  ?assertEqual({"tname", "name.space"},
+  ?assertEqual({<<"tname">>, <<"name.space">>},
                avro:split_type_name("name.space.tname", "", "name1.space1")),
-  ?assertEqual({"tname", "enc.losing"},
+  ?assertEqual({<<"tname">>, <<"enc.losing">>},
                avro:split_type_name("tname", "", "enc.losing")).
 
 get_type_fullname_test() ->
-  ?assertEqual("name.space.tname",
+  ?assertEqual(<<"name.space.tname">>,
                avro:get_type_fullname(get_test_type("tname", "name.space"))),
-  ?assertEqual("int",
+  ?assertEqual(<<"int">>,
                avro:get_type_fullname(avro_primitive:int_type())).
 
 cast_primitive_test() ->

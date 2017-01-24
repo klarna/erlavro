@@ -90,7 +90,8 @@ parse_record_type_with_enclosing_namespace_test() ->
     , {<<"fields">>, []}
     ]),
   Record = parse_schema(Schema, "name.space", none),
-  ?assertEqual("name.space.TestRecord", avro:get_type_fullname(Record)).
+  ?assertEqual(<<"name.space.TestRecord">>,
+               avro:get_type_fullname(Record)).
 
 parse_union_type_test() ->
   Schema = [ <<"int">>
@@ -194,7 +195,7 @@ parse_record_value_missing_field_test() ->
                    ]),
   %% parse_value(Json, TestRecord, none),
   %% ok.
-  ?assertError({required_field_missed, "array"},
+  ?assertError({required_field_missed, <<"array">>},
                parse_value(Json, TestRecord, none)).
 
 parse_record_value_unknown_field_test() ->
@@ -205,7 +206,7 @@ parse_record_value_unknown_field_test() ->
                    , {<<"union">>, ?JSON_OBJ([{<<"boolean">>, true}])}
                    , {<<"unknown_field">>, 1}
                    ]),
-  ?assertError({unknown_field, "unknown_field"},
+  ?assertError({unknown_field, <<"unknown_field">>},
                parse_value(Json, TestRecord, none)).
 
 parse_union_value_primitive_test() ->
@@ -226,7 +227,8 @@ parse_union_value_fail_test() ->
   Type = avro_union:type([ avro_primitive:null_type()
                          , avro_primitive:string_type()]),
   Json = ?JSON_OBJ([{<<"boolean">>, true}]),
-  ?assertError(unknown_type_of_union_value, parse_value(Json, Type, none)).
+  ?assertError({unknown_union_member, _},
+               parse_value(Json, Type, none)).
 
 parse_enum_value_test() ->
   Type = avro_enum:type("MyEnum", ["A", "B", "C"]),
@@ -248,7 +250,7 @@ parse_fixed_value_test() ->
 
 parse_value_with_extract_type_fun_test() ->
   Hook = avro_decoder_hooks:pretty_print_hist(),
-  ExtractTypeFun = fun("name.space.Test") -> get_test_record() end,
+  ExtractTypeFun = fun(<<"name.space.Test">>) -> get_test_record() end,
   Schema = ?JSON_OBJ([ {<<"type">>, <<"array">>}
                      , {<<"items">>, <<"Test">>}
                      ]),
@@ -260,8 +262,8 @@ parse_value_with_extract_type_fun_test() ->
   ExpectedType = avro_array:type("name.space.Test"),
   ?assertEqual(ExpectedType, Type),
   Value = parse(ValueJson, Type, ExtractTypeFun, true, Hook),
-  [Rec] = avro_array:get(Value),
-  ?assertEqual("name.space.Test",
+  [Rec] = avro_array:get_items(Value),
+  ?assertEqual(<<"name.space.Test">>,
                avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
   ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).
 

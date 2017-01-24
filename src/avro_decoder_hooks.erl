@@ -1,4 +1,5 @@
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+%%%
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -14,9 +15,10 @@
 %%% KIND, either express or implied.  See the License for the
 %%% specific language governing permissions and limitations
 %%% under the License.
-%%%-------------------------------------------------------------------
 %%%
-%%% @doc This module is a collection of `eravro' supported decoder hooks
+%%%-----------------------------------------------------------------------------
+
+%% @doc This module is a collection of `eravro' supported decoder hooks
 %%
 %% Decoder hook is an anonymous function to be evaluated by
 %% the JSON or binary decoder to amend either schmea or data (input or output).
@@ -56,8 +58,8 @@
 %% </pre>
 %%
 %% A hook can also be used as a monkey patch to fix some corrupted data.
-%%% @end
-%%%-------------------------------------------------------------------
+%% @end
+
 -module(avro_decoder_hooks).
 
 -export([ tag_unions/0
@@ -234,7 +236,7 @@ format_trace([{push, Name, Sub} | Rest], Stack, Hist, HistCount) ->
                 []                   -> "";
                 none                 -> "";
                 I when is_integer(I) -> [".", integer_to_list(I)];
-                S when is_list(S)    -> [".", S]
+                S when ?IS_NAME(S)   -> [".", S]
               end, "\n"]),
   NewHist = lists:sublist([Line | Hist], HistCount),
   format_trace(Rest, [{Name, Sub} | Stack], NewHist, HistCount);

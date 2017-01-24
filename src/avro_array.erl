@@ -28,7 +28,7 @@
 
 -export([new/1]).
 -export([new/2]).
--export([get/1]).
+-export([get_items/1]).
 -export([cast/2]).
 -export([to_term/1]).
 -export([encode/3]).
@@ -38,54 +38,70 @@
 %% API to be used only inside erlavro
 -export([new_direct/2]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-type(SubType) ->
+%% @doc Define array type.
+-spec type(avro_type_or_name()) -> array_type().
+type(SubType) when ?IS_NAME_RAW(SubType) ->
+  #avro_array_type{ type = ?NAME(SubType) };
+type(SubType) when ?IS_AVRO_TYPE(SubType) ->
   #avro_array_type{ type = SubType }.
 
+%% @doc Get array element type.
+-spec get_items_type(array_type()) -> avro_type().
 get_items_type(ArrayType) when ?AVRO_IS_ARRAY_TYPE(ArrayType) ->
   ArrayType#avro_array_type.type.
 
+%% @doc Create a wrapped (boxed) empty array avro value.
+-spec new(array_type()) -> avro_value().
 new(Type) ->
   new(Type, []).
 
+%% @doc Create a wrapped (boxed) avro value with given array data.
+-spec new(array_type(), [term()]) -> avro_value() | no_return().
 new(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   case cast(Type, List) of
     {ok, Value}  -> Value;
     {error, Err} -> erlang:error(Err)
   end.
 
-%% Special optimized version of new which assumes that all items in List have
-%% been already casted to items type of the array, so we can skip checking
+%% @doc Special optimized version of new which assumes that all items in List
+%% have been already casted to items type of the array, so we can skip checking
 %% types one more time during casting. Should only be used inside erlavro.
+%% @end
+-spec new_direct(array_type(), [avro:in()]) -> avro_value().
 new_direct(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   ?AVRO_VALUE(Type, List).
 
-%% Returns array contents as a list of Avro values
-get(Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
+%% @doc Returns array contents as a list of avro values.
+-spec get_items(avro_value()) -> [avro_value()].
+get_items(Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
 
+%% @doc Prepend elements to the array.
+-spec prepend([term()], avro_value()) -> avro_value() | no_return().
 prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   Type = ?AVRO_VALUE_TYPE(Value),
   Data = ?AVRO_VALUE_DATA(Value),
   #avro_array_type{type = ItemType} = Type,
-  Items = cast_items(ItemType, Items0, []),
+  {ok, Items} = cast_items(ItemType, Items0, []),
   new_direct(Type, Items ++ Data).
 
-%% Only other Avro array type or erlang list can be casted to arrays
--spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
-
+%% @hidden Only other Avro array type or erlang list can be casted to arrays.
+-spec cast(array_type(), term()) -> {ok, avro_value()} | {error, term()}.
 cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   do_cast(Type, Value).
 
+%% @hidden Recursively unbox typed value.
 -spec to_term(avro_value()) -> list().
 to_term(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   [ avro:to_term(Item) || Item <- ?AVRO_VALUE_DATA(Array) ].
 
+%% @hidden Encoder help function. For internal use only.
 -spec encode(avro_type_or_name(), list(), fun()) -> list().
 encode(Type, Value, EncodeFun) ->
   ItemsType = avro_array:get_items_type(Type),
@@ -98,7 +114,6 @@ encode(Type, Value, EncodeFun) ->
 %% @private
 -spec do_cast(#avro_array_type{}, avro_value() | [term()])
              -> {ok, avro_value()} | {error, term()}.
-
 do_cast(Type, Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
   %% Since we can't compare array types we just cast all items one by one
   %% and see if this succeeds
@@ -106,19 +121,20 @@ do_cast(Type, Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
 do_cast(Type, Items) when is_list(Items) ->
   #avro_array_type{type = ItemType} = Type,
   case cast_items(ItemType, Items, []) of
-    ResArray when is_list(ResArray) -> {ok, ?AVRO_VALUE(Type, ResArray)};
-    Err                             -> Err
+    {ok, ResArray}  -> {ok, ?AVRO_VALUE(Type, ResArray)};
+    {error, Reason} -> {error, Reason}
   end.
 
 %% @private
+-spec cast_items(avro_type(), [term()], [avro_value()]) ->
+        {ok, [avro_value()]} | {error, any()}.
 cast_items(_TargetType, [], Acc) ->
-  lists:reverse(Acc);
+  {ok, lists:reverse(Acc)};
 cast_items(TargetType, [Item|H], Acc) ->
   case avro:cast(TargetType, Item) of
     {ok, Value} -> cast_items(TargetType, H, [Value|Acc]);
     Err         -> Err
   end.
-
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

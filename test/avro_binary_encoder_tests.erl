@@ -30,7 +30,7 @@
 -include("erlavro.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(TO_STRING(S), binary_to_list(iolist_to_binary(S))).
+-define(TO_STRING(S), iolist_to_binary(S)).
 
 -define(assertBinEq(A,B),
   ?assertEqual(iolist_to_binary(A),iolist_to_binary(B))).
@@ -149,8 +149,8 @@ encode_empty_map_test() ->
 
 encode_map_test() ->
   Type = avro_map:type(avro_primitive:int_type()),
-  TypedValue = avro_map:new(Type, [{"a", 3}, {"b", 27}]),
-  Body = iolist_to_binary([string("a"), int(3), string(<<"b">>), int(27)]),
+  TypedValue = avro_map:new(Type, [{a, 3}, {"b", 27}]),
+  Body = iolist_to_binary([string(a), int(3), string(<<"b">>), int(27)]),
   ?assertBinEq([long(-2), long(size(Body)), Body, 0], encode_value(TypedValue)).
 
 encode_union_test() ->
