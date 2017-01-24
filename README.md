@@ -8,24 +8,32 @@ License: Apache License 2.0
 
 # Avro Type and Erlang Spec Mapping
 
-| Avro | Encoder Input | Decoder Output | Notes |
-| --- | --- | --- | --- |
-| null | `null` | `null` | `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder |
-| boolean | `boolean() | 0 | 1` | `boolean()` | |
-| int | `integer()` | `integer()` | `-2147483648..2147483647` |
-| long | `integer()` | `integer()` | `-9223372036854775808..9223372036854775807` |
-| float | `integer() | float()` | `float()` | |
-| double | `integer() | float()` | `float()` | |
-| bytes | `binary()` | `binary()` | |
-| string | `iolist()` | `binary()` | |
-| enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
-| fixed | `binary()` | `binary()` | |
-| array | `list()` | `list()` | |
-| map | `[{Key::atom()|iolist(), Value::in()}]` | `[{Key::binary(), Value::out()}]` | |
-| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | |
-| union | `in() | {Tag::string(), in()}`  | `out() | {Tag::string(), out()}` | See notes about unions below |
+```
+name_raw() :: atom() | string() | binary().
+name() :: binary().
+key_raw() :: atom() | sting() | binary()
+key() :: binary().
+tag() :: binary().
+```
 
-Where `in()` and `out()` refer to the input and output type specs recursively
+| Avro    | Encoder Input          | Decoder Output           | Notes                                       |
+| ------- | ---------------------- | ------------------------ | ------------------------------------------- |
+| null    | `null`                 | `null`                   | No implicit `undefined` transformation      |
+| boolean | `boolean()`            | `boolean()`              |                                             |
+| int     | `integer()`            | `integer()`              | `-2147483648..2147483647`                   |
+| long    | `integer()`            | `integer()`              | `-9223372036854775808..9223372036854775807` |
+| float   | `integer() | float()`  | `float()`                |                                             |
+| double  | `integer() | float()`  | `float()`                |                                             |
+| bytes   | `binary()`             | `binary()`               |                                             |
+| string  | `iolist()`             | `binary()`               |                                             |
+| enum    | `name_raw()`           | `name()`                 |                                             |
+| fixed   | `binary()`             | `binary()`               |                                             |
+| array   | `[in()]`               | `[out()]`                |                                             |
+| map     | `[{key_raw(), in()}]`  | `[{key(), out()}]`       |                                             |
+| record  | `[{name_raw(), in()}]` | `[{name(), out()}]`      |                                             |
+| union   | `in() | {tag(), in()}` | `out() | {tag(), out()}` | See notes about unions below                |
+
+Where `in()` and `out()` refer to the input and output type specs recursively.
 
 ## Important Notes about Unicode Strings
 
@@ -77,16 +85,17 @@ true
 ```erlang
   MyRecordType =
     avro_record:type(
-      "MyRecord",
-      [avro_record:define_field("f1", avro_primitive:int_type()),
-       avro_record:define_field("f2", avro_primitive:string_type())],
-      [{namespace, "com.example"}]),
+      <<"MyRecord">>,
+      [avro_record:define_field(f1, avro_primitive:int_type()),
+       avro_record:define_field(f2, avro_primitive:string_type())],
+      [{namespace, 'com.example'}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, []),
   Decoder = avro:make_decoder(Store, []),
-  Term = [{"f1", 1}, {"f2", <<"my string">>}],
+  Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   Bin = Encoder("com.example.MyRecord", Term),
-  Term = Decoder("com.example.MyRecord", Bin),
+  [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
+    Decoder("com.example.MyRecord", Bin),
   ok.
 ```
 
@@ -102,7 +111,7 @@ true
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
   Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
-  Term = [{"f1", 1}, {"f2", <<"my string">>}],
+  Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),
   io:put_chars(user, JSON),
@@ -156,8 +165,8 @@ JSON to expect:
   %% Tag the decoded values
   Hook = avro_decoder_hooks:tag_unions(),
   Decoder = avro:make_decoder(Lkup, [{hook, Hook} | CodecOptions]),
-  [ {"com.example.MyRecord1", [{"f1", null}, {"f2", <<"str1">>}]}
-  , {"com.example.MyRecord2", [{"f1", <<"str2">>}, {"f2", 2}]}
+  [ {<<"com.example.MyRecord1">>, [{<<"f1">>, null}, {<<"f2">>, <<"str1">>}]}
+  , {<<"com.example.MyRecord2">>, [{<<"f1">>, <<"str2">>}, {<<"f2">>, 2}]}
   ] = Decoder(MyArray, Bin),
   ok.
 ```

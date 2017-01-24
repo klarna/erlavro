@@ -61,14 +61,6 @@ lookup_child_type_from_big_union_test() ->
   ?assertEqual({ok, ExpectedRec},
                avro_union:lookup_child_type(Type, 99)).
 
-get_child_type_index_test() ->
-  Type1 = tiny_union(),
-  Type2 = big_union(),
-  Index1 = avro_union:get_child_type_index(Type1, "com.klarna.test.bix.R3"),
-  Index2 = avro_union:get_child_type_index(Type2, "com.klarna.test.bix.R43"),
-  ?assertEqual({ok, 2}, Index1),
-  ?assertEqual({ok, 42}, Index2).
-
 to_term_test() ->
   Type = avro_union:type([avro_primitive:null_type(),
                           avro_primitive:int_type()]),

@@ -1,4 +1,5 @@
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+%%%
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -19,11 +20,15 @@
 %%% @doc Collections of Avro utility functions shared between other modules.
 %%% Should not be used externally.
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+
 -module(avro_util).
 
 %% API
 -export([ canonicalize_aliases/4
+        , canonicalize_name/1
+        , canonicalize_type_or_name/1
+        , ensure_binary/1
         , get_opt/2
         , get_opt/3
         , verify_name/1
@@ -33,44 +38,51 @@
         , verify_type/1
         ]).
 
-%% Performance testing
--export([ prf_encode/0
-        , prf_encode/2
-        , prf_decode/2
-        , prf_decode/3
-        ]).
-
--include("avro_internal.hrl").
 -ifdef(TEST).
--export([is_correct_dotted_name/1, is_correct_name/1, tokens_ex/2]).
+-export([ is_valid_dotted_name/1
+        , is_valid_name/1
+        , tokens_ex/2
+        ]).
 -endif.
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+-include("avro_internal.hrl").
 
+%%%_* APIs =====================================================================
+
+-spec get_opt(Key, [{Key, Value}]) -> Value | no_return()
+        when Key :: atom() | binary(), Value :: term().
 get_opt(Key, Opts) ->
   case lists:keyfind(Key, 1, Opts) of
     {Key, Value} -> Value;
-    false        -> erlang:error({error, {key_not_found, Key}})
+    false        -> erlang:error({error, {not_found, Key}})
   end.
 
+-spec get_opt(Key, [{Key, Value}], Value) -> Value
+        when Key :: atom() | binary(), Value :: term().
 get_opt(Key, Opts, Default) ->
   case lists:keyfind(Key, 1, Opts) of
     {Key, Value} -> Value;
     false        -> Default
   end.
 
+%% @doc Assert name validity.
+-spec verify_name(name_raw()) -> ok | no_return().
 verify_name(Name) ->
-  ?ERROR_IF_NOT(is_correct_name(Name), {invalid_name, Name}).
+  ?ERROR_IF_NOT(is_valid_name(name_string(Name)), {invalid_name, Name}).
 
+%% @doc Assert validity of a list of names.
+-spec verify_names([name_raw()]) -> ok | no_return().
 verify_names(Names) ->
   lists:foreach(fun verify_name/1, Names).
 
+%% @doc Assert validity of a fullname.
+-spec verify_dotted_name(name_raw()) -> ok | no_return().
 verify_dotted_name(Name) ->
-  ?ERROR_IF_NOT(is_correct_dotted_name(Name), {invalid_name, Name}).
+  ?ERROR_IF_NOT(is_valid_dotted_name(name_string(Name)),
+                {invalid_name, Name}).
 
-%% Verify aliases list for correctness
+%% @doc Assert validity of aliases.
+-spec verify_aliases([name()]) -> ok | no_return().
 verify_aliases(Aliases) ->
   lists:foreach(
     fun(Alias) ->
@@ -78,17 +90,17 @@ verify_aliases(Aliases) ->
     end,
     Aliases).
 
-%% Verify overall type definition for correctness. Error is thrown
-%% when issues are found.
--spec verify_type(avro_type()) -> ok.
+%% @doc Assert that the given type names are not AVRO reserved names.
+-spec verify_type(avro_type()) -> ok | no_return().
 verify_type(Type) ->
   case avro:is_named_type(Type) of
     true  -> verify_type_name(Type);
     false -> ok
   end.
 
-%% Convert aliases to full-name representation using provided names and
+%% @doc Convert aliases to full-name representation using provided names and
 %% namespaces from the original type
+%% @end
 canonicalize_aliases(Aliases, Name, Namespace, EnclosingNs) ->
   lists:map(
     fun(Alias) ->
@@ -97,47 +109,73 @@ canonicalize_aliases(Aliases, Name, Namespace, EnclosingNs) ->
     end,
     Aliases).
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+%% @doc Convert atom() | string() to binary().
+%% NOTE: Avro names are ascii only, there is no need for special utf8.
+%%       handling when converting string() to binary().
+%% @end
+-spec canonicalize_name(name_raw()) -> name().
+canonicalize_name(Name) -> ensure_binary(Name).
+
+%% @doc Covert atom() | string() binary().
+-spec ensure_binary(atom() | iolist()) -> binary().
+ensure_binary(A) when is_atom(A)   -> atom_to_binary(A, utf8);
+ensure_binary(L) when is_list(L)   -> iolist_to_binary(L);
+ensure_binary(B) when is_binary(B) -> B.
+
+%% @doc Canonicalize name if it is not a type.
+-spec canonicalize_type_or_name(avro_type_or_name()) -> avro_type_or_name().
+canonicalize_type_or_name(Name) when ?IS_NAME_RAW(Name) ->
+  canonicalize_name(Name);
+canonicalize_type_or_name(Type) when ?IS_AVRO_TYPE(Type) ->
+  Type.
+
+%%%_* Internal functions =======================================================
+
+-spec name_string(name_raw()) -> string().
+name_string(Name) when is_binary(Name) ->
+  %% No need of utf8 validation since names are all ascii
+  binary_to_list(Name);
+name_string(Name) when is_atom(Name) ->
+  atom_to_list(Name);
+name_string(Name)when is_list(Name) ->
+  Name.
+
+%% @private Check validity of the name portion of type names,
+%% record field names and enums symbols (everything where dots should not
+%% present).
+%% @end
+-spec is_valid_name(string() | string()) -> boolean().
+is_valid_name([]) -> false;
+is_valid_name([H | T]) ->
+  is_valid_name_head(H) andalso
+  lists:all(fun(I) -> is_valid_name_char(I) end, T).
+
+%% @private Check validity of type name or namespace.
+%% where name parts can be splitted with dots.
+%% @end
+-spec is_valid_dotted_name(name_raw()) -> boolean().
+is_valid_dotted_name(DottedName) when ?IS_NAME_RAW(DottedName) ->
+  NameStr = binary_to_list(?NAME(DottedName)),
+  Names = tokens_ex(NameStr, $.),
+  Names =/= [] andalso lists:all(fun is_valid_name/1, Names).
 
 %% @private
-%% Check correctness of the name portion of type names, record field names and
-%% enums symbols (everything where dots should not present in).
--spec is_correct_name(string()) -> boolean().
-
-is_correct_name([])    -> false;
-is_correct_name([H])   -> is_correct_first_symbol(H);
-is_correct_name([H|T]) -> is_correct_first_symbol(H) andalso
-                          is_correct_name_tail(T).
-
-%% @private
-%% Check correctness of type name or namespace (where name parts can be splitted
-%% with dots).
--spec is_correct_dotted_name(string()) -> boolean().
-is_correct_dotted_name(DottedName) ->
-  Names = tokens_ex(DottedName, $.),
-  Names =/= [] andalso lists:all(fun is_correct_name/1, Names).
-
-%% @private
+-spec reserved_type_names() -> [name()].
 reserved_type_names() ->
   [?AVRO_NULL, ?AVRO_BOOLEAN, ?AVRO_INT, ?AVRO_LONG, ?AVRO_FLOAT,
    ?AVRO_DOUBLE, ?AVRO_BYTES, ?AVRO_STRING, ?AVRO_RECORD, ?AVRO_ENUM,
    ?AVRO_ARRAY, ?AVRO_MAP, ?AVRO_UNION, ?AVRO_FIXED].
 
-%% @private
-is_correct_first_symbol(S) -> (S >= $A andalso S =< $Z) orelse
-                              (S >= $a andalso S =< $z) orelse
-                              S =:= $_.
+%% @private A valid leading char of a name: [a-z,A-Z,_].
+-spec is_valid_name_head(byte()) -> boolean().
+is_valid_name_head(S) ->
+  (S >= $A andalso S =< $Z) orelse
+  (S >= $a andalso S =< $z) orelse
+  S =:= $_.
 
-%% @private
-is_correct_symbol(S) -> is_correct_first_symbol(S) orelse
-                        (S >= $0 andalso S =< $9).
-
-%% @private
-is_correct_name_tail([])    -> true;
-is_correct_name_tail([H|T]) -> is_correct_symbol(H) andalso
-                               is_correct_name_tail(T).
+%% @private In addition to what applies to leading char, body char can be 0-9.
+is_valid_name_char(S) -> is_valid_name_head(S) orelse
+                         (S >= $0 andalso S =< $9).
 
 %% @private
 verify_type_name(Type) ->
@@ -146,17 +184,19 @@ verify_type_name(Type) ->
   Fullname = avro:get_type_fullname(Type),
   verify_dotted_name(Name),
   %% Verify namespace only if it is non-empty (empty namespaces are allowed)
-  Ns =:= ?NAMESPACE_NONE orelse verify_dotted_name(Ns),
+  Ns =:= ?NS_GLOBAL orelse verify_dotted_name(Ns),
   verify_dotted_name(Fullname),
   %% We are not interested in the namespace here, so we can ignore
   %% EnclosingExtension value.
-  {CanonicalName, _} = avro:split_type_name(Name, Ns, ""),
-  ?ERROR_IF(lists:member(CanonicalName, reserved_type_names()),
+  {CanonicalName, _} = avro:split_type_name(Name, Ns, ?NS_GLOBAL),
+  ReservedNames = reserved_type_names(),
+  ?ERROR_IF(lists:member(CanonicalName, ReservedNames),
             reserved_name_is_used_for_type_name).
 
-%% @private
-%% Splits string to tokens but doesn't count consecutive delimiters as
+%% @private Splits string to tokens but doesn't count consecutive delimiters as
 %% a single delimiter. So tokens_ex("a...b", $.) produces ["a","","","b"].
+%% @end
+-spec tokens_ex(string(), byte()) -> [string()].
 tokens_ex([], _Delimiter) ->
   [""];
 tokens_ex([Delimiter|Rest], Delimiter) ->
@@ -164,85 +204,6 @@ tokens_ex([Delimiter|Rest], Delimiter) ->
 tokens_ex([C|Rest], Delimiter) ->
   [Token|Tail] = tokens_ex(Rest, Delimiter),
   [[C|Token]|Tail].
-
-%%%===================================================================
-%%% Performance testing
-%%% NOTE: not a public API
-%%%===================================================================
-
-prf_encode() ->
-  prf_encode(200, 10).
-
-%% Returns {Type, JsonString}
-prf_encode(RecordsCount, FieldsCount) ->
-  Type = prf_prepare_type(RecordsCount, FieldsCount),
-  Data = prf_prepare_data(Type, RecordsCount, FieldsCount),
-  {Type, avro_json_encoder:encode_value(Data)}.
-
-prf_decode(Type, Json) ->
-  prf_decode(Type, Json, 100).
-
-prf_decode(Type, Json, Count) ->
-  Lkup = fun(_Name) -> erlang:error(unexpected) end,
-  {Time, _} =
-    timer:tc(
-      fun() ->
-          lists:foreach(
-            fun(_) ->
-                avro_json_decoder:decode_value(Json, Type, Lkup)
-            end,
-            lists:seq(1,Count))
-      end),
-  Time.
-
-%% @private
-prf_prepare_type(RecordsCount, FieldsCount) ->
-  avro_array:type(
-    avro_union:type(
-      lists:map(
-        fun(N) -> prf_record_type(N, FieldsCount) end,
-        lists:seq(1, RecordsCount))
-     )).
-
-%% @private
-prf_prepare_data(Type, RecordsCount, FieldsCount) ->
-  Records =
-    lists:map(
-      fun(RN) ->
-          Values = lists:map(
-                     fun(FN) ->
-                         {prf_get_field_name(RN, FN), "value"}
-                     end,
-                     lists:seq(1, FieldsCount)),
-          avro_record:new(prf_record_type(RN, FieldsCount), Values)
-      end,
-      lists:seq(1, RecordsCount)),
-  avro_array:new(Type, Records).
-
-%% @private
-prf_get_record_name(RN) ->
-  "MyRecord" ++ integer_to_list(RN).
-
-%% @private
-prf_get_field_name(RN, FN) ->
-  "Field" ++ integer_to_list(RN) ++ "_" ++ integer_to_list(FN).
-
-%% @private
-prf_record_type(RN, FieldsCount) ->
-  Fields =
-    lists:map(
-      fun(FieldNum) ->
-          avro_record:define_field(
-            prf_get_field_name(RN, FieldNum),
-            avro_primitive:string_type())
-      end,
-      lists:seq(1, FieldsCount)),
-  avro_record:type(
-    prf_get_record_name(RN),
-    Fields,
-    [ {namespace, "com.klarna.test.bix"}
-    ]).
-
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

@@ -1,4 +1,5 @@
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+%%%
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -19,7 +20,8 @@
 %%% @doc Handling of Avro maps.
 %%% Data are kept internally as a gb_trees:: binary() -> avro_value()
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+
 -module(avro_map).
 
 %% API
@@ -31,7 +33,7 @@
 -export([to_term/1]).
 -export([encode/3]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 
 -define(IS_IOLIST(S), (is_list(S) orelse is_binary(S))).
 
@@ -43,31 +45,29 @@
 -type input_value() :: term().
 -type input_data() :: [{input_key(), input_value()}].
 
-%%%=============================================================================
-%%% API
-%%%=============================================================================
+%%%_* APIs =====================================================================
 
 %% @doc Define a map type.
--spec type(avro_type()) -> #avro_map_type{}.
+-spec type(avro_type()) -> map_type().
 type(ItemsType) ->
   #avro_map_type{ type = ItemsType }.
 
 %% @doc Return the map-value's type definition.
--spec get_items_type(#avro_map_type{}) -> avro_type().
+-spec get_items_type(map_type()) -> avro_type().
 get_items_type(#avro_map_type{ type = SubType }) ->
   SubType.
 
 %% @doc Create a new typed (boxed) value.
 %% Raise an 'error' in case of failure.
 %% @end
--spec new(#avro_map_type{}, input_data()) -> avro_value() | no_return().
+-spec new(map_type(), input_data()) -> avro_value() | no_return().
 new(Type, Data) when ?AVRO_IS_MAP_TYPE(Type) ->
   case cast(Type, Data) of
     {ok, Value}  -> Value;
     {error, Err} -> erlang:error(Err)
   end.
 
-%% @doc Unboxing the wrapped avro_value().
+%% @doc Recursively unbox the wrapped avro_value().
 -spec to_term(avro_value()) -> [{key(), value()}].
 to_term(Map) ->
   [{K, avro:to_term(V)} || {K, V} <- to_list(Map)].
@@ -90,9 +90,7 @@ encode(Type, Value, EncodeFun) ->
   ItemsType = avro_map:get_items_type(Type),
   [EncodeFun(ItemsType, K, V) || {K, V} <- Value].
 
-%%%=============================================================================
-%%% Internal functions
-%%%=============================================================================
+%%%_* Internal Functions =======================================================
 
 %% @private
 -spec do_cast(#avro_map_type{}, input_data()) ->
@@ -104,7 +102,7 @@ do_cast(Type, KvList0) when is_list(KvList0) ->
   #avro_map_type{type = ItemsType} = Type,
   MapFun =
     fun({K, V}) ->
-      Key = bin(K),
+      Key = ?NAME(K),
       Value = case avro:cast(ItemsType, V) of
                 {ok, CV}        -> CV;
                 {error, Reason} -> throw({?MODULE, Reason})
@@ -119,19 +117,17 @@ do_cast(Type, KvList0) when is_list(KvList0) ->
       {error, Reason}
   end.
 
-bin(A) when is_atom(A)   -> bin(atom_to_list(A));
-bin(S) when is_list(S)   -> iolist_to_binary(S);
-bin(B) when is_binary(B) -> B.
-
+%% @private
 -spec from_list([{key(), value()}]) -> data().
 from_list(KvL) -> from_list(gb_trees:empty(), KvL).
 
+%% @private
 -spec from_list([{key(), value()}], data()) -> data().
 from_list(Tree, []) -> Tree;
 from_list(Tree, [{K, V} | Rest]) ->
   from_list(gb_trees:enter(K, V, Tree), Rest).
 
-%%%_* Emacs ============================================================
+%%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
 %%% erlang-indent-level: 2

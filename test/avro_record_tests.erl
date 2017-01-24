@@ -39,11 +39,11 @@
 type_test() ->
   Field = define_field("invno", avro_primitive:long_type()),
   Schema = type("Test", [Field], [{namespace, "name.space"}]),
-  ?assertEqual("name.space.Test", avro:get_type_fullname(Schema)),
+  ?assertEqual(<<"name.space.Test">>, avro:get_type_fullname(Schema)),
   ?assertEqual({ok, Field}, get_field_def("invno", Schema)).
 
 get_field_def_test() ->
-  Field1 = define_field("f1", avro_primitive:long_type()),
+  Field1 = define_field(f1, avro_primitive:long_type()),
   Field2 = define_field("f2", avro_primitive:long_type(),
                         [{aliases, ["a1", "a2"]}]),
   Field3 = define_field("f3", avro_primitive:long_type()),
@@ -94,24 +94,25 @@ to_list_test() ->
                     ]),
   L = to_list(Rec),
   ?assertEqual(2, length(L)),
-  ?assertEqual({"invno", avro_primitive:long(1)}, lists:keyfind("invno", 1, L)),
-  ?assertEqual({"name", avro_primitive:string("some name")},
-               lists:keyfind("name", 1, L)).
+  ?assertEqual({<<"invno">>, avro_primitive:long(1)},
+               lists:keyfind(<<"invno">>, 1, L)),
+  ?assertEqual({<<"name">>, avro_primitive:string("some name")},
+               lists:keyfind(<<"name">>, 1, L)).
 
 to_term_test() ->
   Schema = type("Test",
-                [ define_field("invno", avro_primitive:long_type())
+                [ define_field(invno, avro_primitive:long_type())
                 , define_field("name", avro_primitive:string_type())
                 ],
                 [{namespace, "name.space"}]),
   Rec = new(Schema, [ {"invno", avro_primitive:long(1)}
                     , {"name", avro_primitive:string("some name")}
                     ]),
-  {Name, Fields} = avro:to_term(Rec),
-  ?assertEqual(Name, "name.space.Test"),
+  Fields = avro:to_term(Rec),
   ?assertEqual(2, length(Fields)),
-  ?assertEqual({"invno", 1}, lists:keyfind("invno", 1, Fields)),
-  ?assertEqual({"name", <<"some name">>}, lists:keyfind("name", 1, Fields)).
+  ?assertEqual({<<"invno">>, 1}, lists:keyfind(<<"invno">>, 1, Fields)),
+  ?assertEqual({<<"name">>, <<"some name">>},
+               lists:keyfind(<<"name">>, 1, Fields)).
 
 cast_test() ->
   RecordType = type("Record",

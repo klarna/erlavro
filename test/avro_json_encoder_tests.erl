@@ -111,7 +111,7 @@ encode_utf8_string_test() ->
   %% This file is in latin-1 encoding.
   %% To test utf8, we need to perform a latin1 to utf8 translation
   S = unicode:characters_to_binary("Avro är populär", latin1, utf8),
-  Json = encode_value(avro_primitive:string(binary_to_list(S))),
+  Json = encode_value(avro_primitive:string(S)),
   %% And because it's in latin-1 encoding, we need to hard-code
   %% the expected utf8 string with byte-lists inline
   Expected0 = ["\"Avro " ++ [195,164] ++ "r popul"++ [195,164] ++ "r\""],
@@ -228,7 +228,7 @@ encode_map_type_test() ->
 encode_map_test() ->
   MapType = avro_map:type(avro_union:type([avro_primitive:int_type(),
                                            avro_primitive:null_type()])),
-  MapValue = avro_map:new(MapType, [{"v1", 1}, {"v2", null}, {"v3", 2}]),
+  MapValue = avro_map:new(MapType, [{v1, 1}, {"v2", null}, {<<"v3">>, 2}]),
   Json = encode_value(MapValue),
   ?assertEqual(<<"{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}">>, Json).
 
@@ -254,16 +254,16 @@ encode_fixed_value_test() ->
 check_json_encode_record_properly_test() ->
   MyRecordType =
     avro_record:type("MyRecord",
-                     [ define_field("f1", avro_primitive:int_type())
+                     [ define_field(f1, avro_primitive:int_type())
                      , define_field("f2", avro_primitive:string_type())],
                      [{namespace, "my.com"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Term = [{"f1", 1},{"f2",<<"my string">>}],
+  Term = [{f1, 1}, {<<"f2">>, <<"my string">>}],
   {ok, AvroValue} = avro:cast(MyRecordType, Term),
   ExpectedJSON = encode_value(AvroValue),
   JSON = encode(Store, "my.com.MyRecord", Term),
   ?assertEqual(ExpectedJSON, JSON),
-  ?assertEqual(Term,
+  ?assertEqual([{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
                avro_json_decoder:decode_value(JSON, "my.com.MyRecord",
                                               Store, [{is_wrapped, false}])).
 

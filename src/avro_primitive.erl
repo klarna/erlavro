@@ -1,4 +1,4 @@
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -19,7 +19,8 @@
 %%% @doc
 %%%
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+
 -module(avro_primitive).
 
 %% API
@@ -45,8 +46,7 @@
 
 -export([get_value/1]).
 
--include("erlavro.hrl").
-
+-include("avro_internal.hrl").
 
 %%%===================================================================
 %%% API: Types
@@ -165,6 +165,7 @@ bytes(Value) -> from_cast(cast(bytes_type(), Value)).
 string(Value) -> from_cast(cast(string_type(), Value)).
 
 %% Get underlying erlang value from an Avro primitive value
+-spec get_value(avro_value()) -> canonicalize_primitive_value().
 get_value(Value) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
   ?AVRO_VALUE_DATA(Value).
 

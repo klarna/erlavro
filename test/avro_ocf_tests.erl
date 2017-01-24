@@ -22,6 +22,11 @@
 -include("avro_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-record(header, { magic
+                , meta
+                , sync
+                }).
+
 interop_test() ->
   PrivDir = priv_dir(),
   InteropOcfFile = filename:join([PrivDir, "interop.ocf"]),

@@ -1,5 +1,5 @@
 %% coding: latin-1
-%%% ============================================================================
+%%%-----------------------------------------------------------------------------
 %%% Copyright (c) 2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -19,7 +19,7 @@
 %%% @doc
 %%% Encode/decode avro object container files
 %%% @end
-%%% ============================================================================
+%%%-----------------------------------------------------------------------------
 
 -module(avro_ocf).
 
@@ -42,6 +42,11 @@
 -type avro_object() :: term().
 -type filename() :: file:filename_all().
 
+-record(header, { magic
+                , meta
+                , sync
+                }).
+
 -opaque header() :: #header{}.
 
 %%%_* APIs =====================================================================
@@ -51,12 +56,12 @@
         {header(), avro_type(), [avro_object()]} | no_return().
 decode_file(Filename) ->
   {ok, Bin} = file:read_file(Filename),
-  {[ {"magic", Magic}
-   , {"meta", Meta}
-   , {"sync", Sync}
+  {[ {<<"magic">>, Magic}
+   , {<<"meta">>, Meta}
+   , {<<"sync">>, Sync}
    ], Tail} = decode_stream(ocf_schema(), Bin),
-  {_, SchemaBytes} = lists:keyfind("avro.schema", 1, Meta),
-  {_, Codec} = lists:keyfind("avro.codec", 1, Meta),
+  {_, SchemaBytes} = lists:keyfind(<<"avro.schema">>, 1, Meta),
+  {_, Codec} = lists:keyfind(<<"avro.codec">>, 1, Meta),
   <<"null">> = Codec, %% assert, no support for deflate so far
   Schema = avro_json_decoder:decode_schema(SchemaBytes),
   Store = init_schema_store(Schema),
