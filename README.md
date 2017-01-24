@@ -22,8 +22,8 @@ License: Apache License 2.0
 | fixed | `binary()` | `binary()` | |
 | array | `list()` | `list()` | |
 | map | `[{Key::atom()|iolist(), Value::in()}]` | `[{Key::binary(), Value::out()}]` | |
-| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | Will support `atom()` as `FiledName` for encoder in 2.0 |
-| union | `in() | {Tag::string(), in()}`  | `out() | {Tag::string(), out()}` | Tag is the type name, See notes about unions below |
+| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | |
+| union | `in() | {Tag::string(), in()}`  | `out() | {Tag::string(), out()}` | See notes about unions below |
 
 Where `in()` and `out()` refer to the input and output type specs recursively
 

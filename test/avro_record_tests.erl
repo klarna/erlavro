@@ -32,7 +32,6 @@
                      , get_value/2
                      , cast_value/2
                      , cast/2
-                     , new_encoded/3
                      ]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -145,7 +144,8 @@ new_encoded_test() ->
   Fields = [ {"field1", avro_primitive:long(1)}
            , {"field2", avro_primitive:string("f")}
            ],
-  Rec = new_encoded(Type, Fields, json_binary),
+  Lkup = fun(_) -> erlang:error(unexpected) end,
+  Rec = avro:encode_wrapped(Lkup, Type, Fields, avro_json),
   ?assertException(throw, {value_already_encoded, _},
                    get_value("any", Rec)),
   ?assertException(throw, {value_already_encoded, _},
