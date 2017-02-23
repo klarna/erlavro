@@ -122,11 +122,9 @@ cast(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
 -spec check_symbols([symbol()]) -> ok | no_return().
 check_symbols(Symbols) ->
   SymLen = length(Symbols),
-  ?ERROR_IF(SymLen =:= 0,
-            empty_symbols),
-  ?ERROR_IF(length(lists:usort(Symbols)) =/= SymLen,
-            non_unique_symbols),
-  lists:foreach(fun(S) -> avro_util:verify_name(S) end, Symbols).
+  ?ERROR_IF(SymLen =:= 0, empty_symbols),
+  ?ERROR_IF(length(lists:usort(Symbols)) =/= SymLen, non_unique_symbols),
+  avro_util:verify_names(Symbols).
 
 %% @private
 do_cast(Type, Value) when ?AVRO_IS_ENUM_VALUE(Value) ->

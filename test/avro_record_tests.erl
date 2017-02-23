@@ -45,13 +45,13 @@ type_test() ->
 get_field_def_test() ->
   Field1 = define_field(f1, avro_primitive:long_type()),
   Field2 = define_field("f2", avro_primitive:long_type(),
-                        [{aliases, ["a1", "a2"]}]),
+                        [{aliases, [a, b]}]),
   Field3 = define_field("f3", avro_primitive:long_type()),
   Record = type("Test", [Field1, Field2, Field3]),
   ?assertEqual(false, get_field_def("f4", Record)),
   ?assertEqual({ok, Field2}, get_field_def("f2", Record)),
   ?assertEqual({ok, Field3}, get_field_def("f3", Record)),
-  ?assertEqual({ok, Field2}, get_field_def("a2", Record)).
+  ?assertEqual({ok, Field2}, get_field_def(b, Record)).
 
 get_field_type_test() ->
   Field = define_field("invno", avro_primitive:long_type()),

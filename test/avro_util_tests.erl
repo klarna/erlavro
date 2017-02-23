@@ -79,6 +79,10 @@ canonizalize_aliases_test() ->
       "bla.bla",
       "enc.losing")).
 
+get_opt_test() ->
+  ?assertEqual(value, avro_util:get_opt(key, [{key, value}])),
+  ?assertException(error, {not_found, "key"},
+                   avro_util:get_opt("key", [{key, value}])).
 
 %% @private
 get_test_type(Name, Namespace) ->
