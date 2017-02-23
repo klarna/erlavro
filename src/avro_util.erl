@@ -31,7 +31,6 @@
         , ensure_binary/1
         , get_opt/2
         , get_opt/3
-        , verify_name/1
         , verify_names/1
         , verify_dotted_name/1
         , verify_aliases/1
@@ -54,7 +53,7 @@
 get_opt(Key, Opts) ->
   case lists:keyfind(Key, 1, Opts) of
     {Key, Value} -> Value;
-    false        -> erlang:error({error, {not_found, Key}})
+    false        -> erlang:error({not_found, Key})
   end.
 
 -spec get_opt(Key, [{Key, Value}], Value) -> Value
@@ -65,15 +64,14 @@ get_opt(Key, Opts, Default) ->
     false        -> Default
   end.
 
-%% @doc Assert name validity.
--spec verify_name(name_raw()) -> ok | no_return().
-verify_name(Name) ->
-  ?ERROR_IF_NOT(is_valid_name(name_string(Name)), {invalid_name, Name}).
 
 %% @doc Assert validity of a list of names.
 -spec verify_names([name_raw()]) -> ok | no_return().
 verify_names(Names) ->
-  lists:foreach(fun verify_name/1, Names).
+  lists:foreach(
+    fun(Name) ->
+      ?ERROR_IF_NOT(is_valid_name(name_string(Name)), {invalid_name, Name})
+    end, Names).
 
 %% @doc Assert validity of a fullname.
 -spec verify_dotted_name(name_raw()) -> ok | no_return().
@@ -82,7 +80,7 @@ verify_dotted_name(Name) ->
                 {invalid_name, Name}).
 
 %% @doc Assert validity of aliases.
--spec verify_aliases([name()]) -> ok | no_return().
+-spec verify_aliases([name_raw()]) -> ok | no_return().
 verify_aliases(Aliases) ->
   lists:foreach(
     fun(Alias) ->
@@ -93,10 +91,8 @@ verify_aliases(Aliases) ->
 %% @doc Assert that the given type names are not AVRO reserved names.
 -spec verify_type(avro_type()) -> ok | no_return().
 verify_type(Type) ->
-  case avro:is_named_type(Type) of
-    true  -> verify_type_name(Type);
-    false -> ok
-  end.
+  true = avro:is_named_type(Type), %% assert
+  verify_type_name(Type).
 
 %% @doc Convert aliases to full-name representation using provided names and
 %% namespaces from the original type
@@ -131,13 +127,14 @@ canonicalize_type_or_name(Type) when ?IS_AVRO_TYPE(Type) ->
 
 %%%_* Internal functions =======================================================
 
+%% @private Ensure string() format name for validation.
 -spec name_string(name_raw()) -> string().
 name_string(Name) when is_binary(Name) ->
   %% No need of utf8 validation since names are all ascii
   binary_to_list(Name);
 name_string(Name) when is_atom(Name) ->
   atom_to_list(Name);
-name_string(Name)when is_list(Name) ->
+name_string(Name) when is_list(Name) ->
   Name.
 
 %% @private Check validity of the name portion of type names,
@@ -182,10 +179,10 @@ verify_type_name(Type) ->
   Name = avro:get_type_name(Type),
   Ns = avro:get_type_namespace(Type),
   Fullname = avro:get_type_fullname(Type),
-  verify_dotted_name(Name),
+  ok = verify_dotted_name(Name),
   %% Verify namespace only if it is non-empty (empty namespaces are allowed)
   Ns =:= ?NS_GLOBAL orelse verify_dotted_name(Ns),
-  verify_dotted_name(Fullname),
+  ok = verify_dotted_name(Fullname),
   %% We are not interested in the namespace here, so we can ignore
   %% EnclosingExtension value.
   {CanonicalName, _} = avro:split_type_name(Name, Ns, ?NS_GLOBAL),
