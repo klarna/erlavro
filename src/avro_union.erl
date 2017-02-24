@@ -64,7 +64,7 @@
 %% @end
 -spec type([avro_type_or_name()]) -> union_type() | no_return().
 type([]) ->
-  erlang:error(<<"avro union should have at least one member type">>);
+  erlang:error(<<"union should have at least one member type">>);
 type([_ | _ ] = Types0) ->
   Types = lists:map(fun avro_util:canonicalize_type_or_name/1, Types0),
   Count = length(Types),
@@ -100,8 +100,8 @@ lookup_child_type(Union, NameOrId) when ?IS_NAME_RAW(NameOrId) orelse
 get_child_type_index(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   UnionType = ?AVRO_VALUE_TYPE(Union),
   TypeName = get_child_type_name(Union),
-  {ok, Index} = get_child_type_index(UnionType, TypeName),
-  Index.
+  {ok, {TypeId, _Type}} = lookup(TypeName, UnionType),
+  TypeId.
 
 %% @doc Get typeed member's full type name.
 %% This is used to encode wrapped (boxed) value to JSON format,
@@ -164,17 +164,6 @@ to_term(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   avro:to_term(?AVRO_VALUE_DATA(Union)).
 
 %%%_* Internal functions =======================================================
-
-%% @private Get union member type index.
-%% This is used to encode wrapped (boxed) value to binary format.
-%% @end
--spec get_child_type_index(union_type(), name_raw()) ->
-        false | {ok, union_index()}.
-get_child_type_index(Union, TypeName) when ?AVRO_IS_UNION_TYPE(Union) ->
-  case lookup(TypeName, Union) of
-    {ok, {TypeId, _Type}} -> {ok, TypeId};
-    false                 -> false
-  end.
 
 %% @private
 -spec try_encode_union_loop(union_type(), [avro_type()], avro:in(),
@@ -249,10 +238,6 @@ do_cast(Type, {MemberId, Value}) ->
     false ->
       erlang:error({unknown_tag, Type, MemberId})
   end;
-do_cast(Type, Value) when ?AVRO_IS_UNION_VALUE(Value) ->
-  %% Unions can't have other unions as their subtypes, so in this case
-  %% we cast the value of the source union, not the union itself.
-  do_cast(Type, ?AVRO_VALUE_DATA(Value));
 do_cast(Type, Value) ->
   case cast_over_types(Type#avro_union_type.types, Value) of
     {ok, V} -> {ok, ?AVRO_VALUE(Type, V)};
