@@ -63,22 +63,65 @@ lookup(Name, Store) ->
 import_test() ->
   PrivDir = priv_dir(),
   AvscFile = filename:join([PrivDir, "interop.avsc"]),
-  Store = avro_schema_store:new([], [AvscFile]),
+  Store = avro_schema_store:new([{name, ?MODULE}], [AvscFile]),
+  ?assertEqual(?MODULE, Store),
   ets:delete(Store),
   ok.
+
+import_unnamed_test() ->
+  PrivDir = priv_dir(),
+  UnionName = "com.klarna.test.union",
+  AvscFile = filename:join([PrivDir, UnionName ++ ".avsc"]),
+  UnionType = avro_union:type([ avro_primitive:null_type()
+                              , avro_primitive:long_type()
+                              ]),
+  UnionJSON = avro_json_encoder:encode_type(UnionType),
+  ok = file:write_file(AvscFile, UnionJSON),
+  try
+    Store = avro_schema_store:new([], [AvscFile]),
+    ?assertException(error, {unnamed_type, UnionType},
+                     avro_schema_store:import_schema_json(UnionJSON, Store)),
+    ?assertEqual({ok, UnionType},
+                 avro_schema_store:lookup_type(UnionName, Store))
+  after
+    file:delete(AvscFile)
+  end.
+
+name_clash_test() ->
+  Name = <<"com.klarna.test.union">>,
+  Type = avro_union:type([ avro_primitive:null_type()
+                         , avro_primitive:long_type()
+                         ]),
+  AnotherType = avro_primitive:string_type(),
+  Store = avro_schema_store:new([]),
+  %% ok to add the type
+  Store = avro_schema_store:add_type(Name, Type, Store),
+  %% ok to add the exact type again
+  Store = avro_schema_store:add_type(Name, Type, Store),
+  ?assertException(error, {name_clash, Name, AnotherType, Type},
+                   avro_schema_store:add_type(Name, AnotherType, Store)).
+
+import_failure_test() ->
+  Filename = "no-such-file",
+  ?assertException(error, {failed_to_read_schema_file, Filename, enoent},
+                   avro_schema_store:import_file(Filename, ignore)).
 
 expand_type_test() ->
   PrivDir = priv_dir(),
   AvscFile = filename:join([PrivDir, "interop.avsc"]),
   Store = avro_schema_store:new([], [AvscFile]),
+  {ok, FlatType} =
+    avro_schema_store:lookup_type("org.apache.avro.Interop", Store),
   {ok, TruthJSON} = file:read_file(AvscFile),
   TruthType = avro_json_decoder:decode_schema(TruthJSON),
   Type = avro_schema_store:expand_type("org.apache.avro.Interop", Store),
   %% compare decoded type instead of JSON schema because
   %% the order of JSON object fields lacks deterministic
   ?assertEqual(TruthType, Type),
+  %% also try to expand a flattened wrapper type, which should
+  %% have the exact same effect as expanding from its fullname
+  ?assertEqual(TruthType, avro_schema_store:expand_type(FlatType, Store)),
   ok.
-
 
 %% @private
 sub_record() ->
