@@ -47,10 +47,12 @@
 -export([ import_file/2
         , import_files/2
         , import_schema_json/2
+        , import_schema_json/3
         ]).
 
 %% Add/Lookup
 -export([ add_type/2
+        , add_type/3
         , lookup_type/2
         , to_lookup_fun/1
         ]).
@@ -117,20 +119,31 @@ import_files(Files, Store) when ?IS_STORE(Store) ->
   lists:foldl(fun(File, S) -> import_file(File, S) end, Store, Files).
 
 %% @doc Import avro JSON file into schema store.
+%% In case the schema is unnamed, the file basename is used as its
+%% lookup name.
+%% Extention ".avsc" or ".json" will be stripped,
+%% Otherwise the full file basename is used.
+%% e.g.
+%%  "/path/to/com.klarna.test.x.avsc" to 'com.klarna.etst.x"
+%%  "/path/to/com.klarna.test.x.json" to 'com.klarna.etst.x"
+%%  "/path/to/com.klarna.test.x"      to 'com.klarna.etst.x"
+%% @end
 -spec import_file(filename(), store()) -> store().
 import_file(File, Store) when ?IS_STORE(Store) ->
   case file:read_file(File) of
     {ok, Json} ->
-      import_schema_json(Json, Store);
+      Name = parse_basename(File),
+      import_schema_json(Name, Json, Store);
     {error, Reason} ->
       erlang:error({failed_to_read_schema_file, File, Reason})
   end.
 
 %% @doc Decode avro schema JSON into erlavro records.
+%% NOTE: Exception if the type is unnamed.
+%% @end
 -spec import_schema_json(binary(), store()) -> store().
 import_schema_json(Json, Store) when ?IS_STORE(Store) ->
-  Schema = avro_json_decoder:decode_schema(Json),
-  add_type(Schema, Store).
+  import_schema_json(undefined, Json, Store).
 
 %% @doc Delete the ets table.
 -spec close(store()) -> ok.
@@ -138,20 +151,29 @@ close(Store) ->
   ets:delete(Store),
   ok.
 
-%% @doc Add type into the schema store.
+%% @doc Add named type into the schema store.
 %% NOTE: the type is flattened before inserting into the schema store.
 %% i.e. named types nested in the given type are lifted up to root level.
+%% @end
 -spec add_type(avro_type(), store()) -> store().
 add_type(Type, Store) when ?IS_STORE(Store) ->
+  add_type(undefined, Type, Store).
+
+%% @doc Add (maybe unnamed) type to schema store.
+%% If the type is unnamed, the assigned name is used.
+%% @end
+-spec add_type(undefined | name_raw(), avro_type(), store()) -> store().
+add_type(AssignedName, Type, Store) when ?IS_STORE(Store) ->
+  {ConvertedType, ExtractedTypes} = extract_children_types(Type),
   case avro:is_named_type(Type) of
-    true  ->
-      {ConvertedType, ExtractedTypes} = extract_children_types(Type),
-      lists:foldl(
-        fun do_add_type/2,
-        do_add_type(ConvertedType, Store),
-        ExtractedTypes);
-    false ->
-      erlang:error({unnamed_type_cant_be_added, Type})
+    true ->
+      lists:foldl(fun do_add_type/2, Store,
+                  [ConvertedType | ExtractedTypes]);
+    false when AssignedName =/= undefined ->
+      Store1 = do_add_type_by_names([?NAME(AssignedName)], Type, Store),
+      lists:foldl(fun do_add_type/2, Store1, ExtractedTypes);
+    false when AssignedName =:= undefined ->
+      erlang:error({unnamed_type, Type})
   end.
 
 %% @doc Lookup a type using its full name.
@@ -209,6 +231,27 @@ flatten_type(Type) when ?IS_AVRO_TYPE(Type) ->
 
 %%%_* Internal Functions =======================================================
 
+%% @private Parse file basename. try to strip ".avsc" or ".json" extension.
+-spec parse_basename(filename()) -> name().
+parse_basename(FileName) ->
+  BaseName0 = filename:basename(FileName),
+  BaseName1 = filename:basename(FileName, ".avsc"),
+  BaseName2 = filename:basename(FileName, ".json"),
+  lists:foldl(
+    fun(N, Shortest) ->
+        BN = avro_util:ensure_binary(N),
+        case size(BN) < size(Shortest) of
+          true  -> BN;
+          false -> Shortest
+        end
+    end, avro_util:ensure_binary(BaseName0), [BaseName1, BaseName2]).
+
+%% @private Import JSON schema with assigned name.
+-spec import_schema_json(name_raw(), binary(), store()) -> store().
+import_schema_json(AssignedName, Json, Store) ->
+  Schema = avro_json_decoder:decode_schema(Json),
+  add_type(AssignedName, Schema, Store).
+
 %% @private
 -spec do_expand_type(fullname(), store()) ->
         fullname() | avro_type() | no_return().
@@ -263,13 +306,19 @@ do_add_type(Type, Store) ->
   Aliases = avro:get_aliases(Type),
   do_add_type_by_names([FullName|Aliases], Type, Store).
 
--spec do_add_type_by_names([fullname()], avro_type(), store()) -> store().
-do_add_type_by_names([], _Type, Store) ->
-  Store;
+%% @private
+-spec do_add_type_by_names([fullname()], avro_type(), store()) ->
+        store() | no_return().
+do_add_type_by_names([], _Type, Store) -> Store;
 do_add_type_by_names([Name|Rest], Type, Store) ->
   case get_type_from_store(Name, Store) of
-    {ok, _} ->
-      erlang:error({type_with_same_name_already_exists_in_store, Name});
+    {ok, Type} ->
+      Store;
+    {ok, OtherType} ->
+      %% Name can be an assigned name for unnamed types,
+      %% This is why we raise error exception with name AND both
+      %% old / new types.
+      erlang:error({name_clash, Name, Type, OtherType});
     false   ->
       Store1 = put_type_to_store(Name, Type, Store),
       do_add_type_by_names(Rest, Type, Store1)
