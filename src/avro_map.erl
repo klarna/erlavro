@@ -41,8 +41,8 @@
 -type value() :: avro_value().
 -type data() :: gb_trees:tree(key(), value()).
 
--type input_key() :: atom() | iolist().
--type input_value() :: term().
+-type input_key() :: avro:name_raw().
+-type input_value() :: avro:in().
 -type input_data() :: [{input_key(), input_value()}].
 
 %%%_* APIs =====================================================================
@@ -95,9 +95,6 @@ encode(Type, Value, EncodeFun) ->
 %% @private
 -spec do_cast(#avro_map_type{}, input_data()) ->
         {ok, avro_value()} | {error, any()}.
-do_cast(Type, Value) when ?AVRO_IS_MAP_VALUE(Value) ->
-  %% Just cast data of the source map
-  do_cast(Type, gb_trees:to_list(?AVRO_VALUE_DATA(Value)));
 do_cast(Type, KvList0) when is_list(KvList0) ->
   #avro_map_type{type = ItemsType} = Type,
   MapFun =

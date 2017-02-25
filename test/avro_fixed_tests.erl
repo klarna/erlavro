@@ -39,25 +39,12 @@ full_create_test() ->
   ?assertEqual(<<"name.space.FooBar">>, avro:get_type_fullname(Type)),
   ?assertEqual(16, avro_fixed:get_size(Type)).
 
-incorrect_cast_from_fixed_test() ->
-  SourceType = avro_fixed:type("FooBar", 2),
-  SourceValue = avro_fixed:new(SourceType, <<1,2>>),
-  TargetType = avro_fixed:type("BarFoo", 2),
-  ?assertEqual({error, type_name_mismatch},
-               avro_fixed:cast(TargetType, SourceValue)).
-
-correct_cast_from_fixed_test() ->
-  SourceType = avro_fixed:type("FooBar", 2),
-  SourceValue = avro_fixed:new(SourceType, <<1,2>>),
-  TargetType = avro_fixed:type("FooBar", 2),
-  ?assertEqual({ok, SourceValue}, avro_fixed:cast(TargetType, SourceValue)).
-
-incorrect_cast_from_binary_test() ->
+bad_cast_from_binary_test() ->
   Type = avro_fixed:type("FooBar", 2),
   ?assertEqual({error, wrong_binary_size}, avro_fixed:cast(Type, <<1,2,3>>)),
   ?assertEqual({error, wrong_binary_size}, avro_fixed:cast(Type, <<1>>)).
 
-correct_cast_from_binary_test() ->
+cast_from_binary_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Bin = <<1,2>>,
   ?assertEqual({ok, ?AVRO_VALUE(Type, Bin)}, avro_fixed:cast(Type, Bin)).

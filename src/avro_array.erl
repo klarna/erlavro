@@ -92,7 +92,7 @@ prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   new_direct(Type, Items ++ Data).
 
 %% @hidden Only other Avro array type or erlang list can be casted to arrays.
--spec cast(array_type(), term()) -> {ok, avro_value()} | {error, term()}.
+-spec cast(array_type(), [avor:in()]) -> {ok, avro_value()} | {error, term()}.
 cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   do_cast(Type, Value).
 
@@ -112,12 +112,8 @@ encode(Type, Value, EncodeFun) ->
 %%%===================================================================
 
 %% @private
--spec do_cast(#avro_array_type{}, avro_value() | [term()])
-             -> {ok, avro_value()} | {error, term()}.
-do_cast(Type, Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
-  %% Since we can't compare array types we just cast all items one by one
-  %% and see if this succeeds
-  do_cast(Type, ?AVRO_VALUE_DATA(Array));
+-spec do_cast(#avro_array_type{}, [avro:in()]) ->
+        {ok, avro_value()} | {error, term()}.
 do_cast(Type, Items) when is_list(Items) ->
   #avro_array_type{type = ItemType} = Type,
   case cast_items(ItemType, Items, []) of
