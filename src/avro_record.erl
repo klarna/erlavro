@@ -176,18 +176,8 @@ set_value(FieldName, Value, Record) when not ?IS_NAME(FieldName) ->
 set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
-  NewData =
-    case lists:keytake(FieldName, 1, Data) of
-      {value, {_, V}, Rest} ->
-        T = ?AVRO_VALUE_TYPE(V),
-        case avro:cast(T, Value) of
-          {ok, NewValue} -> [{FieldName, NewValue} | Rest];
-          Err            -> erlang:error(Err)
-        end;
-      false ->
-        erlang:error({unknown_field, FieldName})
-    end,
-  Record#avro_value{data = NewData}.
+  UpdateFun = fun(_OldFieldValue) -> Value end,
+  update(FieldName, UpdateFun, Record).
 
 %% @private Update the value of a field using provided function.
 %% update(FieldName, Fun, Record) is equivalent to
@@ -206,8 +196,8 @@ update(FieldName, Fun, Record) ->
       {value, {_, OldValue}, Rest} ->
         T = ?AVRO_VALUE_TYPE(OldValue),
         case avro:cast(T, Fun(OldValue)) of
-          {ok, NewValue} -> [{FieldName, NewValue} | Rest];
-          {error, Err}   -> erlang:error({FieldName, Err})
+          {ok, NewValue}  -> [{FieldName, NewValue} | Rest];
+          {error, Reason} -> erlang:error({FieldName, Reason})
         end;
       false ->
         erlang:error({unknown_field, FieldName})
@@ -228,7 +218,8 @@ to_term(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
 
 %% @hidden Help function for JSON/binary encoder.
 %% TODO: better spec for Value and EncodeFun
--spec encode(avro_type_or_name(), [{name_raw(), avro:in()}], fun()) -> list().
+-spec encode(avro_type_or_name(), [{field_name_raw(), avro:in()}],
+             fun((field_name(), avro_type(), avro:in()) -> term())) -> list().
 encode(Type, Fields, EncodeFun) ->
   FieldTypes = get_all_field_types(Type),
   TypeFullName = avro:get_type_fullname(Type),
