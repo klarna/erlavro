@@ -79,7 +79,9 @@ get_set_test() ->
   ?assertEqual(avro_primitive:long(1), get_value("invno", Rec1)),
   Rec2 = set_values([{"invno", 2}, {"uname", "new-name"}], Rec1),
   ?assertEqual(avro_primitive:long(2), get_value("invno", Rec2)),
-  ?assertEqual(avro_primitive:string("new-name"), get_value("uname", Rec2)).
+  ?assertEqual(avro_primitive:string("new-name"), get_value("uname", Rec2)),
+  ?assertException(error, {<<"invno">>, _}, set_value("invno", "string", Rec2)),
+  ?assertException(error, {unknown_field, <<"x">>}, set_value("x", "y", Rec2)).
 
 update_test() ->
   Schema = type("Test", [define_field("invno", avro_primitive:long_type())],
@@ -132,6 +134,13 @@ cast_test() ->
   ?assertEqual(avro_primitive:string("foo"), get_value("a", Record)),
   ?assertEqual(avro_primitive:int(1), get_value("b", Record)).
 
+cast_error_test() ->
+  RecordType = type("Record",
+                    [define_field("a", avro_primitive:long_type())],
+                    [ {namespace, "name.space"} ]),
+  ?assertMatch({error, {<<"a">>, _}},
+               cast(RecordType, [{"a", "foo"}])).
+
 cast_by_aliases_test() ->
   RecordType = type("Record",
                     [ define_field("a", avro_primitive:string_type(),
@@ -162,6 +171,23 @@ new_encoded_test() ->
   ?assertException(throw, {value_already_encoded, _},
                    update("any", fun()-> "care not" end, Rec)),
   ?assertException(throw, {value_already_encoded, _}, to_list(Rec)).
+
+encode_test() ->
+  EncodeFun = fun({FieldName, _FieldType, Input}) ->
+                  {FieldName, {encoded, Input}}
+              end,
+  Type = type("Test",
+              [ define_field("field1", avro_primitive:long_type())
+              , define_field("field2", avro_primitive:string_type())],
+              [ {namespace, "name.space"} ]),
+  ?assertException(error,
+                   {field_value_not_found, <<"name.space.Test">>, <<"field2">>},
+                   avro_record:encode(Type, [{<<"field1">>, 1}], EncodeFun)),
+  ?assertEqual([{<<"field1">>, {encoded, 1}},
+                {<<"field2">>, {encoded, foo}}],
+               avro_record:encode(Type,
+                                  [{"field2", foo}, {"field1", 1}],
+                                  EncodeFun)).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
