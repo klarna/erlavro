@@ -95,12 +95,6 @@ integer_to_fixed(Size, Integer) ->
   <<0:PadSize, Bin/binary>>.
 
 %% @private
-do_cast(Type, Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
-  TargetTypeName = Type#avro_fixed_type.fullname,
-  SourceTypeName = (?AVRO_VALUE_TYPE(Value))#avro_fixed_type.fullname,
-  if TargetTypeName =:= SourceTypeName -> {ok, Value};
-     true                              -> {error, type_name_mismatch}
-  end;
 do_cast(Type, Value) when is_integer(Value) ->
   #avro_fixed_type{ size = Size } = Type,
   case Value >= 0 andalso Value < (1 bsl (8*Size)) of

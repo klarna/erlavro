@@ -109,8 +109,7 @@ get_symbol_from_index(T, Index) when ?AVRO_IS_ENUM_TYPE(T) ->
   lists:nth(Index + 1, T#avro_enum_type.symbols).
 
 %% @doc Enums can be casted from other enums or strings.
--spec cast(avro_type(), avro_value() | symbol_raw()) ->
-        {ok, avro_value()} | {error, term()}.
+-spec cast(avro_type(), symbol_raw()) -> {ok, avro_value()} | {error, term()}.
 cast(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   do_cast(Type, Value).
 
@@ -127,13 +126,6 @@ check_symbols(Symbols) ->
   avro_util:verify_names(Symbols).
 
 %% @private
-do_cast(Type, Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
-  %% When casting from other enums only equality of type names is checked
-  TargetTypeName = Type#avro_enum_type.fullname,
-  SourceTypeName = (?AVRO_VALUE_TYPE(Value))#avro_enum_type.fullname,
-  if TargetTypeName =:= SourceTypeName -> {ok, Value};
-     true                              -> {error, type_name_mismatch}
-  end;
 do_cast(Type, Value0) when ?IS_SYMBOL_RAW(Value0) ->
   Value = ?SYMBOL(Value0),
   case is_valid_symbol(Type, Value) of

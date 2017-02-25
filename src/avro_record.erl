@@ -319,22 +319,8 @@ cast_fields([FieldDef | Rest], Values, Acc) ->
   end.
 
 %% @private
--spec do_cast(record_type(), avro_value() | [{field_name_raw(), avro:in()}]) ->
+-spec do_cast(record_type(), [{field_name_raw(), avro:in()}]) ->
         {ok, avro_value()} | {error, any()}.
-do_cast(Type, Value) when ?AVRO_IS_RECORD_VALUE(Value) ->
-  %% When casting from other record only equality of full names is checked.
-  TargetTypeFullName = Type#avro_record_type.fullname,
-  ValueType = ?AVRO_VALUE_TYPE(Value),
-  ValueTypeFullName = ValueType#avro_record_type.fullname,
-  if TargetTypeFullName =:= ValueTypeFullName -> {ok, Value};
-     true                                     -> {error, type_name_mismatch}
-  end;
-do_cast(Type, {NameInput, KvList}) ->
-  Name = ?NAME(NameInput),
-  case Type#avro_record_type.fullname =:= Name of
-    true  -> do_cast(Type, KvList);
-    false -> {error, {record_name_mismatch, Type, Name}}
-  end;
 do_cast(Type, KvList0) when is_list(KvList0) ->
   %% unify field names to binary
   KvList = lists:map(fun({K, V}) -> {?NAME(K), V} end, KvList0),

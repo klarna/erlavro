@@ -38,18 +38,6 @@ invalid_name_test() ->
   ?assertError({invalid_name, <<"c-1">>},
                type("FooBar", ["a", "b", "c-1", "d", "c", "e"])).
 
-cast_from_enum_test() ->
-  SourceType = type("MyEnum", ["a", "b", "c", "d"]),
-  SourceValue = new(SourceType, "b"),
-  TargetType = SourceType,
-  ?assertEqual({ok, SourceValue}, cast(TargetType, SourceValue)).
-
-bad_cast_from_enum_test() ->
-  SourceType = type("MyEnum", ["a", "b", "c", "d"]),
-  SourceValue = new(SourceType, "b"),
-  TargetType = type("MyEnum2", ["a", "b", "c", "d"]),
-  ?assertEqual({error, type_name_mismatch}, cast(TargetType, SourceValue)).
-
 cast_from_string_test() ->
   Type = type("MyEnum", ["a", "b", "c", "d"]),
   {ok, Enum} = cast(Type, "b"),

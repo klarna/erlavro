@@ -73,75 +73,41 @@ string_type()  -> #avro_primitive_type{name = ?AVRO_STRING}.
 %%%===================================================================
 
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
-
-cast(Type, Value)
-  when ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
-       ?IS_AVRO_VALUE(Value) andalso
-       ?AVRO_VALUE_TYPE(Value) =:= Type ->
-  %% Any primitive Avro value can be casted to same type
-  {ok, Value};
-
-%% Casts from erlang values
-
 cast(Type, null) when ?AVRO_IS_NULL_TYPE(Type) ->
   {ok, ?AVRO_VALUE(Type, null)};
-
 cast(Type, Value) when ?AVRO_IS_BOOLEAN_TYPE(Type) andalso
                        is_boolean(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-
 cast(Type, 0) when ?AVRO_IS_BOOLEAN_TYPE(Type) ->
   {ok, ?AVRO_VALUE(Type, false)};
-
 cast(Type, 1) when ?AVRO_IS_BOOLEAN_TYPE(Type) ->
   {ok, ?AVRO_VALUE(Type, true)};
-
 cast(Type, Value) when ?AVRO_IS_INT_TYPE(Type) andalso
                        Value >= ?INT4_MIN andalso
                        Value =< ?INT4_MAX ->
   {ok, ?AVRO_VALUE(Type, Value)};
-
 cast(Type, Value) when ?AVRO_IS_LONG_TYPE(Type) andalso
                        Value >= ?INT8_MIN andalso
                        Value =< ?INT8_MAX ->
   {ok, ?AVRO_VALUE(Type, Value)};
-
 cast(Type, Value) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
                        is_integer(Value) ->
   {ok, ?AVRO_VALUE(Type, erlang:float(Value))};
-
 cast(Type, Value) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
                        is_float(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-
 cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
                        is_integer(Value) ->
   {ok, ?AVRO_VALUE(Type, erlang:float(Value))};
-
 cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
                        is_float(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-
 cast(Type, Value) when ?AVRO_IS_BYTES_TYPE(Type) andalso
                        is_binary(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-
 cast(Type, Value) when ?AVRO_IS_STRING_TYPE(Type) andalso
                        (is_list(Value) orelse is_binary(Value)) ->
   {ok, ?AVRO_VALUE(Type, erlang:iolist_to_binary(Value))};
-
-%% Casts from other primitive Avro types so that we don't lose data
-
-%% int -> long
-cast(Type, Value) when ?AVRO_IS_LONG_TYPE(Type) andalso
-                       ?AVRO_IS_INT_VALUE(Value) ->
-  {ok, ?AVRO_VALUE(Type, ?AVRO_VALUE_DATA(Value))};
-
-%% float -> double
-cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
-                       ?AVRO_IS_FLOAT_VALUE(Value) ->
-  {ok, ?AVRO_VALUE(Type, ?AVRO_VALUE_DATA(Value))};
-
 cast(Type, Value) -> {error, {type_mismatch, Type, Value}}.
 
 %%%===================================================================

@@ -27,6 +27,7 @@
                      , get_field_def/2
                      , to_list/1
                      , set_value/3
+                     , set_values/2
                      , update/3
                      , get_field_type/2
                      , get_value/2
@@ -64,14 +65,21 @@ default_fields_test() ->
                        [{default, avro_primitive:long(10)}]),
   Schema = type("Test", [Field], [{namespace, "name.space"}]),
   Rec = new(Schema, []),
-  ?assertEqual(avro_primitive:long(10), get_value("invno", Rec)).
+  ?assertEqual(avro_primitive:long(10), get_value("invno", Rec)),
+  ?assertException(error, {unknown_field, <<"no_such_field">>},
+                   get_value("no_such_field", Rec)).
 
 get_set_test() ->
-  Schema = type("Test", [define_field("invno", avro_primitive:long_type())],
+  Schema = type("Test", [define_field("invno", avro_primitive:long_type()),
+                         define_field("uname", avro_primitive:string_type())
+                        ],
                 [{namespace, "name.space"}]),
-  Rec0 = new(Schema, [{"invno", 0}]),
+  Rec0 = new(Schema, [{"invno", 0}, {"uname", "some-name"}]),
   Rec1 = set_value("invno", avro_primitive:long(1), Rec0),
-  ?assertEqual(avro_primitive:long(1), get_value("invno", Rec1)).
+  ?assertEqual(avro_primitive:long(1), get_value("invno", Rec1)),
+  Rec2 = set_values([{"invno", 2}, {"uname", "new-name"}], Rec1),
+  ?assertEqual(avro_primitive:long(2), get_value("invno", Rec2)),
+  ?assertEqual(avro_primitive:string("new-name"), get_value("uname", Rec2)).
 
 update_test() ->
   Schema = type("Test", [define_field("invno", avro_primitive:long_type())],
