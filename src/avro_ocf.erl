@@ -39,7 +39,6 @@
 -export([init_schema_store/1]).
 -endif.
 
--type avro_object() :: term().
 -type filename() :: file:filename_all().
 
 -record(header, { magic
@@ -53,7 +52,7 @@
 
 %% @doc Decode ocf into unwrapped values.
 -spec decode_file(filename()) ->
-        {header(), avro_type(), [avro_object()]} | no_return().
+        {header(), avro_type(), [avro:out()]} | no_return().
 decode_file(Filename) ->
   {ok, Bin} = file:read_file(Filename),
   {[ {<<"magic">>, Magic}
@@ -76,11 +75,12 @@ decode_file(Filename) ->
   end.
 
 %% @doc Write objects in a single block to the given file name.
--spec write_file(filename(), schema_store(), avro_type(), [term()]) -> ok.
+-spec write_file(filename(), schema_store(), avro_type_or_name(),
+                 [avro:in()]) -> ok.
 write_file(Filename, SchemaStore, Schema, Objects) ->
   Header = make_header(Schema),
   ok = write_header(Filename, Header),
-  {ok, Fd} = file:open(Filename, [write]),
+  {ok, Fd} = file:open(Filename, [write, append]),
   try
     ok = append_file(Fd, Header, SchemaStore, Schema, Objects)
   after
@@ -97,21 +97,14 @@ write_header(Filename, #header{} = Header) ->
     ],
   HeaderRecord = avro_record:new(ocf_schema(), HeaderFields),
   HeaderBytes = avro_binary_encoder:encode_value(HeaderRecord),
-  ok = file:write_file(Filename, HeaderBytes);
-write_header(Filename, Type) ->
-  write_header(Filename, make_header(Type)).
+  ok = file:write_file(Filename, HeaderBytes).
 
 %% @doc Append a block ocf block to the opened IO device.
--spec append_file(file:io_device(), header(),
-                  schema_store(), avro_type(), [term()]) -> ok.
+-spec append_file(file:io_device(), header(), schema_store(),
+                  avro_type_or_name(), [avro:in()]) -> ok.
 append_file(Fd, Header, SchemaStore, Schema, Objects) ->
   Count = length(Objects),
-  LkupFun =
-    fun(Name) ->
-      {ok, T} = avro_schema_store:lookup_type(Name, SchemaStore),
-      T
-    end,
-  Bytes = iolist_to_binary([avro_binary_encoder:encode(LkupFun, Schema, O)
+  Bytes = iolist_to_binary([avro_binary_encoder:encode(SchemaStore, Schema, O)
                             || O <- Objects]),
   IoData = [ avro_binary_encoder:encode_value(avro_primitive:long(Count))
            , avro_binary_encoder:encode_value(avro_primitive:long(size(Bytes)))
@@ -137,26 +130,20 @@ make_header(Type) ->
 generate_sync_bytes() -> crypto:strong_rand_bytes(16).
 
 %% @private
--spec decode_stream(avro_type(), binary()) -> {term(), binary()}.
+-spec decode_stream(avro_type(), binary()) -> {avro:out(), binary()}.
 decode_stream(Type, Bin) when is_binary(Bin) ->
   Lkup = fun(_) -> erlang:error(unexpected) end,
   avro_binary_decoder:decode_stream(Bin, Type, Lkup).
 
 %% @private
 -spec decode_stream(schema_store(), avro_type(), binary()) ->
-        {term(), binary()} | no_return().
+        {avro:out(), binary()} | no_return().
 decode_stream(SchemaStore, Type, Bin) when is_binary(Bin) ->
-  Lkup = fun(X) ->
-          case avro_schema_store:lookup_type(X, SchemaStore) of
-            {ok, T} -> T;
-            false   -> erlang:error({unexpected, X})
-          end
-        end,
-  avro_binary_decoder:decode_stream(Bin, Type, Lkup).
+  avro_binary_decoder:decode_stream(Bin, Type, SchemaStore).
 
 %% @private
 -spec decode_blocks(schema_store(), avro_type(),
-                    binary(), binary(), [term()]) -> [term()].
+                    binary(), binary(), [avro:out()]) -> [avro:out()].
 decode_blocks(_Store, _Type, _Sync, <<>>, Acc) ->
   lists:reverse(Acc);
 decode_blocks(Store, Type, Sync, Bin0, Acc) ->
@@ -169,7 +156,7 @@ decode_blocks(Store, Type, Sync, Bin0, Acc) ->
 
 %% @private
 -spec decode_block(schema_store(), avro_type(),
-                   binary(), integer(), [term()]) -> [term()].
+                   binary(), integer(), [avro:out()]) -> [avro:out()].
 decode_block(_Store, _Type, <<>>, 0, Acc) -> Acc;
 decode_block(Store, Type, Bin, Count, Acc) ->
   {Obj, Tail} = decode_stream(Store, Type, Bin),
@@ -200,7 +187,6 @@ ocf_schema() ->
 init_schema_store(Schema) ->
   Store = avro_schema_store:new([]),
   avro_schema_store:add_type(Schema, Store).
-
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

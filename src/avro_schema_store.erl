@@ -161,14 +161,15 @@ add_type(Type, Store) when ?IS_STORE(Store) ->
 
 %% @doc Add (maybe unnamed) type to schema store.
 %% If the type is unnamed, the assigned name is used.
+%% For named types, the assigned name works like an alias.
 %% @end
 -spec add_type(undefined | name_raw(), avro_type(), store()) -> store().
 add_type(AssignedName, Type, Store) when ?IS_STORE(Store) ->
   {ConvertedType, ExtractedTypes} = extract_children_types(Type),
   case avro:is_named_type(Type) of
     true ->
-      lists:foldl(fun do_add_type/2, Store,
-                  [ConvertedType | ExtractedTypes]);
+      Store1 = do_add_type_by_names([?NAME(AssignedName)], Type, Store),
+      lists:foldl(fun do_add_type/2, Store1, [ConvertedType | ExtractedTypes]);
     false when AssignedName =/= undefined ->
       Store1 = do_add_type_by_names([?NAME(AssignedName)], Type, Store),
       lists:foldl(fun do_add_type/2, Store1, ExtractedTypes);

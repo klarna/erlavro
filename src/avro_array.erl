@@ -92,7 +92,7 @@ prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
   new_direct(Type, Items ++ Data).
 
 %% @hidden Only other Avro array type or erlang list can be casted to arrays.
--spec cast(array_type(), [avor:in()]) -> {ok, avro_value()} | {error, term()}.
+-spec cast(array_type(), [avro:in()]) -> {ok, avro_value()} | {error, term()}.
 cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   do_cast(Type, Value).
 
