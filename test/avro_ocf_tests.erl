@@ -33,6 +33,7 @@ interop_test() ->
   {Header, Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
   SchemaStore = avro_ocf:init_schema_store(Schema),
   MyFile = filename:join([PrivDir, "interop.ocf.test"]),
+  %% re-use the old header
   ok = avro_ocf:write_header(MyFile, Header),
   {ok, Fd} = file:open(MyFile, [write, append]),
   try
@@ -46,6 +47,20 @@ interop_test() ->
                lists:keysort(1, Header1#header.meta)),
   ?assertEqual(Schema, Schema1),
   ?assertEqual(Objects, Objects1).
+
+write_file_test() ->
+  OcfFile = filename:join([priv_dir(), "my.ocf.test"]),
+  IntType = avro_primitive:int_type(),
+  StringType = avro_primitive:string_type(),
+  Store = undefined, %% should not require lookup
+  Fields = [ avro_record:define_field("f1", IntType, [])
+           , avro_record:define_field("f2", StringType, [])
+           ],
+  Type = avro_record:type("rec", Fields, [{namespace, "my.ocf.test"}]),
+  Obj = [{"f1", 1}, {"f2", "foo"}],
+  ok = avro_ocf:write_file(OcfFile, Store, Type, [Obj]),
+  {_Header, Type, Objs} = avro_ocf:decode_file(OcfFile),
+  ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}]], Objs).
 
 %% @private
 priv_dir() ->

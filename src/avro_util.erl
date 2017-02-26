@@ -188,7 +188,7 @@ verify_type_name(Type) ->
   {CanonicalName, _} = avro:split_type_name(Name, Ns, ?NS_GLOBAL),
   ReservedNames = reserved_type_names(),
   ?ERROR_IF(lists:member(CanonicalName, ReservedNames),
-            reserved_name_is_used_for_type_name).
+            {reserved, Name, CanonicalName}).
 
 %% @private Splits string to tokens but doesn't count consecutive delimiters as
 %% a single delimiter. So tokens_ex("a...b", $.) produces ["a","","","b"].
