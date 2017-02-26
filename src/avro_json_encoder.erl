@@ -204,8 +204,6 @@ ns(Namespace, Namespace)           -> ?NS_GLOBAL;
 ns(Namespace, _EnclosingNamespace) -> Namespace.
 
 %% @private
-encode_string(Atom) when is_atom(Atom) ->
-  encode_string(atom_to_list(Atom));
 encode_string(String) ->
   erlang:iolist_to_binary(String).
 
@@ -218,9 +216,7 @@ encode_aliases(Aliases) ->
   lists:map(fun encode_string/1, Aliases).
 
 %% @private
-encode_order(ascending)  -> <<"ascending">>;
-encode_order(descending) -> <<"descending">>;
-encode_order(ignore)     -> <<"ignore">>.
+encode_order(Order) -> atom_to_binary(Order, utf8).
 
 %% @private
 -spec do_encode_value(avro_value()) -> json_value().

@@ -49,8 +49,10 @@
 
 %% @doc Define a map type.
 -spec type(avro_type()) -> map_type().
-type(ItemsType) ->
-  #avro_map_type{ type = ItemsType }.
+type(ItemsType) when ?IS_AVRO_TYPE(ItemsType) ->
+  #avro_map_type{ type = ItemsType };
+type(ItemsTypeName) when ?IS_NAME_RAW(ItemsTypeName) ->
+  #avro_map_type{ type = ?NAME(ItemsTypeName) }.
 
 %% @doc Return the map-value's type definition.
 -spec get_items_type(map_type()) -> avro_type().

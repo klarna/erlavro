@@ -319,6 +319,66 @@ check_json_encode_fixed_properly_test() ->
   Encoded = encode(fun(_) -> Type end, "some_fixed", <<1,127>>),
   ?assertEqual(Json, Encoded).
 
+encode_type_fullname_ref_test() ->
+  Type = avro_map:type("com.example.type"),
+  Encoded = encode_type(Type),
+  JSON = <<"{\"type\":\"map\",\"values\":\"com.example.type\"}">>,
+  ?assertEqual(JSON, iolist_to_binary(Encoded)).
+
+encode_type_shortname_ref_test() ->
+  Field = avro_record:define_field("f1", "com.example.mytype", []),
+  Type = avro_record:type("rec", [Field], [{namespace, "com.example"}]),
+  Encoded = encode_type(Type),
+  Expected =
+    <<"{\"namespace\":\"com.example\","
+       "\"type\":\"record\","
+       "\"name\":\"rec\","
+       "\"fields\":[{\"name\":\"f1\",\"type\":\"mytype\"}]}">>,
+  ?assertEqual(Expected, iolist_to_binary(Encoded)).
+
+encode_type_no_redundant_ns_test() ->
+  SubField = avro_record:define_field("subf", avro_primitive:int_type(), []),
+  SubType = avro_record:type("subrec", [SubField],
+                             [{namespace, "com.example"}]),
+  Field = avro_record:define_field("f", SubType, []),
+  Type = avro_record:type("rec", [Field], [{namespace, "com.example"}]),
+  Encoded = encode_type(Type),
+  SubJSON = ["{\"type\":\"record\","
+              "\"name\":\"subrec\","
+              "\"fields\":[{\"name\":\"subf\",\"type\":\"int\"}]}"],
+  Expected =
+    ["{\"namespace\":\"com.example\","
+      "\"type\":\"record\","
+      "\"name\":\"rec\","
+      "\"fields\":"
+          "[{\"name\":\"f\","
+            "\"type\":", SubJSON,
+           "}]}"],
+  ?assertEqual(iolist_to_binary(Expected), iolist_to_binary(Encoded)).
+
+encode_field_order_test_() ->
+  [ fun() ->
+        Field = avro_record:define_field("f", "mytype", [{order, Order}]),
+        Type = avro_record:type("rec", [Field], [{namespace, "com.example"}]),
+        Encoded = encode_type(Type),
+        EncodedOrder =
+          case Order of
+            ascending -> "";
+            _         -> [",\"order\":\"", atom_to_list(Order), "\""]
+          end,
+        Expected =
+           ["{\"namespace\":\"com.example\","
+             "\"type\":\"record\","
+             "\"name\":\"rec\","
+             "\"fields\":[{\"name\":\"f\","
+                          "\"type\":\"mytype\"",
+                          EncodedOrder,
+                          "}]}"],
+        ?assertEqual(iolist_to_binary(Expected),
+                     iolist_to_binary(Encoded))
+    end || Order <- [ascending, descending, ignore]
+  ].
+
 %% @private
 sample_record_type() ->
   avro_record:type(
