@@ -78,10 +78,6 @@ cast(Type, null) when ?AVRO_IS_NULL_TYPE(Type) ->
 cast(Type, Value) when ?AVRO_IS_BOOLEAN_TYPE(Type) andalso
                        is_boolean(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-cast(Type, 0) when ?AVRO_IS_BOOLEAN_TYPE(Type) ->
-  {ok, ?AVRO_VALUE(Type, false)};
-cast(Type, 1) when ?AVRO_IS_BOOLEAN_TYPE(Type) ->
-  {ok, ?AVRO_VALUE(Type, true)};
 cast(Type, Value) when ?AVRO_IS_INT_TYPE(Type) andalso
                        Value >= ?INT4_MIN andalso
                        Value =< ?INT4_MAX ->
