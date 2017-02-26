@@ -92,7 +92,6 @@ readme_json_encode_decode_test() ->
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),
-  io:put_chars(user, JSON),
   ok.
 
 readme_encode_wrapped_test_() ->
