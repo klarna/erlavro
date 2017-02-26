@@ -100,6 +100,11 @@ readme_encode_wrapped_test_() ->
   , {"binary encoder", fun() -> encode_wrapped([]) end}
   ].
 
+primitive_cast_error_test() ->
+  IntType = avro_primitive:int_type(),
+  ?assertException(error, {type_mismatch, IntType, "foo"},
+                   avro_primitive:int("foo")).
+
 encode_wrapped(CodecOptions) ->
   NullableInt = avro_union:type([avro_primitive:null_type(),
                                  avro_primitive:int_type()]),
@@ -155,7 +160,6 @@ priv_dir() ->
     Dir ->
       Dir
   end.
-
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
