@@ -215,8 +215,9 @@ encode_integer(Int) when is_integer(Int) ->
 encode_aliases(Aliases) ->
   lists:map(fun encode_string/1, Aliases).
 
-%% @private
-encode_order(Order) -> atom_to_binary(Order, utf8).
+%% @private Never have to encode ascending because that's default.
+encode_order(descending) -> <<"descending">>;
+encode_order(ignore)     -> <<"ignore">>.
 
 %% @private
 -spec do_encode_value(avro_value()) -> json_value().

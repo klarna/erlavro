@@ -130,7 +130,7 @@ parse_schema(?JSON_OBJ(Attrs), EnclosingNs, Lkup) ->
 parse_schema(Array, EnclosingNs, Lkup) when is_list(Array) ->
   %% Json array: this is an union definition
   parse_union_type(Array, EnclosingNs, Lkup);
-parse_schema(Name, EnclosingNs, _Lkup) when is_binary(Name) ->
+parse_schema(Name, EnclosingNs, _Lkup) when ?IS_NAME(Name) ->
   %% Json string: this is a type name.
   %% Return #avro_primitive_type{} for primitive types
   %% otherwise make full name.
@@ -139,10 +139,7 @@ parse_schema(Name, EnclosingNs, _Lkup) when is_binary(Name) ->
   catch error : {unknown_type, _} ->
     ok = avro_util:verify_dotted_name(Name),
     avro:build_type_fullname(Name, EnclosingNs, EnclosingNs)
-  end;
-parse_schema(JsonValue, _EnclosingNs, _Lkup) ->
-  %% Other Json value
-  erlang:error({unexpected_schema_json, JsonValue}).
+  end.
 
 %% @private Parse JSON object to avro type definition.
 -spec parse_type([{binary(), json_value()}], namespace(), lkup_fun()) ->
@@ -203,9 +200,7 @@ parse_record_type(Attrs, EnclosingNs, Lkup) ->
         [record_field()] | no_return().
 parse_record_fields(Fields, EnclosingNs, Lkup) ->
   lists:map(fun(?JSON_OBJ(FieldAttrs)) ->
-                parse_record_field(FieldAttrs, EnclosingNs, Lkup);
-               (_) ->
-                erlang:error(bad_record_field)
+                parse_record_field(FieldAttrs, EnclosingNs, Lkup)
             end,
             Fields).
 
@@ -245,11 +240,10 @@ parse_default_value(Value, FieldType, Lkup) ->
   parse_value(Value, FieldType, Lkup).
 
 %% @private
--spec parse_order(binary()) -> ascending | descending | ignore | no_return().
+-spec parse_order(binary()) -> ascending | descending | ignore.
 parse_order(<<"ascending">>)  -> ascending;
 parse_order(<<"descending">>) -> descending;
-parse_order(<<"ignore">>)     -> ignore;
-parse_order(Order)            -> erlang:error({unknown_sort_order, Order}).
+parse_order(<<"ignore">>)     -> ignore.
 
 %% @private
 -spec parse_enum_type(json_value(), namespace()) -> enum_type().
@@ -300,8 +294,7 @@ parse_fixed_type(Attrs, EnclosingNs) ->
 
 %% @private
 -spec parse_fixed_size(integer()) -> pos_integer().
-parse_fixed_size(N) when is_integer(N) andalso N > 0 -> N;
-parse_fixed_size(S) -> erlang:error({bad_fixed_size, S}).
+parse_fixed_size(N) when is_integer(N) andalso N > 0 -> N.
 
 %% @private
 -spec parse_union_type(json_value(), namespace(), lkup_fun()) -> union_type().
@@ -319,13 +312,9 @@ parse_aliases(AliasesArray) when is_list(AliasesArray) ->
   lists:map(
     fun(AliasBin) when is_binary(AliasBin) ->
         ok = avro_util:verify_dotted_name(AliasBin),
-        AliasBin;
-       (_) ->
-        erlang:error({bad_aliases, AliasesArray})
+        AliasBin
     end,
-    AliasesArray);
-parse_aliases(Aliases) ->
-  erlang:error({bad_aliases, Aliases}).
+    AliasesArray).
 
 %% @private
 -spec parse_value(json_value(), avro_type(), lkup_fun()) ->
@@ -374,9 +363,7 @@ parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_ARRAY_TYPE(Type) ->
 parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_MAP_TYPE(Type) ->
   parse_map(V, Type, Lkup, IsWrapped, Hook);
 parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_UNION_TYPE(Type) ->
-  parse_union(V, Type, Lkup, IsWrapped, Hook);
-parse(Value, Type, _Lkup, _IsWrapped, _Hook) ->
-  erlang:error({value_does_not_correspond_to_schema, Type, Value}).
+  parse_union(V, Type, Lkup, IsWrapped, Hook).
 
 %% @private Parse primitive values, return wrapped (boxed) value.
 -spec parse_prim(json_value(), avro_type()) -> avro_value().
@@ -414,19 +401,17 @@ parse_bytes(BytesStr) ->
   list_to_binary(parse_bytes(BytesStr, [])).
 
 %% @private
--spec parse_bytes(binary(), [byte()]) -> [byte()] | no_return().
+-spec parse_bytes(binary(), [byte()]) -> [byte()].
 parse_bytes(<<>>, Acc) ->
   lists:reverse(Acc);
 parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
   Byte = erlang:list_to_integer([B1, B0], 16),
-  parse_bytes(Rest, [Byte | Acc]);
-parse_bytes(_, _) ->
-  erlang:error(bad_bytes).
+  parse_bytes(Rest, [Byte | Acc]).
 
 %% @private
 -spec parse_record(json_value(), record_type(),
                    lkup_fun(), boolean(), hook()) ->
-        avro_value() | avro:out() | no_return().
+        avro_value() | avro:out().
 parse_record(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
   Hook(Type, none, Attrs,
        fun(JsonValues) ->
@@ -436,9 +421,7 @@ parse_record(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
            true  -> avro_record:new(Type, Fields);
            false -> Fields
          end
-       end);
-parse_record(_, _, _, _, _) ->
-  erlang:error(bad_record_value).
+       end).
 
 %% @private
 -spec convert_attrs_to_record_fields(json_value(), avro_type(), lkup_fun(),
@@ -460,7 +443,7 @@ convert_attrs_to_record_fields(Attrs, Type, Lkup, IsWrapped, Hook) ->
 %% @private
 -spec parse_array([json_value()], array_type(),
                   lkup_fun(), boolean(), hook()) ->
-        [avro_value() | avro:out()] | no_return().
+        [avro_value() | avro:out()].
 parse_array(V, Type, Lkup, IsWrapped, Hook) when is_list(V) ->
   ItemsType = avro_array:get_items_type(Type),
   {_Index, ParsedArray} =
@@ -481,13 +464,11 @@ parse_array(V, Type, Lkup, IsWrapped, Hook) when is_list(V) ->
       avro_array:new_direct(Type, Items);
     false ->
       Items
-  end;
-parse_array(_, _, _, _, _) ->
-  erlang:error(bad_array_value).
+  end.
 
 %% @private
 -spec parse_map(json_value(), map_type(), lkup_fun(), boolean(), hook()) ->
-        avro_value() | avro:out() | no_return().
+        avro_value() | avro:out().
 parse_map(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
   ItemsType = avro_map:get_items_type(Type),
   L = lists:map(
@@ -513,9 +494,7 @@ parse_union(null = Value, Type, Lkup, IsWrapped, Hook) ->
 parse_union(?JSON_OBJ([{ValueTypeName, Value}]),
             Type, Lkup, IsWrapped, Hook) ->
   %% Union value specified as {"type": <value>}
-  parse_union_ex(ValueTypeName, Value, Type, Lkup, IsWrapped, Hook);
-parse_union(_, _, _, _, _) ->
-  erlang:error(bad_union_value).
+  parse_union_ex(ValueTypeName, Value, Type, Lkup, IsWrapped, Hook).
 
 %% @private
 -spec parse_union_ex(name(), json_value(), union_type(),
@@ -559,3 +538,15 @@ decode_json(JSON) -> jsone:decode(JSON, [{object_format, tuple}]).
 %%% allout-layout: t
 %%% erlang-indent-level: 2
 %%% End:
+% 62:   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+% 63:   decode_schema(JsonSchema, Lkup);
+% 102:                 false           -> true %% parse to wrapped value by default
+% 111:   decode_value(JsonValue, Schema, StoreOrLkupFun, []).
+% 145:   erlang:error({unexpected_schema_json, JsonValue}).
+% 208:                 erlang:error(bad_record_field)
+% 250: parse_order(<<"descending">>) -> descending;
+% 251: parse_order(<<"ignore">>)     -> ignore;
+% 252: parse_order(Order)            -> erlang:error({unknown_sort_order, Order}).
+% 304: parse_fixed_size(S) -> erlang:error({bad_fixed_size, S}).
+% 324:         erlang:error({bad_aliases, AliasesArray})
+% 328:   erlang:error({bad_aliases, Aliases}).

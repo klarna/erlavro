@@ -258,14 +258,14 @@ check_json_encode_record_properly_test() ->
                      , define_field("f2", avro_primitive:string_type())],
                      [{namespace, "my.com"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
+  Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
   Term = [{f1, 1}, {<<"f2">>, <<"my string">>}],
   {ok, AvroValue} = avro:cast(MyRecordType, Term),
   ExpectedJSON = encode_value(AvroValue),
   JSON = encode(Store, "my.com.MyRecord", Term),
   ?assertEqual(ExpectedJSON, JSON),
   ?assertEqual([{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
-               avro_json_decoder:decode_value(JSON, "my.com.MyRecord",
-                                              Store, [{is_wrapped, false}])).
+               Decoder("my.com.MyRecord", JSON)).
 
 check_json_encode_enum_properly_test() ->
   EnumType =
@@ -363,7 +363,7 @@ encode_field_order_test_() ->
         Encoded = encode_type(Type),
         EncodedOrder =
           case Order of
-            ascending -> "";
+            ascending -> ""; %% default is ignored
             _         -> [",\"order\":\"", atom_to_list(Order), "\""]
           end,
         Expected =
