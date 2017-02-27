@@ -65,7 +65,7 @@ type(Name, Size, Opts) ->
 get_size(#avro_fixed_type{ size = Size }) -> Size.
 
 %% @doc Create a wrapped (boxed) value.
--spec new(fixed_type(), term()) -> avro_value() | no_return().
+-spec new(fixed_type(), avro:in()) -> avro_value() | no_return().
 new(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   case cast(Type, Value) of
     {ok, Rec}    -> Rec;
@@ -107,7 +107,7 @@ do_cast(Type, Value) when is_binary(Value) ->
   #avro_fixed_type{ size = Size } = Type,
   case size(Value) =:= Size of
     true  -> {ok, ?AVRO_VALUE(Type, Value)};
-    false -> {error, wrong_binary_size}
+    false -> {error, bad_size}
   end;
 do_cast(Type, Value) ->
   {error, {cast_error, Type, Value}}.

@@ -41,8 +41,8 @@ full_create_test() ->
 
 bad_cast_from_binary_test() ->
   Type = avro_fixed:type("FooBar", 2),
-  ?assertEqual({error, wrong_binary_size}, avro_fixed:cast(Type, <<1,2,3>>)),
-  ?assertEqual({error, wrong_binary_size}, avro_fixed:cast(Type, <<1>>)).
+  ?assertEqual({error, bad_size}, avro_fixed:cast(Type, <<1,2,3>>)),
+  ?assertEqual({error, bad_size}, avro_fixed:cast(Type, <<1>>)).
 
 cast_from_binary_test() ->
   Type = avro_fixed:type("FooBar", 2),
@@ -62,6 +62,21 @@ get_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value = avro_fixed:new(Type, <<1,2>>),
   ?assertEqual(<<1,2>>, avro_fixed:get_value(Value)).
+
+new_error_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  ?assertException(error, bad_size,
+                   avro_fixed:new(Type, <<"abc">>)).
+
+integer_out_of_range_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  ?assertException(error, integer_out_of_range,
+                   avro_fixed:new(Type, 65536)).
+
+cast_error_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  ?assertEqual({error, {cast_error, Type, "a"}},
+               avro_fixed:cast(Type, "a")).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
