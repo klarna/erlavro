@@ -131,9 +131,7 @@ do_cast(Type, Value0) when ?IS_SYMBOL_RAW(Value0) ->
   case is_valid_symbol(Type, Value) of
     true  -> {ok, ?AVRO_VALUE(Type, Value)};
     false -> {error, {cast_error, Type, Value0}}
-  end;
-do_cast(Type, Value) ->
-  {error, {cast_error, Type, Value}}.
+  end.
 
 %% @private
 -spec is_valid_symbol(symbol(), [symbol()]) -> boolean().

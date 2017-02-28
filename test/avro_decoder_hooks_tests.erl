@@ -38,7 +38,7 @@ test_debug_hook(Encoding) ->
                      [{namespace, "com.example"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, CodecOptions),
-  Term = [{"f1", 1},{"f2","my-string"}],
+  Term = [{"f1", 1}, {"f2", "my-string"}],
   Bin = iolist_to_binary(Encoder("com.example.MyRecord", Term)),
   %% Mkae a corrupted binary to decode
   CorruptedBin = corrupt_encoded(Encoding, Bin),

@@ -53,6 +53,10 @@ get_value_test() ->
   Value = new(Type, "b"),
   ?assertEqual(<<"b">>, get_value(Value)).
 
+new_error_test() ->
+  Type = type("MyEnum", ["a", "b", "c", "d"]),
+  ?assertException(error, {cast_error, Type, "x"}, new(Type, "x")).
+
 %%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t

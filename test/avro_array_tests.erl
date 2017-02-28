@@ -50,6 +50,12 @@ new_direct_test() ->
                                         , avro_primitive:int(3)]),
   ?assertEqual(NewVersion, DirectVersion).
 
+new_test() ->
+  Type = avro_array:type(avro_primitive:int_type()),
+  ?assertEqual(?AVRO_VALUE(Type, []), avro_array:new(Type)),
+  ?assertMatch(?AVRO_VALUE(Type, [_]), avro_array:new(Type, [1])),
+  ?assertException(error, {type_mismatch, _, _}, avro_array:new(Type, ["a"])).
+
 %%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
