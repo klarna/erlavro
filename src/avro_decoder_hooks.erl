@@ -116,7 +116,6 @@ pretty_print_hist() ->
       , case SubInfo of
           ""                   -> ": ";
           I when is_integer(I) -> [$., integer_to_list(I), "\n"];
-          S when is_list(S)    -> [$., S, "\n"];
           B when is_binary(B)  -> [$., B, "\n"];
           _                    -> "\n"
         end
@@ -254,7 +253,7 @@ bin(IoData) -> iolist_to_binary(IoData).
 %% @private
 get_pretty_print_result(JsonResult) when ?IS_AVRO_VALUE(JsonResult) ->
   %% Wrapped JSON result
- ?AVRO_VALUE_DATA(JsonResult);
+  ?AVRO_VALUE_DATA(JsonResult);
 get_pretty_print_result({Result, Tail}) when is_binary(Tail) ->
   %% binary decode result
   Result;
@@ -263,9 +262,6 @@ get_pretty_print_result(JsonResult) ->
   JsonResult.
 
 %% @private
-pretty_print_result(_Sub = [], _Result = [], IndentationStr) ->
-  %% print empty array and empty map
-  io:format("~s  []\n", [IndentationStr]);
 pretty_print_result(_Sub = [], Result, _IndentationStr) ->
   %% print the value if it's a leaf in the type tree
   io:format("~1000000p\n", [Result]);
