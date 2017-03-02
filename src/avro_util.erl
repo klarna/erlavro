@@ -25,7 +25,7 @@
 -module(avro_util).
 
 %% API
--export([ canonicalize_aliases/4
+-export([ canonicalize_aliases/2
         , canonicalize_name/1
         , canonicalize_type_or_name/1
         , ensure_binary/1
@@ -97,13 +97,8 @@ verify_type(Type) ->
 %% @doc Convert aliases to full-name representation using provided names and
 %% namespaces from the original type
 %% @end
-canonicalize_aliases(Aliases, Name, Namespace, EnclosingNs) ->
-  lists:map(
-    fun(Alias) ->
-        {_, ProperNs} = avro:split_type_name(Name, Namespace, EnclosingNs),
-        avro:build_type_fullname(Alias, ProperNs, EnclosingNs)
-    end,
-    Aliases).
+canonicalize_aliases(Aliases, Ns) ->
+  lists:map(fun(Alias) -> avro:build_type_fullname(Alias, Ns) end, Aliases).
 
 %% @doc Convert atom() | string() to binary().
 %% NOTE: Avro names are ascii only, there is no need for special utf8.
@@ -179,13 +174,14 @@ verify_type_name(Type) ->
   Name = avro:get_type_name(Type),
   Ns = avro:get_type_namespace(Type),
   Fullname = avro:get_type_fullname(Type),
-  ok = verify_dotted_name(Name),
+  ?ERROR_IF_NOT(is_valid_name(name_string(Name)),
+                {invalid_name, Name}),
   %% Verify namespace only if it is non-empty (empty namespaces are allowed)
   Ns =:= ?NS_GLOBAL orelse verify_dotted_name(Ns),
   ok = verify_dotted_name(Fullname),
   %% We are not interested in the namespace here, so we can ignore
   %% EnclosingExtension value.
-  {CanonicalName, _} = avro:split_type_name(Name, Ns, ?NS_GLOBAL),
+  {CanonicalName, _} = avro:split_type_name(Name, Ns),
   ReservedNames = reserved_type_names(),
   ?ERROR_IF(lists:member(CanonicalName, ReservedNames),
             {reserved, Name, CanonicalName}).

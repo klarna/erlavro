@@ -134,14 +134,7 @@ pretty_print_hist() ->
 %% @private
 tag_unions(T, SubInfo, DecodeIn, DecodeFun) when ?AVRO_IS_UNION_TYPE(T) ->
   Result = DecodeFun(DecodeIn),
-  Name =
-    case SubInfo of
-      Id when is_integer(Id) ->
-        {ok, ST} = avro_union:lookup_child_type(T, Id),
-        avro:get_type_fullname(ST);
-      Name_ when ?IS_NAME(Name_) ->
-        Name_
-    end,
+  Name = get_union_member_name(T, SubInfo),
   case Result of
     {Value, Tail} when is_binary(Tail) ->
       %% used as binary decoder hook
@@ -153,6 +146,18 @@ tag_unions(T, SubInfo, DecodeIn, DecodeFun) when ?AVRO_IS_UNION_TYPE(T) ->
 tag_unions(_T, _SubInfo, DecodeIn, DecodeFun) ->
   %% Not a union, pass through
   DecodeFun(DecodeIn).
+
+%% @private
+get_union_member_name(Type, Id) when is_integer(Id) ->
+  %% when decoding avro binary, lookup member name by union member index.
+  {ok, ChildType} = avro_union:lookup_child_type(Type, Id),
+  case ?IS_NAME(ChildType) of
+    true  -> ChildType;
+    false -> avro:get_type_fullname(ChildType)
+  end;
+get_union_member_name(_Type, Name) when ?IS_NAME(Name) ->
+  %% when decoding JSON, the value is already tagged with union member name
+  Name.
 
 %% @private Never tag primitives and unnamed complex types.
 maybe_tag(N, Value) when ?IS_PRIMITIVE_NAME(N) -> Value;
@@ -252,14 +257,11 @@ bin(IoData) -> iolist_to_binary(IoData).
 
 %% @private
 get_pretty_print_result(JsonResult) when ?IS_AVRO_VALUE(JsonResult) ->
-  %% Wrapped JSON result
+  %% JSON value passed to hooks is always wrapped
   ?AVRO_VALUE_DATA(JsonResult);
 get_pretty_print_result({Result, Tail}) when is_binary(Tail) ->
   %% binary decode result
-  Result;
-get_pretty_print_result(JsonResult) ->
-  %% Unwarpped JSON result
-  JsonResult.
+  Result.
 
 %% @private
 pretty_print_result(_Sub = [], Result, _IndentationStr) ->

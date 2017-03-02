@@ -1,5 +1,5 @@
-%%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%%-----------------------------------------------------------------------------
+%%% Copyright (c) 2013-2017 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -19,30 +19,28 @@
 %%% @doc
 %%%
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
 -module(avro_array).
 
 %% API
--export([type/1]).
--export([get_items_type/1]).
-
--export([new/1]).
--export([new/2]).
--export([get_items/1]).
--export([cast/2]).
--export([to_term/1]).
--export([encode/3]).
-
--export([prepend/2]).
+-export([ cast/2
+        , encode/3
+        , get_items/1
+        , get_items_type/1
+        , new/1
+        , new/2
+        , prepend/2
+        , resolve_fullname/2
+        , to_term/1
+        , type/1
+        ]).
 
 %% API to be used only inside erlavro
 -export([new_direct/2]).
 
 -include("avro_internal.hrl").
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+%%%_* APIs =====================================================================
 
 %% @doc Define array type.
 -spec type(avro_type_or_name()) -> array_type().
@@ -50,6 +48,11 @@ type(SubType) when ?IS_NAME_RAW(SubType) ->
   #avro_array_type{ type = ?NAME(SubType) };
 type(SubType) when ?IS_AVRO_TYPE(SubType) ->
   #avro_array_type{ type = SubType }.
+
+%% @doc Resolve children type's fullnames.
+-spec resolve_fullname(array_type(), namespace()) -> array_type().
+resolve_fullname(#avro_array_type{type = SubType} = T, Ns) ->
+  T#avro_array_type{type = avro:resolve_fullname(SubType, Ns)}.
 
 %% @doc Get array element type.
 -spec get_items_type(array_type()) -> avro_type().

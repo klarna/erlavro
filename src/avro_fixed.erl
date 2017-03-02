@@ -1,6 +1,6 @@
 %%%-----------------------------------------------------------------------------
 %%%
-%%% Copyright (c) 2013-2016 Klarna AB
+%%% Copyright (c) 2013-2017 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -25,12 +25,14 @@
 -module(avro_fixed).
 
 %% API
--export([type/2]).
--export([type/3]).
--export([get_size/1]).
--export([new/2]).
--export([get_value/1]).
--export([cast/2]).
+-export([ cast/2
+        , get_size/1
+        , get_value/1
+        , new/2
+        , resolve_fullname/2
+        , type/2
+        , type/3
+        ]).
 
 -include("avro_internal.hrl").
 
@@ -43,22 +45,33 @@ type(Name, Size) ->
 
 %% @doc Declare a fixed type.
 -spec type(name_raw(), pos_integer(), type_props()) -> fixed_type().
-type(Name, Size, Opts) ->
-  ?ERROR_IF(not is_integer(Size) orelse Size < 1, {invalid_size, Size}),
-  Ns          = avro_util:get_opt(namespace, Opts, ?NS_GLOBAL),
+type(Name0, Size, Opts) ->
+  {Name, Ns0} = avro:split_type_name(Name0, ?NS_GLOBAL),
+  Ns          = ?NAME(avro_util:get_opt(namespace, Opts, Ns0)),
+  true        = (Ns0 =:= ?NS_GLOBAL orelse Ns0 =:= Ns), %% assert
   Aliases     = avro_util:get_opt(aliases, Opts, []),
-  EnclosingNs = avro_util:get_opt(enclosing_ns, Opts, ?NS_GLOBAL),
-  ok = avro_util:verify_aliases(Aliases),
+  ok          = avro_util:verify_aliases(Aliases),
+  ?ERROR_IF(not is_integer(Size) orelse Size < 1, {invalid_size, Size}),
   Type = #avro_fixed_type
-         { name      = ?NAME(Name)
-         , namespace = ?NAME(Ns)
-         , aliases   = avro_util:canonicalize_aliases(
-                         Aliases, Name, Ns, EnclosingNs)
+         { name      = Name
+         , namespace = Ns
+         , aliases   = avro_util:canonicalize_aliases(Aliases, Ns)
          , size      = Size
-         , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
+         , fullname  = avro:build_type_fullname(Name, Ns)
          },
   ok = avro_util:verify_type(Type),
   Type.
+
+%% @doc Resolve fullname by newly discovered enclosing namespace.
+-spec resolve_fullname(fixed_type(), namespace()) -> fixed_type().
+resolve_fullname(#avro_fixed_type{ fullname  = FullName
+                                 , aliases   = Aliases
+                                 } = T, Ns) ->
+  NewFullname = avro:build_type_fullname(FullName, Ns),
+  NewAliases = avro_util:canonicalize_aliases(Aliases, Ns),
+  T#avro_fixed_type{ fullname = NewFullname
+                   , aliases  = NewAliases
+                   }.
 
 %% @doc Get size of the declared type.
 -spec get_size(fixed_type()) -> pos_integer().

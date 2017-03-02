@@ -226,6 +226,12 @@ For a big union like below
 ]
 ```
 
+### Caution when unioning string type and int/long arrays.
+
+As `[integer()]` list is `string()` in Erlang, this will confuse the encoder, 
+please make sure to use `binary()` as avro string encoding input or tag it. 
+and always tag int/long array value.
+
 There are two ways to encode such unions
 
 * Untagged: `Encoder(UnionType, MyRecord)` where `MyRecord` is of spec `[{field_name(), field_value()}]`
