@@ -1,6 +1,6 @@
 %%%-----------------------------------------------------------------------------
 %%%
-%%% Copyright (c) 2013-2016 Klarna AB
+%%% Copyright (c) 2013-2017 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -25,13 +25,15 @@
 -module(avro_map).
 
 %% API
--export([type/1]).
--export([get_items_type/1]).
--export([new/2]).
--export([to_list/1]).
--export([cast/2]).
--export([to_term/1]).
--export([encode/3]).
+-export([ cast/2
+        , encode/3
+        , get_items_type/1
+        , new/2
+        , resolve_fullname/2
+        , to_list/1
+        , to_term/1
+        , type/1
+        ]).
 
 -include("avro_internal.hrl").
 
@@ -53,6 +55,11 @@ type(ItemsType) when ?IS_AVRO_TYPE(ItemsType) ->
   #avro_map_type{ type = ItemsType };
 type(ItemsTypeName) when ?IS_NAME_RAW(ItemsTypeName) ->
   #avro_map_type{ type = ?NAME(ItemsTypeName) }.
+
+%% @doc Resolve fullname by newly discovered enclosing namespace.
+-spec resolve_fullname(map_type(), namespace()) -> map_type().
+resolve_fullname(#avro_map_type{type = ItemsType} = T, Ns) ->
+  T#avro_map_type{type = avro:resolve_fullname(ItemsType, Ns)}.
 
 %% @doc Return the map-value's type definition.
 -spec get_items_type(map_type()) -> avro_type().
@@ -90,7 +97,9 @@ cast(Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
 -spec encode(avro_type_or_name(), input_data(), fun()) -> iolist().
 encode(Type, Value, EncodeFun) ->
   ItemsType = avro_map:get_items_type(Type),
-  [EncodeFun(ItemsType, K, V) || {K, V} <- Value].
+  lists:map(fun({K, V}) ->
+                EncodeFun(ItemsType, K, V)
+            end, Value).
 
 %%%_* Internal Functions =======================================================
 

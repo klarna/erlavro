@@ -19,7 +19,7 @@
 %%%-------------------------------------------------------------------
 -module(avro_util_tests).
 
--import(avro_util, [ canonicalize_aliases/4
+-import(avro_util, [ canonicalize_aliases/2
                    , verify_type/1
                    , tokens_ex/2
                    , is_valid_name/1
@@ -56,28 +56,9 @@ verify_type_test() ->
 canonizalize_aliases_test() ->
   %% Namespaces for aliases are taken from the original type namespace
   ?assertEqual([<<"name.space.Foo">>, <<"name.space.Bar">>],
-    canonicalize_aliases(["Foo", "Bar"],
-      "Bee",
-      "name.space",
-      "enc.losing")),
-  %% Aliases have their own namespaces
-  ?assertEqual([<<"other.ns.Foo">>, <<"another.ns2.Bar">>],
-    canonicalize_aliases(["other.ns.Foo", "another.ns2.Bar"],
-      "Bee",
-      "name.space",
-      "enc.losing")),
-  %% Namespaces for aliases are taken from enclosing namespace
-  ?assertEqual([<<"enc.losing.Foo">>, <<"enc.losing.Bar">>],
-    canonicalize_aliases(["Foo", "Bar"],
-      "Bee",
-      "",
-      "enc.losing")),
-  %% Namespaces for aliases are taken from the full type name
-  ?assertEqual([<<"name.space.Foo">>, <<"name.space.Bar">>],
-    canonicalize_aliases(["Foo", "Bar"],
-      "name.space.Bee",
-      "bla.bla",
-      "enc.losing")).
+    canonicalize_aliases(["Foo", "Bar"], "name.space")),
+  ?assertEqual([<<"Foo">>, <<"Bar">>],
+    canonicalize_aliases(["Foo", "Bar"], "")).
 
 get_opt_test() ->
   ?assertEqual(value, avro_util:get_opt(key, [{key, value}])),

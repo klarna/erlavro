@@ -40,6 +40,7 @@
         , get_value/1
         , lookup_child_type/2
         , new/2
+        , resolve_fullname/2
         , to_term/1
         , type/1
         ]).
@@ -78,6 +79,13 @@ type([_ | _ ] = Types0) ->
   { types      = IndexedTypes
   , types_dict = TypesDict
   }.
+
+%% @doc Resolve fullname by newly discovered enclosing namespace.
+-spec resolve_fullname(union_type(), namespace()) -> union_type().
+resolve_fullname(T0, Ns) ->
+  Types = get_types(T0),
+  ResolvedTypes = lists:map(fun(T) -> avro:resolve_fullname(T, Ns) end, Types),
+  type(ResolvedTypes).
 
 %% @doc Get the union member types in a list.
 -spec get_types(union_type()) -> [avro_type()].

@@ -32,13 +32,11 @@ get_test_type(Name, Namespace) ->
 
 split_type_name_test() ->
   ?assertEqual({<<"tname">>, <<"">>},
-               avro:split_type_name("tname", "", "")),
+               avro:split_type_name("tname", "")),
   ?assertEqual({<<"tname">>, <<"name.space">>},
-               avro:split_type_name("tname", "name.space", "enc.losing")),
+               avro:split_type_name("tname", "name.space")),
   ?assertEqual({<<"tname">>, <<"name.space">>},
-               avro:split_type_name("name.space.tname", "", "name1.space1")),
-  ?assertEqual({<<"tname">>, <<"enc.losing">>},
-               avro:split_type_name("tname", "", "enc.losing")).
+               avro:split_type_name("name.space.tname", "name1.space1")).
 
 get_type_fullname_test() ->
   ?assertEqual(<<"name.space.tname">>,

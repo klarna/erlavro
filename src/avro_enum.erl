@@ -1,4 +1,4 @@
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
 %%% Copyright (c) 2013-2016 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -22,18 +22,20 @@
 %%%
 %%% Internal data for an enum is the symbol string itself.
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
 -module(avro_enum).
 
 %% API
--export([type/2]).
--export([type/3]).
--export([new/2]).
--export([get_value/1]).
--export([get_index/1]).
--export([get_index/2]).
--export([get_symbol_from_index/2]).
--export([cast/2]).
+-export([ cast/2
+        , get_index/1
+        , get_index/2
+        , get_symbol_from_index/2
+        , get_value/1
+        , new/2
+        , resolve_fullname/2
+        , type/2
+        , type/3
+        ]).
 
 -include("avro_internal.hrl").
 
@@ -56,25 +58,37 @@ type(Name, Symbols) ->
 %% @doc Declare a enum type.
 -spec type(name_raw(), [symbol_raw()], avro:type_props()) ->
         enum_type() | no_return().
-type(Name, Symbols0, Opts) ->
+type(Name0, Symbols0, Opts) ->
+  {Name, Ns0} = avro:split_type_name(Name0, ?NS_GLOBAL),
+  Ns          = ?NAME(avro_util:get_opt(namespace, Opts, Ns0)),
+  true        = (Ns0 =:= ?NS_GLOBAL orelse Ns0 =:= Ns), %% assert
   Symbols     = lists:map(fun(S) -> ?SYMBOL(S) end, Symbols0),
   ok          = check_symbols(Symbols),
-  Ns          = avro_util:get_opt(namespace, Opts, ?NS_GLOBAL),
   Doc         = avro_util:get_opt(doc, Opts, ?NO_DOC),
   Aliases0    = avro_util:get_opt(aliases, Opts, []),
-  EnclosingNs = avro_util:get_opt(enclosing_ns, Opts, ?NS_GLOBAL),
   ok          = avro_util:verify_aliases(Aliases0),
-  Aliases     = avro_util:canonicalize_aliases(Aliases0, Name, Ns, EnclosingNs),
+  Aliases     = avro_util:canonicalize_aliases(Aliases0, Ns),
   Type = #avro_enum_type
-         { name      = ?NAME(Name)
-         , namespace = ?NAME(Ns)
+         { name      = Name
+         , namespace = Ns
          , aliases   = Aliases
          , doc       = ?DOC(Doc)
          , symbols   = Symbols
-         , fullname  = avro:build_type_fullname(Name, Ns, EnclosingNs)
+         , fullname  = avro:build_type_fullname(Name, Ns)
          },
   ok = avro_util:verify_type(Type),
   Type.
+
+%% @doc Resolve fullname by newly discovered enclosing namespace.
+-spec resolve_fullname(enum_type(), namespace()) -> enum_type().
+resolve_fullname(#avro_enum_type{ fullname = Fullname
+                                , aliases  = Aliases
+                                } = T, Ns) ->
+  NewFullname = avro:build_type_fullname(Fullname, Ns),
+  NewAliases = avro_util:canonicalize_aliases(Aliases, Ns),
+  T#avro_enum_type{ fullname = NewFullname
+                  , aliases  = NewAliases
+                  }.
 
 %% @doc Create a enum wrapped (boxed) value.
 -spec new(enum_type(), avro_value() | symbol_raw()) ->

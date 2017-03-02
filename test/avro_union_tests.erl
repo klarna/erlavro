@@ -140,6 +140,22 @@ big_union_of_names_test() ->
                    avro_union:encode(Type, {<<"com.klarna.test.x">>, value},
                                      EncodeFun)).
 
+union_of_string_and_int_array_test() ->
+  %% Make sure tagging union members will work for union of
+  %% string and int/long arrays.
+  Union = avro_union:type([ avro_primitive:string_type()
+                          , avro_array:type(avro_primitive:int_type())
+                          ]),
+  StringEncodeFun = fun(_StringType, _StringValue, 0) -> string end,
+  ArrayEncodeFun = fun(_ArrayType, _ArraryValue, 1) -> array end,
+  ?assertEqual(string,
+               avro_union:encode(Union, {string, "abc"}, StringEncodeFun)),
+  ?assertEqual(array,
+               avro_union:encode(Union, {array, [$a, $b, $c]}, ArrayEncodeFun)),
+  ?assertEqual(string,
+               avro_union:encode(Union, <<"abc">>, StringEncodeFun)),
+  ok.
+
 %%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t

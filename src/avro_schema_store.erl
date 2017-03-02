@@ -64,10 +64,6 @@
 
 -include("avro_internal.hrl").
 
--ifdef(TEST).
--export([extract_children_types/1]).
--endif.
-
 -opaque store() :: ets:tab().
 -type option_key() :: access | name.
 -type filename() :: file:filename_all().
@@ -164,15 +160,16 @@ add_type(Type, Store) when ?IS_STORE(Store) ->
 %% For named types, the assigned name works like an alias.
 %% @end
 -spec add_type(undefined | name_raw(), avro_type(), store()) -> store().
-add_type(AssignedName, Type, Store) when ?IS_STORE(Store) ->
-  {ConvertedType, ExtractedTypes} = extract_children_types(Type),
-  case avro:is_named_type(Type) of
+add_type(AssignedName, Type0, Store) when ?IS_STORE(Store) ->
+  {Type, FlattenTypes} = flatten_type(Type0),
+  case ?IS_NAME(Type) of
     true ->
-      Store1 = do_add_type_by_names([?NAME(AssignedName)], Type, Store),
-      lists:foldl(fun do_add_type/2, Store1, [ConvertedType | ExtractedTypes]);
+      [Type1 | _] = FlattenTypes,
+      Store1 = do_add_type_by_names([?NAME(AssignedName)], Type1, Store),
+      lists:foldl(fun do_add_type/2, Store1, FlattenTypes);
     false when AssignedName =/= undefined ->
       Store1 = do_add_type_by_names([?NAME(AssignedName)], Type, Store),
-      lists:foldl(fun do_add_type/2, Store1, ExtractedTypes);
+      lists:foldl(fun do_add_type/2, Store1, FlattenTypes);
     false when AssignedName =:= undefined ->
       erlang:error({unnamed_type, Type})
   end.
@@ -213,21 +210,19 @@ expand_type(Type0, Store) when ?IS_STORE(Store) ->
 %% If the type is named (i.e. record type), the extracted format is its
 %% full name, and the type itself is added to the extracted list.
 %% @end
--spec flatten_type(name_raw() | avro_type()) ->
-        {avro_type_or_name(), [avro_type()]}.
-flatten_type(TypeName) when ?IS_NAME_RAW(TypeName) ->
-  %% it's a reference, do nothing
-  {?NAME(TypeName), []};
+-spec flatten_type(avro_type_or_name()) -> {avro_type_or_name(), [avro_type()]}.
+flatten_type(TypeName) when ?IS_NAME(TypeName) ->
+  %% it's a reference
+  {TypeName, []};
 flatten_type(Type) when ?IS_AVRO_TYPE(Type) ->
-  %% go deeper
-  {NewType, Extracted} = extract_children_types(Type),
-  case avro:is_named_type(NewType) of
-    true  ->
+  case avro:is_named_type(Type) of
+    true ->
+      {NewType, Extracted} = flatten(Type),
+      Fullname = avro:get_type_fullname(NewType),
       %% Named types are replaced by their fullnames.
-      Fullname = avro:get_type_fullname(Type),
       {Fullname, [NewType | Extracted]};
     false ->
-      {NewType, Extracted}
+      flatten(Type)
   end.
 
 %%%_* Internal Functions =======================================================
@@ -325,43 +320,39 @@ do_add_type_by_names([Name|Rest], Type, Store) ->
       do_add_type_by_names(Rest, Type, Store1)
   end.
 
-%% @private Recursively extract all children types from the type
-%% replace extracted types with their full names as references.
-%% @end
--spec extract_children_types(avro_type()) -> {avro_type(), [avro_type()]}.
-extract_children_types(Primitive) when ?AVRO_IS_PRIMITIVE_TYPE(Primitive) ->
+%% @private
+-spec flatten(avro_type()) -> {avro_type(), [avro_type()]}.
+flatten(#avro_primitive_type{} = Primitive) ->
   {Primitive, []};
-extract_children_types(Enum) when ?AVRO_IS_ENUM_TYPE(Enum) ->
+flatten(#avro_enum_type{} = Enum) ->
   {Enum, []};
-extract_children_types(Fixed) when ?AVRO_IS_FIXED_TYPE(Fixed) ->
+flatten(#avro_fixed_type{} = Fixed) ->
   {Fixed, []};
-extract_children_types(Record) when ?AVRO_IS_RECORD_TYPE(Record) ->
+flatten(#avro_record_type{} = Record) ->
   {NewFields, ExtractedTypes} =
     lists:foldr(
       fun(Field, {FieldsAcc, ExtractedAcc}) ->
-          {NewType, Extracted} =
-            flatten_type(Field#avro_record_field.type),
+          {NewType, Extracted} = flatten_type(Field#avro_record_field.type),
           {[Field#avro_record_field{type = NewType}|FieldsAcc],
            Extracted ++ ExtractedAcc}
       end,
       {[], []},
       Record#avro_record_type.fields),
-  {Record#avro_record_type{ fields = NewFields }, ExtractedTypes};
-extract_children_types(Array) when ?AVRO_IS_ARRAY_TYPE(Array) ->
+  {Record#avro_record_type{fields = NewFields}, ExtractedTypes};
+flatten(#avro_array_type{} = Array) ->
   ChildType = avro_array:get_items_type(Array),
   {NewChildType, Extracted} = flatten_type(ChildType),
   {avro_array:type(NewChildType), Extracted};
-extract_children_types(Map) when ?AVRO_IS_MAP_TYPE(Map) ->
-  ChildType = Map#avro_map_type.type,
+flatten(#avro_map_type{type = ChildType} = Map) ->
   {NewChildType, Extracted} = flatten_type(ChildType),
   {Map#avro_map_type{type = NewChildType}, Extracted};
-extract_children_types(Union) when ?AVRO_IS_UNION_TYPE(Union) ->
+flatten(#avro_union_type{} = Union) ->
   ChildrenTypes = avro_union:get_types(Union),
   {NewChildren, ExtractedTypes} =
     lists:foldr(
       fun(ChildType, {FlattenAcc, ExtractedAcc}) ->
           {ChildType1, Extracted} = flatten_type(ChildType),
-          {[ChildType1|FlattenAcc], Extracted ++ ExtractedAcc}
+          {[ChildType1 | FlattenAcc], Extracted ++ ExtractedAcc}
       end,
       {[], []},
       ChildrenTypes),
