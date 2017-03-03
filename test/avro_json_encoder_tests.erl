@@ -188,46 +188,41 @@ encode_enum_test() ->
   ?assertEqual(<<"\"B\"">>, EnumValueJson).
 
 encode_union_type_test() ->
-  UnionType = avro_union:type([ avro_primitive:string_type()
-                              , avro_primitive:int_type()]),
+  UnionType = avro_union:type([string, int]),
   Json = encode_type(UnionType),
   ?assertEqual(<<"[\"string\",\"int\"]">>, Json).
 
 encode_union_test() ->
-  UnionType = avro_union:type([avro_primitive:string_type(),
-                               avro_primitive:int_type()]),
+  UnionType = avro_union:type([string, int]),
   Value = avro_union:new(UnionType, avro_primitive:int(10)),
   Json = encode_value(Value),
   ?assertEqual(<<"{\"int\":10}">>, Json).
 
 encode_union_with_null_test() ->
-  UnionType = avro_union:type([avro_primitive:string_type(),
-                               avro_primitive:null_type()]),
+  UnionType = avro_union:type([string, null]),
   Value = avro_union:new(UnionType, avro_primitive:null()),
   Json = encode_value(Value),
   ?assertEqual(<<"null">>, Json).
 
 encode_array_type_test() ->
-  Type = avro_array:type(avro_primitive:string_type()),
+  Type = avro_array:type(string),
   Json = encode_type(Type),
   ?assertEqual(<<"{\"type\":\"array\",\"items\":\"string\"}">>, Json).
 
 encode_array_test() ->
-  Type = avro_array:type(avro_primitive:string_type()),
+  Type = avro_array:type(string),
   Value = avro_array:new(Type, [avro_primitive:string("a"),
                                 avro_primitive:string("b")]),
   Json = encode_value(Value),
   ?assertEqual(<<"[\"a\",\"b\"]">>, Json).
 
 encode_map_type_test() ->
-  MapType = avro_map:type(avro_union:type([avro_primitive:int_type(),
-                                           avro_primitive:null_type()])),
+  MapType = avro_map:type(avro_union:type([int, null])),
   Json = encode_type(MapType),
   ?assertEqual(<<"{\"type\":\"map\",\"values\":[\"int\",\"null\"]}">>, Json).
 
 encode_map_test() ->
-  MapType = avro_map:type(avro_union:type([avro_primitive:int_type(),
-                                           avro_primitive:null_type()])),
+  MapType = avro_map:type(avro_union:type([int, null])),
   MapValue = avro_map:new(MapType, [{v1, 1}, {"v2", null}, {<<"v3">>, 2}]),
   Json = encode_value(MapValue),
   ?assertEqual(<<"{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}">>, Json).
@@ -254,8 +249,8 @@ encode_fixed_value_test() ->
 check_json_encode_record_properly_test() ->
   MyRecordType =
     avro_record:type("MyRecord",
-                     [ define_field(f1, avro_primitive:int_type())
-                     , define_field("f2", avro_primitive:string_type())],
+                     [ define_field(f1, int)
+                     , define_field("f2", string)],
                      [{namespace, "my.com"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
@@ -278,7 +273,7 @@ check_json_encode_enum_properly_test() ->
   ?assertEqual(EnumValueJson, Encoded).
 
 check_json_encode_array_properly_test() ->
-  Type = avro_array:type(avro_primitive:string_type()),
+  Type = avro_array:type(string),
   Value = avro_array:new(Type, [ avro_primitive:string("a")
                                , avro_primitive:string("b")]),
   ExpectedJSON = encode_value(Value),
@@ -286,9 +281,7 @@ check_json_encode_array_properly_test() ->
   ?assertEqual(ExpectedJSON, JSON).
 
 check_json_encode_map_properly_test() ->
-  MapType = avro_map:type(avro_union:type(
-    [avro_primitive:int_type(),
-      avro_primitive:null_type()])),
+  MapType = avro_map:type(avro_union:type([int, null])),
   Value = [{<<"v1">>, 1}, {<<"v2">>, null}, {<<"v3">>, 2}],
   MapValue = avro_map:new(MapType, Value),
   JSON1 = encode_value(MapValue),
@@ -301,8 +294,7 @@ check_json_encode_map_properly_test() ->
   ?assertEqual(Value, lists:keysort(1, DecodeF(JSON2))).
 
 check_json_encode_union_properly_test() ->
-  UnionType = avro_union:type([ avro_primitive:string_type()
-                              , avro_primitive:null_type()]),
+  UnionType = avro_union:type([string, null]),
   Value1 = avro_union:new(UnionType, avro_primitive:null()),
   Value2 = avro_union:new(UnionType, avro_primitive:string("bar")),
   Json1 = encode_value(Value1),
@@ -337,7 +329,7 @@ encode_type_shortname_ref_test() ->
   ?assertEqual(Expected, iolist_to_binary(Encoded)).
 
 encode_type_no_redundant_ns_test() ->
-  SubField = avro_record:define_field("subf", avro_primitive:int_type(), []),
+  SubField = avro_record:define_field("subf", int, []),
   SubType = avro_record:type("subrec", [SubField],
                              [{namespace, "com.example"}]),
   Field = avro_record:define_field("f", SubType, []),
@@ -383,24 +375,24 @@ encode_field_order_test_() ->
 sample_record_type() ->
   avro_record:type(
     "SampleRecord",
-    [ define_field("bool", avro_primitive:boolean_type(),
+    [ define_field("bool", boolean,
                    [ {doc, "bool f"}
                    , {default, avro_primitive:boolean(false)} ])
-    , define_field("int", avro_primitive:int_type(),
+    , define_field("int", int,
                    [ {doc, "int f"}
                    , {default, avro_primitive:int(0)} ])
-    , define_field("long", avro_primitive:long_type(),
+    , define_field("long", long,
                    [ {doc, "long f"}
                    , {default, avro_primitive:long(42)} ])
-    , define_field("float", avro_primitive:float_type(),
+    , define_field("float", float,
                    [ {doc, "float f"}
                    , {default, avro_primitive:float(3.14)} ])
-    , define_field("double", avro_primitive:double_type(),
+    , define_field("double", double,
                    [ {doc, "double f"}
                    , {default, avro_primitive:double(6.67221937)} ])
-    , define_field("bytes", avro_primitive:bytes_type(),
+    , define_field("bytes", bytes,
                    [ {doc, "bytes f"} ])
-    , define_field("string", avro_primitive:string_type(),
+    , define_field("string", string,
                    [ {doc, "string f"}
                    , {default, avro_primitive:string("string value")} ])
     ],

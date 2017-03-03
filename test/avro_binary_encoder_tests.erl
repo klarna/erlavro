@@ -133,29 +133,28 @@ encode_enum_test() ->
   ?assertBinEq([8], BynaryEnum).
 
 encode_empty_array_test() ->
-  Type = avro_array:type(avro_primitive:int_type()),
+  Type = avro_array:type(int),
   TypedValue = avro_array:new(Type, []),
   ?assertBinEq([0], encode_value(TypedValue)).
 
 encode_array_test() ->
-  Type = avro_array:type(avro_primitive:int_type()),
+  Type = avro_array:type(int),
   TypedValue = avro_array:new(Type, [3, 27]),
   ?assertBinEq([3,4,6,54,0], encode_value(TypedValue)).
 
 encode_empty_map_test() ->
-  Type = avro_map:type(avro_primitive:int_type()),
+  Type = avro_map:type(int),
   TypedValue = avro_map:new(Type, []),
   ?assertBinEq([0], encode_value(TypedValue)).
 
 encode_map_test() ->
-  Type = avro_map:type(avro_primitive:int_type()),
+  Type = avro_map:type(int),
   TypedValue = avro_map:new(Type, [{a, 3}, {"b", 27}]),
   Body = iolist_to_binary([string(a), int(3), string(<<"b">>), int(27)]),
   ?assertBinEq([long(-2), long(size(Body)), Body, 0], encode_value(TypedValue)).
 
 encode_union_test() ->
-  Type = avro_union:type([avro_primitive:null_type(),
-                          avro_primitive:string_type()]),
+  Type = avro_union:type([null, string]),
   Value1 = avro_union:new(Type, null),
   Value2 = avro_union:new(Type, "a"),
   ?assertBinEq([0], encode_value(Value1)),
@@ -169,8 +168,8 @@ encode_fixed_test() ->
 encode_binary_properly_test() ->
   MyRecordType =
     avro_record:type("MyRecord",
-                     [define_field("f1", avro_primitive:int_type()),
-                      define_field("f2", avro_primitive:string_type())],
+                     [define_field("f1", int),
+                      define_field("f2", string)],
                      [{namespace, "my.com"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Term = [{"f1", 1}, {"f2", "my string"}],
@@ -180,8 +179,7 @@ encode_binary_properly_test() ->
   ?assertEqual(Encoded, EncodedValue).
 
 encode_enum_properly_test() ->
-  UnionType = avro_union:type([avro_primitive:string_type(),
-                               avro_primitive:null_type()]),
+  UnionType = avro_union:type([string, null]),
   Value1 = avro_union:new(UnionType, avro_primitive:null()),
   Value2 = avro_union:new(UnionType, avro_primitive:string("bar")),
   EncodedValue1 = encode_value(Value1),
@@ -192,7 +190,7 @@ encode_enum_properly_test() ->
   ?assertEqual(EncodedValue2, Encoded2).
 
 encode_map_properly_test() ->
-  Type = avro_map:type(avro_primitive:int_type()),
+  Type = avro_map:type(int),
   TypedValue = avro_map:new(Type, [{"a", 3}, {"b", 27}]),
   Encoded = encode(fun(_) -> Type end, "some map", [{"a", 3}, {"b", 27}]),
   ?assertBinEq(encode_value(TypedValue), Encoded).
@@ -200,30 +198,30 @@ encode_map_properly_test() ->
 %% @private
 sample_record_type() ->
   avro_record:type("SampleRecord",
-                   [ define_field("bool", avro_primitive:boolean_type(),
+                   [ define_field("bool", boolean,
                                   [ {doc, "bool f"}
                                   , {default, avro_primitive:boolean(false)}
                                   ])
-                   , define_field("int", avro_primitive:int_type(),
+                   , define_field("int", int,
                                   [ {doc, "int f"}
                                   , {default, avro_primitive:int(0)}
                                   ])
-                   , define_field("long", avro_primitive:long_type(),
+                   , define_field("long", long,
                                   [ {doc, "long f"}
                                   , {default, avro_primitive:long(42)}
                                   ])
-                   , define_field("float", avro_primitive:float_type(),
+                   , define_field("float", float,
                                   [ {doc, "float f"}
                                   , {default, avro_primitive:float(3.14)}
                                   ])
-                   , define_field("double", avro_primitive:double_type(),
+                   , define_field("double", double,
                                   [ {doc, "double f"}
                                   , {default, avro_primitive:double(6.67221937)}
                                   ])
-                   , define_field("bytes", avro_primitive:bytes_type(),
+                   , define_field("bytes", bytes,
                                   [ {doc, "bytes f"}
                                   ])
-                   , define_field("string", avro_primitive:string_type(),
+                   , define_field("string", string,
                                   [ {doc, "string f"}
                                   ])
                    ],

@@ -35,17 +35,18 @@
         , resolve_fullname/2
         ]).
 
--export([ split_fullname/1
+-export([ build_type_fullname/2
+        , name2type/1
+        , split_fullname/1
         , split_type_name/2
-        , build_type_fullname/2
         ]).
 
 -export([ read_schema/1
         ]).
 
--export([cast/2]).
-
--export([to_term/1]).
+-export([ cast/2
+        , to_term/1
+        ]).
 
 -export([ decode/5
         , encode/4
@@ -208,6 +209,9 @@ resolve_fullname(#avro_record_type{} = Type, Ns) ->
 resolve_fullname(#avro_union_type{} = Type, Ns) ->
   avro_union:resolve_fullname(Type, Ns).
 
+-spec name2type(name_raw()) -> #avro_primitive_type{} | name().
+name2type(Name) -> type_from_name(?NAME(Name)).
+
 %%%===================================================================
 %%% API: Accessing types properties
 %%%===================================================================
@@ -354,7 +358,7 @@ cast(T, ?AVRO_VALUE(T, _) = V) ->
 cast(TypeName0, Value) when ?IS_NAME_RAW(TypeName0) ->
   TypeName = ?NAME(TypeName0),
   case type_from_name(TypeName) of
-    undefined ->
+    TypeName ->
       %% If the type specified by its name then in most cases
       %% we don't know which module should handle it. The only
       %% thing which we can do here is to compare full name of
@@ -422,15 +426,16 @@ has_fullname(Type, FullName) ->
   is_named_type(Type) andalso get_type_fullname(Type) =:= FullName.
 
 %% @private
--spec type_from_name(name()) -> undefined | primitive_type().
-type_from_name(?AVRO_NULL)   -> avro_primitive:null_type();
-type_from_name(?AVRO_INT)    -> avro_primitive:int_type();
-type_from_name(?AVRO_LONG)   -> avro_primitive:long_type();
-type_from_name(?AVRO_FLOAT)  -> avro_primitive:float_type();
-type_from_name(?AVRO_DOUBLE) -> avro_primitive:double_type();
-type_from_name(?AVRO_BYTES)  -> avro_primitive:bytes_type();
-type_from_name(?AVRO_STRING) -> avro_primitive:string_type();
-type_from_name(_)            -> undefined.
+-spec type_from_name(name()) -> name() | primitive_type().
+type_from_name(?AVRO_BOOLEAN)      -> avro_primitive:boolean_type();
+type_from_name(?AVRO_NULL)         -> avro_primitive:null_type();
+type_from_name(?AVRO_INT)          -> avro_primitive:int_type();
+type_from_name(?AVRO_LONG)         -> avro_primitive:long_type();
+type_from_name(?AVRO_FLOAT)        -> avro_primitive:float_type();
+type_from_name(?AVRO_DOUBLE)       -> avro_primitive:double_type();
+type_from_name(?AVRO_BYTES)        -> avro_primitive:bytes_type();
+type_from_name(?AVRO_STRING)       -> avro_primitive:string_type();
+type_from_name(N) when ?IS_NAME(N) -> N.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

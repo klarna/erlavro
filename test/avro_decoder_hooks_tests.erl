@@ -31,13 +31,12 @@ test_debug_hook(Encoding) ->
   LogFun = fun(IoData) -> io:put_chars(user, IoData) end,
   HistLen = 10,
   Hook = avro_decoder_hooks:print_debug_trace(LogFun, HistLen),
-  Union = avro_union:type([avro_primitive:null_type(),
-                           avro_primitive:int_type()]),
+  Union = avro_union:type([null, int]),
   MyRecordType =
     avro_record:type("MyRecord",
-                     [ define_field("f1", avro_primitive:int_type())
+                     [ define_field("f1", int)
                      , define_field("f2", Union)
-                     , define_field("f3", avro_primitive:string_type())
+                     , define_field("f3", string)
                      ],
                      [{namespace, "com.example"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
@@ -55,11 +54,11 @@ tag_unions_test() ->
   CodecOptions = [{encoding, avro_binary}],
   Hook = avro_decoder_hooks:tag_unions(),
   Fixed = avro_fixed:type("myfixed", 2),
-  Map = avro_map:type(avro_primitive:int_type()),
-  Array = avro_array:type(avro_primitive:int_type()),
-  Field = avro_record:define_field("rf1", avro_primitive:int_type()),
+  Map = avro_map:type(int),
+  Array = avro_array:type(int),
+  Field = avro_record:define_field("rf1", int),
   Record = avro_record:type("MySubRec", [Field]),
-  Union = avro_union:type([ avro_primitive:null_type()
+  Union = avro_union:type([ null
                           , Fixed
                           , Map
                           , Array

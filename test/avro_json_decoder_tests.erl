@@ -301,12 +301,9 @@ decode_wrapped_value_test() ->
 %% @private
 get_test_record() ->
   F = fun(Name, Type) -> avro_record:define_field(Name, Type) end,
-  Fields = [ F("invno", avro_primitive:long_type())
-           , F("array", avro_array:type(avro_primitive:string_type()))
-           , F("union", avro_union:type([ avro_primitive:null_type()
-                                        , avro_primitive:int_type()
-                                        , avro_primitive:boolean_type()
-                                        ]))
+  Fields = [ F("invno", long)
+           , F("array", avro_array:type(string))
+           , F("union", avro_union:type([null, int, boolean]))
            ],
   avro_record:type("Test", Fields, [{namespace, "name.space"}]).
 

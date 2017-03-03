@@ -50,11 +50,9 @@ interop_test() ->
 
 write_file_test() ->
   OcfFile = filename:join([priv_dir(), "my.ocf.test"]),
-  IntType = avro_primitive:int_type(),
-  StringType = avro_primitive:string_type(),
   Store = undefined, %% should not require lookup
-  Fields = [ avro_record:define_field("f1", IntType, [])
-           , avro_record:define_field("f2", StringType, [])
+  Fields = [ avro_record:define_field("f1", int, [])
+           , avro_record:define_field("f2", string, [])
            ],
   Type = avro_record:type("rec", Fields, [{namespace, "my.ocf.test"}]),
   Obj = [{"f1", 1}, {"f2", "foo"}],

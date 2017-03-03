@@ -44,10 +44,8 @@
 
 %% @doc Define array type.
 -spec type(avro_type_or_name()) -> array_type().
-type(SubType) when ?IS_NAME_RAW(SubType) ->
-  #avro_array_type{ type = ?NAME(SubType) };
-type(SubType) when ?IS_AVRO_TYPE(SubType) ->
-  #avro_array_type{ type = SubType }.
+type(Type) ->
+  #avro_array_type{type = avro_util:canonicalize_type_or_name(Type)}.
 
 %% @doc Resolve children type's fullnames.
 -spec resolve_fullname(array_type(), namespace()) -> array_type().
