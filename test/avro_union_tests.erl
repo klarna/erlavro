@@ -25,7 +25,7 @@
 get_record(N) ->
   Name = "R" ++ integer_to_list(N),
   avro_record:type(Name,
-                   [avro_record:define_field("F", avro_primitive:int_type())],
+                   [avro_record:define_field("F", int)],
                    [{namespace, "com.klarna.test"}]).
 make_name(N) ->
   "com.klarna.test.R" ++ integer_to_list(N).
@@ -37,8 +37,7 @@ big_union() ->
   avro_union:type([get_record(N) || N <- lists:seq(1,200)]).
 
 new_direct_test() ->
-  Type = avro_union:type([avro_primitive:int_type(),
-                          avro_primitive:string_type()]),
+  Type = avro_union:type([int, string]),
   NewVersion = avro_union:new(Type, "Foo"),
   DirectVersion = avro_union:new_direct(Type, avro_primitive:string("Foo")),
   ?assertEqual(NewVersion, DirectVersion).
@@ -66,8 +65,7 @@ lookup_child_type_from_big_union_test() ->
                avro_union:lookup_child_type(Type, 99)).
 
 to_term_test() ->
-  Type = avro_union:type([avro_primitive:null_type(),
-                          avro_primitive:int_type()]),
+  Type = avro_union:type([null, int]),
   Value1 = avro_union:new(Type, null),
   Value2 = avro_union:new(Type, 1),
   ?assertEqual(null, avro:to_term(Value1)),
@@ -78,22 +76,19 @@ empty_unon_not_allowed_test() ->
                    avro_union:type([])).
 
 cast_test() ->
-  Type = avro_union:type([avro_primitive:null_type(),
-                          avro_primitive:long_type()]),
+  Type = avro_union:type([null, long]),
   ?assertMatch({ok, #avro_value{}}, avro_union:cast(Type, {long, 1})),
   ?assertMatch({ok, #avro_value{}}, avro_union:cast(Type, null)),
   ?assertEqual({error, type_mismatch}, avro_union:cast(Type, "str")),
   ?assertException(error, type_mismatch, avro_union:new(Type, "str")).
 
 unknown_tag_cast_test() ->
-  Type = avro_union:type([avro_primitive:null_type(),
-                          avro_primitive:long_type()]),
+  Type = avro_union:type([null, long]),
   ?assertException(error, {unknown_tag, Type, 2},
                    avro_union:cast(Type, {2, "s"})).
 
 unknown_tag_encode_test() ->
-  Type = avro_union:type([avro_primitive:null_type(),
-                          avro_primitive:long_type()]),
+  Type = avro_union:type([null, long]),
   EncodeFun = fun(_MemberType, InputValue, MemberIdInteger) ->
                   {encoded, MemberIdInteger, InputValue}
               end,
@@ -109,8 +104,7 @@ unknown_tag_encode_test() ->
                    avro_union:encode(Type, {"int", 2}, EncodeFun)).
 
 loop_over_encode_test() ->
-  Type = avro_union:type([avro_primitive:null_type(),
-                          avro_primitive:long_type()]),
+  Type = avro_union:type([null, long]),
   EncodeFun = fun(_MemberType, InputValue, MemberIdInteger) ->
                   case MemberIdInteger of
                     0 -> null = InputValue;

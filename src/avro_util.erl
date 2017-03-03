@@ -116,7 +116,7 @@ ensure_binary(B) when is_binary(B) -> B.
 %% @doc Canonicalize name if it is not a type.
 -spec canonicalize_type_or_name(avro_type_or_name()) -> avro_type_or_name().
 canonicalize_type_or_name(Name) when ?IS_NAME_RAW(Name) ->
-  canonicalize_name(Name);
+  avro:name2type(Name);
 canonicalize_type_or_name(Type) when ?IS_AVRO_TYPE(Type) ->
   Type.
 

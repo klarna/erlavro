@@ -28,9 +28,10 @@
 -module(avro_json_encoder).
 
 %% API
--export([encode_type/1]).
--export([encode_value/1]).
--export([encode/3]).
+-export([ encode_type/1
+        , encode_value/1
+        , encode/3
+        ]).
 
 -include("avro_internal.hrl").
 

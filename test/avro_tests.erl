@@ -65,8 +65,8 @@ readme_binary_encode_decode_test() ->
   MyRecordType =
     avro_record:type(
       <<"MyRecord">>,
-      [avro_record:define_field(f1, avro_primitive:int_type()),
-       avro_record:define_field(f2, avro_primitive:string_type())],
+      [avro_record:define_field(f1, int),
+       avro_record:define_field(f2, string)],
       [{namespace, 'com.example'}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, []),
@@ -81,8 +81,8 @@ readme_json_encode_decode_test() ->
   MyRecordType =
     avro_record:type(
       "MyRecord",
-      [avro_record:define_field("f1", avro_primitive:int_type()),
-       avro_record:define_field("f2", avro_primitive:string_type())],
+      [avro_record:define_field("f1", int),
+       avro_record:define_field("f2", string)],
       [{namespace, "com.example"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
@@ -103,18 +103,17 @@ primitive_cast_error_test() ->
                    avro_primitive:int("foo")).
 
 encode_wrapped(CodecOptions) ->
-  NullableInt = avro_union:type([avro_primitive:null_type(),
-                                 avro_primitive:int_type()]),
+  NullableInt = avro_union:type([null, int]),
   MyRecordType1 =
     avro_record:type(
       "MyRecord1",
       [avro_record:define_field("f1", NullableInt),
-       avro_record:define_field("f2", avro_primitive:string_type())],
+       avro_record:define_field("f2", string)],
       [{namespace, "com.example"}]),
   MyRecordType2 =
     avro_record:type(
       "MyRecord2",
-      [avro_record:define_field("f1", avro_primitive:string_type()),
+      [avro_record:define_field("f1", string),
        avro_record:define_field("f2", NullableInt)],
       [{namespace, "com.example"}]),
   MyUnion = avro_union:type([MyRecordType1, MyRecordType2]),

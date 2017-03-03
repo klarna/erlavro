@@ -26,7 +26,7 @@ flatten_primitive_type_test() ->
   ?assertEqual({Type, []}, avro_schema_store:flatten_type(Type)).
 
 flatten_nested_primitive_type_test() ->
-  Type = avro_array:type(avro_primitive:int_type()),
+  Type = avro_array:type(int),
   ?assertEqual({Type, []}, avro_schema_store:flatten_type(Type)).
 
 flatten_named_type_test() ->
@@ -72,9 +72,7 @@ import_unnamed_test() ->
   PrivDir = priv_dir(),
   UnionName = "com.klarna.test.union",
   AvscFile = filename:join([PrivDir, UnionName ++ ".avsc"]),
-  UnionType = avro_union:type([ avro_primitive:null_type()
-                              , avro_primitive:long_type()
-                              ]),
+  UnionType = avro_union:type([null, long]),
   UnionJSON = avro_json_encoder:encode_type(UnionType),
   ok = file:write_file(AvscFile, UnionJSON),
   try
@@ -89,9 +87,7 @@ import_unnamed_test() ->
 
 name_clash_test() ->
   Name = <<"com.klarna.test.union">>,
-  Type = avro_union:type([ avro_primitive:null_type()
-                         , avro_primitive:long_type()
-                         ]),
+  Type = avro_union:type([null, long]),
   AnotherType = avro_primitive:string_type(),
   Store = avro_schema_store:new([]),
   %% ok to add the type
@@ -127,7 +123,7 @@ expand_type_test() ->
 sub_record() ->
   avro_record:type(
     "TestSubRecord",
-    [ define_field("sub_field1", avro_primitive:boolean_type())
+    [ define_field("sub_field1", boolean)
     , define_field("sub_field2", avro_enum:type("MyEnum", ["A"],
                                                 [{namespace, "another.name"}]))
     ],
@@ -140,7 +136,7 @@ sub_record() ->
 flat_sub_record() ->
   avro_record:type(
     "TestSubRecord",
-    [ define_field("sub_field1", avro_primitive:boolean_type()),
+    [ define_field("sub_field1", boolean),
       define_field("sub_field2", "another.name.MyEnum") ],
     [ {namespace, "com.klarna.test.bix"}
     , {doc, "Some doc"}
@@ -152,12 +148,12 @@ test_record() ->
   avro_record:type(
     "TestRecord",
     [ %% simple type
-      define_field("field1", avro_primitive:int_type())
+      define_field("field1", int)
       %% huge nested type
     , define_field("field2",
                    avro_array:type(
                      avro_union:type(
-                       [ avro_primitive:string_type()
+                       [ string
                        , sub_record()
                        , avro_fixed:type("MyFixed", 16,
                                          [{namespace, "com.klarna.test.bix"}])
@@ -176,11 +172,11 @@ flat_test_record() ->
   avro_record:type(
     "TestRecord",
     [ %% simple type
-      define_field("field1", avro_primitive:int_type())
+      define_field("field1", int)
       %% huge nested type
     , define_field("field2", avro_array:type(
                                avro_union:type(
-                                 [ avro_primitive:string_type()
+                                 [ string
                                  , "com.klarna.test.bix.TestSubRecord"
                                  , "com.klarna.test.bix.MyFixed"
                                  ])))

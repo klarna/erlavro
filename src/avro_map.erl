@@ -51,10 +51,8 @@
 
 %% @doc Define a map type.
 -spec type(avro_type()) -> map_type().
-type(ItemsType) when ?IS_AVRO_TYPE(ItemsType) ->
-  #avro_map_type{ type = ItemsType };
-type(ItemsTypeName) when ?IS_NAME_RAW(ItemsTypeName) ->
-  #avro_map_type{ type = ?NAME(ItemsTypeName) }.
+type(Type) ->
+  #avro_map_type{type = avro_util:canonicalize_type_or_name(Type)}.
 
 %% @doc Resolve fullname by newly discovered enclosing namespace.
 -spec resolve_fullname(map_type(), namespace()) -> map_type().

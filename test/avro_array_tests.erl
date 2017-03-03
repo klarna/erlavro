@@ -22,12 +22,12 @@
 -include_lib("eunit/include/eunit.hrl").
 
 to_term_test() ->
-  ArrayType = avro_array:type(avro_primitive:int_type()),
+  ArrayType = avro_array:type(int),
   {ok, Array} = avro_array:cast(ArrayType, [1, 2]),
   ?assertEqual([1, 2], avro:to_term(Array)).
 
 cast_test() ->
-  ArrayType = avro_array:type(avro_primitive:string_type()),
+  ArrayType = avro_array:type(string),
   {ok, Array} = avro_array:cast(ArrayType, ["a", "b"]),
   ?assertEqual(ArrayType, ?AVRO_VALUE_TYPE(Array)),
   ?assertEqual([ avro_primitive:string("a")
@@ -35,14 +35,14 @@ cast_test() ->
                ], ?AVRO_VALUE_DATA(Array)).
 
 prepend_test() ->
-  ArrayType = avro_array:type(avro_primitive:string_type()),
+  ArrayType = avro_array:type(string),
   {ok, Array} = avro_array:cast(ArrayType, ["b", "a"]),
   NewArray = avro_array:prepend(["d", "c"], Array),
   ExpectedValues = [avro_primitive:string(S) || S <- ["d", "c", "b", "a"]],
   ?assertEqual(ExpectedValues, ?AVRO_VALUE_DATA(NewArray)).
 
 new_direct_test() ->
-  Type = avro_array:type(avro_primitive:int_type()),
+  Type = avro_array:type(int),
   NewVersion = avro_array:new(Type, [1,2,3]),
   DirectVersion = avro_array:new_direct(Type,
                                         [ avro_primitive:int(1)
@@ -51,7 +51,7 @@ new_direct_test() ->
   ?assertEqual(NewVersion, DirectVersion).
 
 new_test() ->
-  Type = avro_array:type(avro_primitive:int_type()),
+  Type = avro_array:type(int),
   ?assertEqual(?AVRO_VALUE(Type, []), avro_array:new(Type)),
   ?assertMatch(?AVRO_VALUE(Type, [_]), avro_array:new(Type, [1])),
   ?assertException(error, {type_mismatch, _, _}, avro_array:new(Type, ["a"])).

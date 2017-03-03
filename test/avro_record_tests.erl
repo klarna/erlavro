@@ -38,16 +38,15 @@
 -include_lib("eunit/include/eunit.hrl").
 
 type_test() ->
-  Field = define_field("invno", avro_primitive:long_type()),
+  Field = define_field("invno", long),
   Schema = type("Test", [Field], [{namespace, "name.space"}]),
   ?assertEqual(<<"name.space.Test">>, avro:get_type_fullname(Schema)),
   ?assertEqual({ok, Field}, get_field_def("invno", Schema)).
 
 get_field_def_test() ->
-  Field1 = define_field(f1, avro_primitive:long_type()),
-  Field2 = define_field("f2", avro_primitive:long_type(),
-                        [{aliases, [a, b]}]),
-  Field3 = define_field("f3", avro_primitive:long_type()),
+  Field1 = define_field(f1, long),
+  Field2 = define_field("f2", long, [{aliases, [a, b]}]),
+  Field3 = define_field("f3", long),
   Record = type("Test", [Field1, Field2, Field3]),
   ?assertEqual(false, get_field_def("f4", Record)),
   ?assertEqual({ok, Field2}, get_field_def("f2", Record)),
@@ -55,13 +54,13 @@ get_field_def_test() ->
   ?assertEqual({ok, Field2}, get_field_def(b, Record)).
 
 get_field_type_test() ->
-  Field = define_field("invno", avro_primitive:long_type()),
+  Field = define_field("invno", long),
   Schema = type("Test", [Field], [{namespace, "name.space"}]),
   ?assertEqual(avro_primitive:long_type(),
                get_field_type("invno", Schema)).
 
 default_fields_test() ->
-  Field = define_field("invno", avro_primitive:long_type(),
+  Field = define_field("invno", long,
                        [{default, avro_primitive:long(10)}]),
   Schema = type("Test", [Field], [{namespace, "name.space"}]),
   Rec = new(Schema, []),
@@ -70,8 +69,8 @@ default_fields_test() ->
                    get_value("no_such_field", Rec)).
 
 get_set_test() ->
-  Schema = type("Test", [define_field("invno", avro_primitive:long_type()),
-                         define_field("uname", avro_primitive:string_type())
+  Schema = type("Test", [define_field("invno", long),
+                         define_field("uname", string)
                         ],
                 [{namespace, "name.space"}]),
   Rec0 = new(Schema, [{"invno", 0}, {"uname", "some-name"}]),
@@ -84,7 +83,7 @@ get_set_test() ->
   ?assertException(error, {unknown_field, <<"x">>}, set_value("x", "y", Rec2)).
 
 update_test() ->
-  Schema = type("Test", [define_field("invno", avro_primitive:long_type())],
+  Schema = type("Test", [define_field("invno", long)],
                 [{namespace, "name.space"}]),
   Rec0 = new(Schema, [{"invno", 10}]),
   Rec1 = update("invno",
@@ -95,8 +94,8 @@ update_test() ->
   ?assertEqual(avro_primitive:long(20), get_value("invno", Rec1)).
 
 to_list_test() ->
-  Schema = type("Test", [ define_field("invno", avro_primitive:long_type())
-                        , define_field("name", avro_primitive:string_type())
+  Schema = type("Test", [ define_field("invno", long)
+                        , define_field("name", string)
                         ],
                         [{namespace, "name.space"}]),
   Rec = new(Schema, [ {"invno", avro_primitive:long(1)}
@@ -111,8 +110,8 @@ to_list_test() ->
 
 to_term_test() ->
   Schema = type("Test",
-                [ define_field(invno, avro_primitive:long_type())
-                , define_field("name", avro_primitive:string_type())
+                [ define_field(invno, long)
+                , define_field("name", string)
                 ],
                 [{namespace, "name.space"}]),
   Rec = new(Schema, [ {"invno", avro_primitive:long(1)}
@@ -126,8 +125,8 @@ to_term_test() ->
 
 cast_test() ->
   RecordType = type("Record",
-                    [ define_field("a", avro_primitive:string_type())
-                    , define_field("b", avro_primitive:int_type())
+                    [ define_field("a", string)
+                    , define_field("b", int)
                     ],
                     [ {namespace, "name.space"} ]),
   {ok, Record} = cast(RecordType, [{"b", 1}, {"a", "foo"}]),
@@ -136,17 +135,15 @@ cast_test() ->
 
 cast_error_test() ->
   RecordType = type("Record",
-                    [define_field("a", avro_primitive:long_type())],
+                    [define_field("a", long)],
                     [ {namespace, "name.space"} ]),
   ?assertMatch({error, {<<"a">>, _}},
                cast(RecordType, [{"a", "foo"}])).
 
 cast_by_aliases_test() ->
   RecordType = type("Record",
-                    [ define_field("a", avro_primitive:string_type(),
-                                   [{aliases, ["al1", "al2"]}])
-                    , define_field("b", avro_primitive:int_type(),
-                                   [{aliases, ["al3", "al4"]}])
+                    [ define_field("a", string, [{aliases, ["al1", "al2"]}])
+                    , define_field("b", int, [{aliases, ["al3", "al4"]}])
                     ],
                     [ {namespace, "name.space"}
                     ]),
@@ -156,8 +153,8 @@ cast_by_aliases_test() ->
 
 new_encoded_test() ->
   Type = type("Test",
-              [ define_field("field1", avro_primitive:long_type())
-              , define_field("field2", avro_primitive:string_type())],
+              [ define_field("field1", long)
+              , define_field("field2", string)],
               [ {namespace, "name.space"} ]),
   Fields = [ {"field1", avro_primitive:long(1)}
            , {"field2", avro_primitive:string("f")}
@@ -177,8 +174,8 @@ encode_test() ->
                   {FieldName, {encoded, Input}}
               end,
   Type = type("Test",
-              [ define_field("field1", avro_primitive:long_type())
-              , define_field("field2", avro_primitive:string_type())],
+              [ define_field("field1", long)
+              , define_field("field2", string)],
               [ {namespace, "name.space"} ]),
   ?assertException(error,
                    {field_value_not_found, <<"name.space.Test">>, <<"field2">>},

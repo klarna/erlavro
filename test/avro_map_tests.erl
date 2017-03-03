@@ -23,7 +23,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 cast_test() ->
-  Type = avro_map:type(avro_primitive:int_type()),
+  Type = avro_map:type(int),
   {ok, Value} = avro_map:cast(Type, [{v1, 1}, {"v2", 2}, {"v3", 3}]),
   List = avro_map:to_list(Value),
   Expected = [ {<<"v1">>, avro_primitive:int(1)}

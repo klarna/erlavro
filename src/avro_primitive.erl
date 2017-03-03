@@ -24,27 +24,27 @@
 -module(avro_primitive).
 
 %% API
--export([null_type/0]).
--export([boolean_type/0]).
--export([int_type/0]).
--export([long_type/0]).
--export([float_type/0]).
--export([double_type/0]).
--export([bytes_type/0]).
--export([string_type/0]).
+-export([ boolean_type/0
+        , bytes_type/0
+        , double_type/0
+        , float_type/0
+        , int_type/0
+        , long_type/0
+        , string_type/0
+        , null_type/0
+        ]).
 
--export([cast/2]).
-
--export([null/0]).
--export([boolean/1]).
--export([int/1]).
--export([long/1]).
--export([float/1]).
--export([double/1]).
--export([bytes/1]).
--export([string/1]).
-
--export([get_value/1]).
+-export([ boolean/1
+        , bytes/1
+        , cast/2
+        , double/1
+        , float/1
+        , get_value/1
+        , int/1
+        , long/1
+        , null/0
+        , string/1
+        ]).
 
 -include("avro_internal.hrl").
 
