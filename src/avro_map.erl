@@ -69,7 +69,9 @@ to_term(Map) ->
 -spec encode(avro_type_or_name(), term(), fun()) -> list().
 encode(Type, Value, EncodeFun) ->
   ItemsType = avro_map:get_items_type(Type),
-  [EncodeFun(ItemsType, K, V) || {K, V} <- Value].
+  lists:map(fun({K, V}) ->
+              EncodeFun(ItemsType, K, V)
+            end, Value).
 
 %%%===================================================================
 %%% Internal functions
