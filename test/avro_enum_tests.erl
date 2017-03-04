@@ -40,9 +40,10 @@ invalid_name_test() ->
 
 cast_from_string_test() ->
   Type = type("MyEnum", ["a", "b", "c", "d"]),
-  {ok, Enum} = cast(Type, "b"),
+  {ok, Enum} = avro:cast(Type, "b"),
   ?assertEqual(Type, ?AVRO_VALUE_TYPE(Enum)),
-  ?assertEqual(<<"b">>, get_value(Enum)).
+  ?assertEqual(<<"b">>, get_value(Enum)),
+  ?assertEqual(<<"b">>, avro:to_term(Enum)).
 
 bad_cast_from_string_test() ->
   Type = type("MyEnum", ["a", "b", "c", "d"]),
