@@ -51,8 +51,7 @@
 %%%_* APIs =====================================================================
 
 %% @doc Decode ocf into unwrapped values.
--spec decode_file(filename()) ->
-        {header(), avro_type(), [avro:out()]} | no_return().
+-spec decode_file(filename()) -> {header(), avro_type(), [avro:out()]}.
 decode_file(Filename) ->
   {ok, Bin} = file:read_file(Filename),
   {[ {<<"magic">>, Magic}
@@ -75,21 +74,21 @@ decode_file(Filename) ->
   end.
 
 %% @doc Write objects in a single block to the given file name.
--spec write_file(filename(), schema_store(), avro_type_or_name(),
-                 [avro:in()]) -> ok.
+-spec write_file(filename(), schema_store(),
+                 avro_type_or_name(), [avro:in()]) -> ok.
 write_file(Filename, SchemaStore, Schema, Objects) ->
   Header = make_header(Schema),
-  ok = write_header(Filename, Header),
-  {ok, Fd} = file:open(Filename, [write, append]),
+  {ok, Fd} = file:open(Filename, [write]),
   try
+    ok = write_header(Fd, Header),
     ok = append_file(Fd, Header, SchemaStore, Schema, Objects)
   after
     file:close(Fd)
   end.
 
 %% @doc Writer header bytes to a ocf file.
--spec write_header(filename(), avro_type() | header()) -> ok.
-write_header(Filename, #header{} = Header) ->
+-spec write_header(file:io_device(), header()) -> ok.
+write_header(Fd, Header) ->
   HeaderFields =
     [ {"magic", Header#header.magic}
     , {"meta", Header#header.meta}
@@ -97,7 +96,7 @@ write_header(Filename, #header{} = Header) ->
     ],
   HeaderRecord = avro_record:new(ocf_schema(), HeaderFields),
   HeaderBytes = avro_binary_encoder:encode_value(HeaderRecord),
-  ok = file:write_file(Filename, HeaderBytes).
+  ok = file:write(Fd, HeaderBytes).
 
 %% @doc Append a block ocf block to the opened IO device.
 -spec append_file(file:io_device(), header(), schema_store(),
@@ -113,6 +112,7 @@ append_file(Fd, Header, SchemaStore, Schema, Objects) ->
            ],
   ok = file:write(Fd, IoData).
 
+%% @doc Make ocf header.
 -spec make_header(avro_type()) -> header().
 make_header(Type) ->
   TypeJson = avro_json_encoder:encode_type(Type),

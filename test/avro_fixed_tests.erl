@@ -34,7 +34,6 @@ full_create_test() ->
   Type = avro_fixed:type("FooBar", 16,
                          [ {namespace, "name.space"}
                          , {aliases, ["Zoo", "Bee"]}
-                         , {enclosing_ns, "enc.losing"}
                          ]),
   ?assertEqual(<<"name.space.FooBar">>, avro:get_type_fullname(Type)),
   ?assertEqual(16, avro_fixed:get_size(Type)).

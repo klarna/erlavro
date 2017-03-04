@@ -96,9 +96,9 @@ get_types(#avro_union_type{id2type = IndexedTypes}) ->
 
 %% @doc Search for a union member by its index or full name.
 -spec lookup_type(name_raw() | union_index(), union_type()) ->
-        {ok, avro_type()} | false.
-lookup_type(TypeId, #avro_union_type{id2type = Types}) when is_integer(TypeId) ->
-  case gb_trees:lookup(TypeId, Types) of
+        {ok, avro_type() | name()} | false.
+lookup_type(Id, #avro_union_type{id2type = Types}) when is_integer(Id) ->
+  case gb_trees:lookup(Id, Types) of
     {value, Type} -> {ok, Type};
     none          -> false
   end;
@@ -234,14 +234,15 @@ lookup_index(Name, #avro_union_type{name2id = Ids}) when ?IS_NAME_RAW(Name) ->
   end.
 
 %% @private
--spec do_cast(union_type(), avro:in()) -> avro_value().
+-spec do_cast(union_type(), avro:in()) ->
+        {ok, avro_value()} | {error, any()}.
 do_cast(Type, {MemberId, Value}) ->
   case lookup_type(MemberId, Type) of
     {ok, MemberType} ->
       %% the union input value is tagged with a union member name or id
       avro:cast(MemberType, Value);
     false ->
-      erlang:error({unknown_tag, Type, MemberId})
+      {error, {unknown_tag, Type, MemberId}}
   end;
 do_cast(Type, Value) ->
   case cast_over_types(get_types(Type), Value) of

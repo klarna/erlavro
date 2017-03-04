@@ -112,7 +112,7 @@ canonicalize_aliases(Aliases, Ns) ->
 canonicalize_name(Name) -> ensure_binary(Name).
 
 %% @doc Covert atom() | string() binary().
--spec ensure_binary(atom() | iolist()) -> binary().
+-spec ensure_binary(name_raw()) -> binary().
 ensure_binary(A) when is_atom(A)   -> atom_to_binary(A, utf8);
 ensure_binary(L) when is_list(L)   -> iolist_to_binary(L);
 ensure_binary(B) when is_binary(B) -> B.

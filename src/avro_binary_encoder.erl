@@ -161,7 +161,7 @@ block(Count, Payload) ->
 null() -> <<>>.
 
 %% @private
--spec bool(boolean()) -> binary().
+-spec bool(boolean()) -> <<_:8>>.
 bool(false) -> <<0>>;
 bool(true)  -> <<1>>.
 

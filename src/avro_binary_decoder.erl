@@ -42,7 +42,7 @@
 -endif.
 
 -type hook() :: decoder_hook_fun().
--type index() :: non_neg_integer().
+-type index() :: pos_integer().
 -type block_item_decode_fun() ::
         fun((index(), binary()) -> {avro:out(), binary()}).
 
@@ -66,7 +66,8 @@ decode(IoData, Type, StoreOrLkupFun, Hook) ->
 
 %% @doc decode_stream/4 equivalent with default hook fun.
 -spec decode_stream(iodata(), avro_type_or_name(),
-                    schema_store() | lkup_fun()) -> avro:out().
+                    schema_store() | lkup_fun()) ->
+        {avro:out(), binary()}.
 decode_stream(IoData, Type, StoreOrLkupFun) ->
   decode_stream(IoData, Type, StoreOrLkupFun, ?DEFAULT_DECODER_HOOK).
 
@@ -74,20 +75,21 @@ decode_stream(IoData, Type, StoreOrLkupFun) ->
 %% bytes in a tuple.
 %% @end
 -spec decode_stream(iodata(), avro_type_or_name(),
-                    schema_store() | lkup_fun(), hook()) -> avro:out().
+                    schema_store() | lkup_fun(), hook()) ->
+        {avro:out(), binary()}.
 decode_stream(IoData, Type, StoreOrLkupFun, Hook) ->
   do_decode(IoData, Type, StoreOrLkupFun, Hook).
 
 %%%_* Internal functions =======================================================
 
 %% @private
--spec do_decode(iolist(), avro_type(), schema_store(), hook()) ->
-        {avro:out(), binary()}.
-do_decode(IoList, Type, Store, Hook) when not is_function(Store) ->
+-spec do_decode(iodata(), avro_type_or_name(),
+                schema_store() | lkup_fun(), hook()) -> {avro:out(), binary()}.
+do_decode(IoData, Type, Store, Hook) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  do_decode(IoList, Type, Lkup, Hook);
-do_decode(IoList, Type, Lkup, Hook) when is_list(IoList) ->
-  do_decode(iolist_to_binary(IoList), Type, Lkup, Hook);
+  do_decode(IoData, Type, Lkup, Hook);
+do_decode(IoData, Type, Lkup, Hook) when is_list(IoData) ->
+  do_decode(iolist_to_binary(IoData), Type, Lkup, Hook);
 do_decode(Bin, TypeName, Lkup, Hook) when ?IS_NAME_RAW(TypeName) ->
   do_decode(Bin, Lkup(?NAME(TypeName)), Lkup, Hook);
 do_decode(Bin, Type, Lkup, Hook) when is_function(Hook, 4) ->
@@ -217,7 +219,8 @@ blocks(Bin, ItemDecodeFun, Index, Acc) ->
 
 %% @private
 -spec block(binary(), block_item_decode_fun(),
-            index(), [avro:out()], index()) -> [avro:out()].
+            index(), [avro:out()], non_neg_integer()) ->
+              {[avro:out()], binary()}.
 block(Bin, ItemDecodeFun, Index, Acc, 0) ->
   blocks(Bin, ItemDecodeFun, Index, Acc);
 block(Bin, ItemDecodeFun, Index, Acc, Count) ->

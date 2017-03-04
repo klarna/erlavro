@@ -37,7 +37,6 @@
 
 -export([ build_type_fullname/2
         , name2type/1
-        , split_fullname/1
         , split_type_name/2
         ]).
 
@@ -53,7 +52,7 @@
 -export_type([ avro_type/0
              , avro_value/0
              , codec_options/0
-             , canonicalize_primitive_value/0
+             , canonicalized_value/0
              , decode_fun/0
              , encode_fun/0
              , enum_symbol/0
@@ -285,7 +284,7 @@ expand_type(Type, Store) -> avro_util:expand_type(Type, Store).
 %%%===================================================================
 
 %% @doc Splits type's name parts to its canonical short name and namespace.
--spec split_type_name(name_raw(), name_raw()) -> {name(), namespace()}.
+-spec split_type_name(avro_type_or_name(), name_raw()) -> {name(), namespace()}.
 split_type_name(TypeName0, Namespace0) when ?IS_NAME_RAW(TypeName0) ->
   TypeName = ?NAME(TypeName0),
   Namespace = ?NAME(Namespace0),
@@ -305,23 +304,6 @@ split_type_name(Type, Namespace) ->
 build_type_fullname(TypeName, Namespace) when ?IS_NAME_RAW(TypeName) ->
   {ShortName, Ns} = split_type_name(TypeName, Namespace),
   make_fullname(ShortName, Ns).
-
-%% @doc Splits FullName to {Name, Namespace} or returns false
-%% if FullName is not a full name.
-%% @end
--spec split_fullname(fullname()) -> {name(), namespace()}.
-split_fullname(FullNameBin) when is_binary(FullNameBin) ->
-  split_fullname(binary_to_list(FullNameBin));
-split_fullname(FullName) when is_list(FullName) ->
-  case string:rchr(FullName, $.) of
-    0 ->
-      %% Dot not found
-      false;
-    DotPos ->
-      { ?NAME(string:substr(FullName, DotPos + 1))
-      , ?NAME(string:substr(FullName, 1, DotPos-1))
-      }
-  end.
 
 %%%=============================================================================
 %%% API: Checking correctness of names and types specifications
@@ -351,6 +333,23 @@ to_term(#avro_value{type = T} = V) -> to_term(T, V).
 
 %%%_* Internal functions =======================================================
 
+%% @private Splits FullName to {Name, Namespace} or returns false
+%% if the given name is a short name (no dots).
+%% @end
+-spec split_fullname(fullname()) -> false | {name(), namespace()}.
+split_fullname(FullNameBin) when is_binary(FullNameBin) ->
+  %% Avro names are always ascii chars, no need for utf8 caring.
+  FullName = binary_to_list(FullNameBin),
+  case string:rchr(FullName, $.) of
+    0 ->
+      %% Dot not found
+      false;
+    DotPos ->
+      { ?NAME(string:substr(FullName, DotPos + 1))
+      , ?NAME(string:substr(FullName, 1, DotPos-1))
+      }
+  end.
+
 %% @private
 to_term(#avro_primitive_type{}, V) -> avro_primitive:get_value(V);
 to_term(#avro_record_type{}, V)    -> avro_record:to_term(V);
@@ -364,7 +363,7 @@ to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V).
 -spec make_fullname(name_raw(), namespace_raw()) -> name().
 make_fullname(Name, ?NS_GLOBAL) -> Name;
 make_fullname(Name, Namespace) ->
-  ?NAME([?NAME(Namespace), ".", ?NAME(Name)]).
+  iolist_to_binary([?NAME(Namespace), ".", ?NAME(Name)]).
 
 %% @private
 -spec type_from_name(name()) -> name() | primitive_type().

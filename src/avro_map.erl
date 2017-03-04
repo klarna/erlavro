@@ -35,6 +35,8 @@
         , type/1
         ]).
 
+-export_type([data/0]).
+
 -include("avro_internal.hrl").
 
 -define(IS_IOLIST(S), (is_list(S) orelse is_binary(S))).
@@ -124,11 +126,11 @@ do_cast(Type, KvList0) when is_list(KvList0) ->
   end.
 
 %% @private
--spec from_list([{key(), value()}]) -> data().
+-spec from_list(input_data()) -> data().
 from_list(KvL) -> from_list(gb_trees:empty(), KvL).
 
 %% @private
--spec from_list([{key(), value()}], data()) -> data().
+-spec from_list(data(), input_data()) -> data().
 from_list(Tree, []) -> Tree;
 from_list(Tree, [{K, V} | Rest]) ->
   from_list(gb_trees:enter(K, V, Tree), Rest).
