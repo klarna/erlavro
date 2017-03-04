@@ -503,7 +503,7 @@ parse_union_ex(ValueTypeName, Value, UnionType, Lkup, IsWrapped, Hook) ->
         avro_value() | avro:out() | no_return().
 do_parse_union_ex(ValueTypeName, Value, UnionType,
                   Lkup, IsWrapped, Hook) ->
-  case avro_union:lookup_child_type(UnionType, ValueTypeName) of
+  case avro_union:lookup_type(ValueTypeName, UnionType) of
     {ok, ValueType} ->
       ParsedValue = parse(Value, ValueType, Lkup, IsWrapped, Hook),
       case IsWrapped of

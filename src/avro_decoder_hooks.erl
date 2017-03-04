@@ -150,7 +150,7 @@ tag_unions(_T, _SubInfo, DecodeIn, DecodeFun) ->
 %% @private
 get_union_member_name(Type, Id) when is_integer(Id) ->
   %% when decoding avro binary, lookup member name by union member index.
-  {ok, ChildType} = avro_union:lookup_child_type(Type, Id),
+  {ok, ChildType} = avro_union:lookup_type(Id, Type),
   case ?IS_NAME(ChildType) of
     true  -> ChildType;
     false -> avro:get_type_fullname(ChildType)
