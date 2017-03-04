@@ -92,8 +92,8 @@ cast_test() ->
 
 unknown_tag_cast_test() ->
   Type = avro_union:type([null, long]),
-  ?assertException(error, {unknown_tag, Type, 2},
-                   avro_union:cast(Type, {2, "s"})).
+  ?assertEqual({error, {unknown_tag, Type, 2}},
+               avro_union:cast(Type, {2, "s"})).
 
 unknown_tag_encode_test() ->
   Type = avro_union:type([null, long]),
@@ -106,10 +106,10 @@ unknown_tag_encode_test() ->
                avro_union:encode(Type, {null, null}, EncodeFun)),
   ?assertEqual({encoded, 1, 42},
                avro_union:encode(Type, {long, 42}, EncodeFun)),
-  ?assertException(error, {unknown_tag, Type, 2},
-                   avro_union:encode(Type, {2, "s"}, EncodeFun)),
-  ?assertException(error, {unknown_tag, Type, "int"},
-                   avro_union:encode(Type, {"int", 2}, EncodeFun)).
+  ?assertError({unknown_tag, Type, 2},
+               avro_union:encode(Type, {2, "s"}, EncodeFun)),
+  ?assertError({unknown_tag, Type, "int"},
+               avro_union:encode(Type, {"int", 2}, EncodeFun)).
 
 loop_over_encode_test() ->
   Type = avro_union:type([null, long]),

@@ -204,7 +204,7 @@ erase_hist() ->
   ok.
 
 %% @private
--spec get_hist() -> ok.
+-spec get_hist() -> [trace_hist_entry()].
 get_hist() ->
   case erlang:get(?PD_DECODER_HIST) of
     undefined -> [];

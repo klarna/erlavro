@@ -16,9 +16,6 @@
 %%% under the License.
 %%%
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
-%%% @doc
-%%%
-%%% @end
 %%%-----------------------------------------------------------------------------
 -module(avro_array).
 

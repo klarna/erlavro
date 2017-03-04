@@ -56,7 +56,7 @@
         { name      = ?REQUIRED  :: name()
         , doc       = ?NS_GLOBAL :: typedoc()
         , type      = ?REQUIRED  :: avro_type_or_name()
-        , default                :: avro_value() | undefined
+        , default                :: undefined | avro:in() | avro_value()
         , order     = ascending  :: avro_ordering()
         , aliases   = []         :: [name()]
         }).
@@ -156,14 +156,14 @@
 -type namespace() :: binary().
 -type enum_symbol() :: binary().
 -type fullname() :: binary().
--type typedoc() :: iolist().
+-type typedoc() :: string() | binary().
 -type enum_index() :: non_neg_integer().
 -type union_index() :: non_neg_integer().
 -type lkup_fun() :: fun((fullname()) -> avro_type()).
 -type schema_store() :: avro_schema_store:store().
--type canonicalize_primitive_value() :: integer() | binary().
+-type canonicalized_value() :: null | boolean() | integer() | float() | binary().
 
--type type_prop_name() :: namespace | doc | aliases | enclosing_ns.
+-type type_prop_name() :: namespace | doc | aliases.
 -type type_prop_value() :: namespace() | typedoc() | [name()].
 -type type_props() :: [{type_prop_name(), type_prop_value()}].
 

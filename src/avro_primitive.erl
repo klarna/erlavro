@@ -127,7 +127,7 @@ bytes(Value) -> from_cast(cast(bytes_type(), Value)).
 string(Value) -> from_cast(cast(string_type(), Value)).
 
 %% Get underlying erlang value from an Avro primitive value
--spec get_value(avro_value()) -> canonicalize_primitive_value().
+-spec get_value(avro_value()) -> canonicalized_value().
 get_value(Value) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
   ?AVRO_VALUE_DATA(Value).
 

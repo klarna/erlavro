@@ -21,11 +21,16 @@
 
 -record(avro_value,
         { type :: avro:avro_type()
-        , data :: avro:canonicalize_primitive_value()
-                | avro:avro_value() %% recursive
+        , data :: avro:avro_value()
         }).
 
--type avro_value() :: #avro_value{}.
+-type avro_value() :: avro:canonicalized_value()     %% primitive, fixed, enum
+                    | #avro_value{}                  %% union
+                    | [#avro_value{}]                %% array
+                    | [{avro:name(), #avro_value{}}] %% record
+                    | avro_map:data()                %% map
+                    | {json, iodata()}               %% serialized
+                    | {binary, iodata()}.            %% serialized
 
 -define(IS_AVRO_VALUE(Value), is_record(Value, avro_value)).
 -define(AVRO_VALUE(Type,Data), #avro_value{type = Type, data = Data}).

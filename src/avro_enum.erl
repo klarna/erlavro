@@ -140,6 +140,8 @@ check_symbols(Symbols) ->
   avro_util:verify_names(Symbols).
 
 %% @private
+-spec do_cast(enum_type(), symbol_raw()) ->
+        {ok, avro_value()} | {error, any()}.
 do_cast(Type, Value0) when ?IS_SYMBOL_RAW(Value0) ->
   Value = ?SYMBOL(Value0),
   case is_valid_symbol(Type, Value) of
@@ -148,7 +150,7 @@ do_cast(Type, Value0) when ?IS_SYMBOL_RAW(Value0) ->
   end.
 
 %% @private
--spec is_valid_symbol(symbol(), [symbol()]) -> boolean().
+-spec is_valid_symbol(enum_type(), symbol()) -> boolean().
 is_valid_symbol(Type, Symbol) ->
   lists:member(Symbol, Type#avro_enum_type.symbols).
 

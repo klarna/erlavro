@@ -127,7 +127,7 @@ do_encode_type(#avro_record_type{} = T, EnclosingNamespace) ->
                    , aliases   = Aliases
                    , fields    = Fields
                    } = T,
-  {Name, NewEnclosingNamespace} = avro:split_type_name(T, EnclosingNamespace),
+  {Name, NextLevelEnclosingNs} = avro:split_type_name(T, Namespace),
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
                      ?NS_GLOBAL, fun encode_string/1)
@@ -135,8 +135,9 @@ do_encode_type(#avro_record_type{} = T, EnclosingNamespace) ->
     , {name,   encode_string(Name)}
     , optional_field(doc,       Doc,  ?NO_DOC, fun encode_string/1)
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
-    , {fields, lists:map(fun(F) -> encode_field(F, NewEnclosingNamespace) end,
-                         Fields)}
+    , {fields, lists:map(fun(F) ->
+                             encode_field(F, NextLevelEnclosingNs)
+                         end, Fields)}
     ],
   lists:flatten(SchemaObjectFields);
 do_encode_type(#avro_enum_type{} = T, EnclosingNamespace) ->

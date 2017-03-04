@@ -33,10 +33,9 @@ interop_test() ->
   {Header, Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
   SchemaStore = avro_ocf:init_schema_store(Schema),
   MyFile = filename:join([PrivDir, "interop.ocf.test"]),
-  %% re-use the old header
-  ok = avro_ocf:write_header(MyFile, Header),
-  {ok, Fd} = file:open(MyFile, [write, append]),
+  {ok, Fd} = file:open(MyFile, [write]),
   try
+    ok = avro_ocf:write_header(Fd, Header),
     ok = avro_ocf:append_file(Fd, Header, SchemaStore, Schema, Objects)
   after
     file:close(Fd)

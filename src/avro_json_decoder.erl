@@ -414,9 +414,9 @@ parse_record(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
        end).
 
 %% @private
--spec convert_attrs_to_record_fields(json_value(), avro_type(), lkup_fun(),
+-spec convert_attrs_to_record_fields(json_value(), record_type(), lkup_fun(),
                                      boolean(), hook()) ->
-        {name(), avro_value() | avro:out()} | no_return().
+        [{name(), avro_value() | avro:out()}] | no_return().
 convert_attrs_to_record_fields(Attrs, Type, Lkup, IsWrapped, Hook) ->
   lists:map(
     fun({FieldName, Value}) ->

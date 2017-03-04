@@ -100,12 +100,13 @@ resolve_fullname(#avro_record_type{ fullname  = FullName
                     }.
 
 %% @doc Define a record field with default properties.
--spec define_field(name(), avro_type_or_name()) -> record_field().
+-spec define_field(name_raw(), avro_type_or_name()) -> record_field().
 define_field(Name, Type) ->
   define_field(Name, Type, []).
 
 %% @doc Define a record field.
--spec define_field(name(), avro_type_or_name(), field_opts()) -> record_field().
+-spec define_field(name_raw(), avro_type_or_name(), field_opts()) ->
+        record_field().
 define_field(Name, Type0, Opts) ->
   Type = avro_util:canonicalize_type_or_name(Type0),
   Doc = avro_util:get_opt(doc, Opts, ?NO_DOC),
@@ -220,7 +221,7 @@ update(FieldName, Fun, Record) ->
   Record#avro_value{data = NewData}.
 
 %% @doc Extract fields and their values from the record.
--spec to_list(record_type()) -> [{field_name(), avro_value()}].
+-spec to_list(avro_value()) -> [{field_name(), avro_value()}].
 to_list(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
@@ -233,8 +234,9 @@ to_term(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
 
 %% @hidden Help function for JSON/binary encoder.
 %% TODO: better spec for Value and EncodeFun
--spec encode(avro_type_or_name(), [{field_name_raw(), avro:in()}],
-             fun((field_name(), avro_type(), avro:in()) -> term())) -> list().
+-spec encode(record_type(), [{field_name_raw(), avro:in()}],
+             fun(({field_name(), avro_type(), avro:in()}) -> avro:out())) ->
+        [avro:out()].
 encode(Type, Fields, EncodeFun) ->
   FieldTypes = get_all_field_types(Type),
   TypeFullName = avro:get_type_fullname(Type),
@@ -301,7 +303,7 @@ lookup_value_by_name([FieldName|Rest], Values) ->
 
 %% @private
 -spec lookup_value_from_list(record_field(), [{field_name(), avro:in()}]) ->
-        avro:in().
+        undefined | avro:in() | avro_value().
 lookup_value_from_list(FieldDef, Values) ->
   #avro_record_field
   { name = FieldName
@@ -361,13 +363,13 @@ get_field_def(FieldName0, #avro_record_type{fields = Fields}) ->
   end.
 
 %% @private
--spec get_field_def_by_alias([name()], [record_field()]) ->
-        record_field() | false.
+-spec get_field_def_by_alias(name(), [record_field()]) ->
+        {ok, record_field()} | false.
 get_field_def_by_alias(_Alias, []) ->
   false;
-get_field_def_by_alias(Alias, [FieldDef|Rest]) ->
+get_field_def_by_alias(Alias, [FieldDef | Rest]) ->
   case lists:member(Alias, FieldDef#avro_record_field.aliases) of
-    true -> {ok, FieldDef};
+    true  -> {ok, FieldDef};
     false -> get_field_def_by_alias(Alias, Rest)
   end.
 
