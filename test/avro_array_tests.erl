@@ -23,7 +23,7 @@
 
 to_term_test() ->
   ArrayType = avro_array:type(int),
-  {ok, Array} = avro_array:cast(ArrayType, [1, 2]),
+  {ok, Array} = avro:cast(ArrayType, [1, 2]),
   ?assertEqual([1, 2], avro:to_term(Array)).
 
 cast_test() ->

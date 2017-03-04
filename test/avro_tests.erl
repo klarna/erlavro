@@ -23,9 +23,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(PRIMITIVE_VALUE(Name, Value),
-  #avro_value{ type = #avro_primitive_type{name = Name}
-             , data = Value
-             }).
+        #avro_value{ type = #avro_primitive_type{name = Name}
+                   , data = Value
+                   }).
 
 get_test_type(Name, Namespace) ->
   avro_fixed:type(Name, 16, [{namespace, Namespace}]).
@@ -49,6 +49,59 @@ cast_primitive_test() ->
                avro:cast(avro_primitive:string_type(), "abc")),
   ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_INT, 1)}, avro:cast("int", 1)),
   ?assertEqual({ok, ?PRIMITIVE_VALUE(?AVRO_LONG, 1)}, avro:cast("long", 1)).
+
+get_aliases_test() ->
+  ?assertEqual([], avro:get_aliases(avro_primitive:null_type())),
+  ?assertEqual([], avro:get_aliases(avro_union:type([int]))),
+  ?assertEqual([], avro:get_aliases(avro_array:type(string))),
+  ?assertEqual([], avro:get_aliases(avro_map:type(long))).
+
+get_type_namespace_test() ->
+  ?assertEqual(?NS_GLOBAL, avro:get_type_namespace(avro_primitive:null_type())),
+  ?assertEqual(?NS_GLOBAL, avro:get_type_namespace(avro_union:type([int]))),
+  ?assertEqual(?NS_GLOBAL, avro:get_type_namespace(avro_array:type(int))),
+  ?assertEqual(?NS_GLOBAL, avro:get_type_namespace(avro_map:type(int))).
+
+get_type_name_test() ->
+  lists:foreach(fun(Name) ->
+                    ?assertEqual(Name, avro:get_type_name(avro:name2type(Name)))
+                end, [?AVRO_BOOLEAN, ?AVRO_BYTES, ?AVRO_DOUBLE,
+                      ?AVRO_FLOAT, ?AVRO_LONG, ?AVRO_INT,
+                      ?AVRO_STRING, ?AVRO_NULL]),
+  ?assertEqual(?AVRO_UNION, avro:get_type_name(avro_union:type([int]))),
+  ?assertEqual(?AVRO_ARRAY, avro:get_type_name(avro_array:type(int))),
+  ?assertEqual(?AVRO_MAP,   avro:get_type_name(avro_map:type(int))).
+
+resolve_fullname_test() ->
+  %% only to expect no exception when there is no namespace
+  %% given for records
+  MyEnum = avro_enum:type("ab", ["a", "b"]),
+  MyFixed = avro_fixed:type("fix", 2),
+  MyRecordType =
+    avro_record:type(
+      <<"MyRecord">>,
+      [ avro_record:define_field(f1, MyEnum)
+      , avro_record:define_field(f2, MyFixed)
+      ], []),
+  _ = avro_record:type("wrapper",
+                       [avro_record:define_field("x", MyRecordType)]),
+  ok.
+
+encode_wrapped_test() ->
+  MyRecordType =
+    avro_record:type(
+      <<"MyRecord">>,
+      [avro_record:define_field(f1, int),
+       avro_record:define_field(f2, string)],
+      [{namespace, 'com.example'}]),
+  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
+  Decoder = avro:make_decoder(Store, []),
+  Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
+  ?AVRO_VALUE(_, {binary, Bin}) =
+    avro:encode_wrapped(Store, "com.example.MyRecord", Term, avro_binary),
+  [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
+    Decoder("com.example.MyRecord", Bin),
+  ok.
 
 readme_load_schmea_test() ->
   SchemaFilename = filename:join(priv_dir(), "interop.avsc"),

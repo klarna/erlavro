@@ -21,18 +21,6 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-flatten_primitive_type_test() ->
-  Type = avro_primitive:int_type(),
-  ?assertEqual({Type, []}, avro_schema_store:flatten_type(Type)).
-
-flatten_nested_primitive_type_test() ->
-  Type = avro_array:type(int),
-  ?assertEqual({Type, []}, avro_schema_store:flatten_type(Type)).
-
-flatten_named_type_test() ->
-  Type = avro_array:type("com.klarna.test.bix.SomeType"),
-  ?assertEqual({Type, []}, avro_schema_store:flatten_type(Type)).
-
 flatten_type_test() ->
   Type = avro_array:type(test_record()),
   Expected =
@@ -43,7 +31,7 @@ flatten_type_test() ->
       , avro_fixed:type("MyFixed", 16, [{namespace, "com.klarna.test.bix"}])
       ]
     },
-  ?assertEqual(Expected, avro_schema_store:flatten_type(Type)).
+  ?assertEqual(Expected, avro:flatten_type(Type)).
 
 add_type_test() ->
   Store = avro_schema_store:new(),
@@ -110,13 +98,13 @@ expand_type_test() ->
     avro_schema_store:lookup_type("org.apache.avro.Interop", Store),
   {ok, TruthJSON} = file:read_file(AvscFile),
   TruthType = avro_json_decoder:decode_schema(TruthJSON),
-  Type = avro_schema_store:expand_type("org.apache.avro.Interop", Store),
+  Type = avro:expand_type("org.apache.avro.Interop", Store),
   %% compare decoded type instead of JSON schema because
   %% the order of JSON object fields lacks deterministic
   ?assertEqual(TruthType, Type),
   %% also try to expand a flattened wrapper type, which should
   %% have the exact same effect as expanding from its fullname
-  ?assertEqual(TruthType, avro_schema_store:expand_type(FlatType, Store)),
+  ?assertEqual(TruthType, avro:expand_type(FlatType, Store)),
   ok.
 
 %% @private

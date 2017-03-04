@@ -27,6 +27,18 @@
                    ]).
 -include_lib("eunit/include/eunit.hrl").
 
+flatten_primitive_type_test() ->
+  Type = avro_primitive:int_type(),
+  ?assertEqual({Type, []}, avro:flatten_type(Type)).
+
+flatten_nested_primitive_type_test() ->
+  Type = avro_array:type(int),
+  ?assertEqual({Type, []}, avro:flatten_type(Type)).
+
+flatten_named_type_test() ->
+  Type = avro_array:type("com.klarna.test.bix.SomeType"),
+  ?assertEqual({Type, []}, avro:flatten_type(Type)).
+
 tokens_ex_test() ->
   ?assertEqual([""], tokens_ex("", $.)),
   ?assertEqual(["ab"], tokens_ex("ab", $.)),

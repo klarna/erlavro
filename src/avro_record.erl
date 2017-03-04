@@ -72,7 +72,7 @@ type(Name0, Fields0, Opts) ->
   true        = (Ns0 =:= ?NS_GLOBAL orelse Ns0 =:= Ns), %% assert
   Doc         = avro_util:get_opt(doc, Opts, ?NO_DOC),
   Aliases     = avro_util:get_opt(aliases, Opts, []),
-  Fields      = resolve_field_type_fullnames(Ns, Fields0),
+  Fields      = resolve_field_type_fullnames(Fields0, Ns),
   ok          = avro_util:verify_aliases(Aliases),
   Type = #avro_record_type
          { name      = Name
@@ -87,27 +87,17 @@ type(Name0, Fields0, Opts) ->
 
 %% @doc Resolve fullname by newly discovered enclosing namespace.
 -spec resolve_fullname(record_type(), namespace()) -> record_type().
-resolve_fullname(#avro_record_type{ name      = Name
-                                  , fullname  = FullName
+resolve_fullname(#avro_record_type{ fullname  = FullName
                                   , fields    = Fields
                                   , aliases   = Aliases
                                   } = T, Ns) ->
   NewFullName = avro:build_type_fullname(FullName, Ns),
-  case NewFullName =:= FullName of
-    true ->
-      %% No change, no need to go deeper to resolve field types
-      T;
-    false ->
-      %% assert that there is no namespace set earlier
-      Name = FullName,
-      %% Go deeper to resolve filed type fullnames
-      NewFields = resolve_field_type_fullnames(Ns, Fields),
-      NewAliases = avro_util:canonicalize_aliases(Aliases, Ns),
-      T#avro_record_type{ fullname = NewFullName
-                        , fields   = NewFields
-                        , aliases  = NewAliases
-                        }
-  end.
+  NewFields = resolve_field_type_fullnames(Fields, Ns),
+  NewAliases = avro_util:canonicalize_aliases(Aliases, Ns),
+  T#avro_record_type{ fullname = NewFullName
+                    , fields   = NewFields
+                    , aliases  = NewAliases
+                    }.
 
 %% @doc Define a record field with default properties.
 -spec define_field(name(), avro_type_or_name()) -> record_field().
@@ -258,11 +248,9 @@ encode(Type, Fields, EncodeFun) ->
 %% their fullnames need to be resolved with THIS record type's namespace
 %% as enclosing namespace.
 %% @end
--spec resolve_field_type_fullnames(namespace(), [#avro_record_field{}]) ->
+-spec resolve_field_type_fullnames([#avro_record_field{}], namespace()) ->
         [#avro_record_field{}].
-resolve_field_type_fullnames(?NS_GLOBAL, Fields) ->
-  Fields;
-resolve_field_type_fullnames(Ns, Fields) ->
+resolve_field_type_fullnames(Fields, Ns) ->
   F = fun(#avro_record_field{type = Type} = Field) ->
           Field#avro_record_field{type = avro:resolve_fullname(Type, Ns)}
       end,

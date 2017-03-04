@@ -41,9 +41,6 @@
         , split_type_name/2
         ]).
 
--export([ read_schema/1
-        ]).
-
 -export([ cast/2
         , to_term/1
         ]).
@@ -159,9 +156,6 @@ encode(StoreOrLkup, Type, Value, avro_binary) ->
 encode_wrapped(S, TypeOrName, Value, Encoding) when not is_function(S) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(S),
   encode_wrapped(Lkup, TypeOrName, Value, Encoding);
-encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME(Name) ->
-  Type = Lkup(Name),
-  encode_wrapped(Lkup, Type, Value, Encoding);
 encode_wrapped(Lkup, Type, Value, Encoding) ->
   Encoded = iolist_to_binary(encode(Lkup, Type, Value, Encoding)),
   case Encoding of
@@ -279,27 +273,12 @@ get_aliases(#avro_fixed_type{aliases = Aliases})  -> Aliases.
 %% @see avro_schema_store:flatten_type/1
 -spec flatten_type(avro_type()) ->
         {avro_type() | fullname(), [avro_type()]} | none().
-flatten_type(Type) ->
-  avro_schema_store:flatten_type(Type).
+flatten_type(Type) -> avro_util:flatten_type(Type).
 
 %% @see avro_schema_store:expand_type/2
 -spec expand_type(fullname() | avro_type(), schema_store()) ->
         avro_type() | none().
-expand_type(Type, Store) ->
-  avro_schema_store:expand_type(Type, Store).
-
-%%%===================================================================
-%%% API: Reading schema from json file
-%%%===================================================================
-
--spec read_schema(file:filename()) -> {ok, avro_type()} | {error, any()}.
-read_schema(File) ->
-  case file:read_file(File) of
-    {ok, Data} ->
-      {ok, avro_json_decoder:decode_schema(Data)};
-    Error ->
-      Error
-  end.
+expand_type(Type, Store) -> avro_util:expand_type(Type, Store).
 
 %%%===================================================================
 %%% API: Calculating of canonical short and full names of types
@@ -351,54 +330,26 @@ split_fullname(FullName) when is_list(FullName) ->
 %% @doc Tries to cast a value (which can be another Avro value or some erlang
 %% term) to the specified Avro type performing conversion if required.
 %% @end
--spec cast(avro_type_or_name(), term()) -> {ok, avro_value()} | {error, term()}.
+-spec cast(avro_type_or_name(), avro:in()) ->
+        {ok, avro_value()} | {error, term()}.
 cast(T, ?AVRO_VALUE(T, _) = V) ->
   %% When casting to same type just return the original value
   {ok, V};
-cast(TypeName0, Value) when ?IS_NAME_RAW(TypeName0) ->
-  TypeName = ?NAME(TypeName0),
-  case type_from_name(TypeName) of
-    TypeName ->
-      %% If the type specified by its name then in most cases
-      %% we don't know which module should handle it. The only
-      %% thing which we can do here is to compare full name of
-      %% Type and typeof(Value) and return Value if they are equal.
-      %% This assumes also that plain erlang values can't be casted
-      %% to types specified only by their names.
-      case ?IS_AVRO_VALUE(Value) of
-        true ->
-          ValueType = ?AVRO_VALUE_TYPE(Value),
-          case has_fullname(ValueType, TypeName) of
-            true  -> {ok, Value};
-            false -> {error, {type_name_mismatch, TypeName0, ValueType}}
-          end;
-        false ->
-          %% Erlang terms can't be casted to names
-          {error, {cast_erlang_term_to_name, TypeName0, Value}}
-      end;
-    Type ->
-      %% The only exception are primitive types names because we know
-      %% corresponding types and can cast to them.
-      cast(Type, Value)
-  end;
-%% For all other combinations call corresponding cast functions
-%% in type modules
+cast(TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
+  cast(type_from_name(?NAME(TypeName)), Value);
 cast(#avro_primitive_type{} = T, V) -> avro_primitive:cast(T, V);
 cast(#avro_record_type{} = T,    V) -> avro_record:cast(T, V);
 cast(#avro_enum_type{} = T,      V) -> avro_enum:cast(T, V);
 cast(#avro_array_type{} = T,     V) -> avro_array:cast(T, V);
 cast(#avro_map_type{} = T,       V) -> avro_map:cast(T, V);
 cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
-cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V);
-cast(Type, _)                       -> {error, {unknown_type, Type}}.
+cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V).
 
 %% @doc Convert avro values to erlang term.
 -spec to_term(avro_value()) -> term().
 to_term(#avro_value{type = T} = V) -> to_term(T, V).
 
-%%%=============================================================================
-%%% Internal functions
-%%%=============================================================================
+%%%_* Internal functions =======================================================
 
 %% @private
 to_term(#avro_primitive_type{}, V) -> avro_primitive:get_value(V);
@@ -407,23 +358,13 @@ to_term(#avro_enum_type{}, V)      -> avro_enum:get_value(V);
 to_term(#avro_array_type{}, V)     -> avro_array:to_term(V);
 to_term(#avro_map_type{}, V)       -> avro_map:to_term(V);
 to_term(#avro_union_type{}, V)     -> avro_union:to_term(V);
-to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V);
-to_term(T, _)                      -> erlang:error({unknown_type, T}).
+to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V).
 
 %% @private
 -spec make_fullname(name_raw(), namespace_raw()) -> name().
 make_fullname(Name, ?NS_GLOBAL) -> Name;
 make_fullname(Name, Namespace) ->
   ?NAME([?NAME(Namespace), ".", ?NAME(Name)]).
-
-%%%===================================================================
-%%% Internal functions: casting
-%%%===================================================================
-
-%% @private Checks if the type has specified full name.
--spec has_fullname(avro_type(), fullname()) -> boolean().
-has_fullname(Type, FullName) ->
-  is_named_type(Type) andalso get_type_fullname(Type) =:= FullName.
 
 %% @private
 -spec type_from_name(name()) -> name() | primitive_type().
@@ -437,7 +378,7 @@ type_from_name(?AVRO_BYTES)        -> avro_primitive:bytes_type();
 type_from_name(?AVRO_STRING)       -> avro_primitive:string_type();
 type_from_name(N) when ?IS_NAME(N) -> N.
 
-%%%_* Emacs ============================================================
+%%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
 %%% erlang-indent-level: 2

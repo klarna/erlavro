@@ -61,7 +61,8 @@ integer_cast_test() ->
 get_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value = avro_fixed:new(Type, <<1,2>>),
-  ?assertEqual(<<1,2>>, avro_fixed:get_value(Value)).
+  ?assertEqual(<<1,2>>, avro_fixed:get_value(Value)),
+  ?assertEqual(<<1,2>>, avro:to_term(Value)).
 
 new_error_test() ->
   Type = avro_fixed:type("FooBar", 2),

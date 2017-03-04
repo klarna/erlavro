@@ -57,11 +57,6 @@
         , to_lookup_fun/1
         ]).
 
-%% Flatten/Expand
--export([ flatten_type/1
-        , expand_type/2
-        ]).
-
 -include("avro_internal.hrl").
 
 -opaque store() :: ets:tab().
@@ -71,7 +66,6 @@
 -export_type([store/0]).
 
 -define(IS_STORE(S), (is_integer(S) orelse is_atom(S))).
--define(SEEN, avro_get_nested_type_seen_full_names).
 
 %%%_* APIs =====================================================================
 
@@ -161,7 +155,7 @@ add_type(Type, Store) when ?IS_STORE(Store) ->
 %% @end
 -spec add_type(undefined | name_raw(), avro_type(), store()) -> store().
 add_type(AssignedName, Type0, Store) when ?IS_STORE(Store) ->
-  {Type, FlattenTypes} = flatten_type(Type0),
+  {Type, FlattenTypes} = avro:flatten_type(Type0),
   case ?IS_NAME(Type) of
     true ->
       [Type1 | _] = FlattenTypes,
@@ -178,52 +172,6 @@ add_type(AssignedName, Type0, Store) when ?IS_STORE(Store) ->
 -spec lookup_type(name_raw(), store()) -> {ok, avro_type()} | false.
 lookup_type(FullName, Store) when ?IS_STORE(Store) ->
   get_type_from_store(?NAME(FullName), Store).
-
-%% @doc Get type and lookup sub-types recursively.
-%% This should allow callers to write a root type to one avsc schema file
-%% instead of scattering all named types to their own avsc files.
-%% @end
--spec expand_type(avro_type_or_name(), store()) -> avro_type() | no_return().
-expand_type(Type0, Store) when ?IS_STORE(Store) ->
-  Type = avro_util:canonicalize_type_or_name(Type0),
-  try
-    %% Use process dictionary to keep the history of seen type names
-    %% to simplify (comparing to a lists:foldr version) the loop functions.
-    %%
-    %% The ?SEEN names are 'previously' already resolved full names of types
-    %% when traversing the type tree, so there is no need to resolve
-    %% the 'current' type reference again.
-    %%
-    %% Otherwise the encoded JSON schema would be bloated with repeated
-    %% type definitions.
-    _ = erlang:put(?SEEN, []),
-    case ?IS_NAME(Type) of
-      true  -> do_expand_type(Type, Store);
-      false -> expand(Type, Store)
-    end
-  after
-    erlang:erase(?SEEN)
-  end.
-
-%% @doc Flatten out all named types, return the extracted format and all
-%% (recursively extracted) children types in a list.
-%% If the type is named (i.e. record type), the extracted format is its
-%% full name, and the type itself is added to the extracted list.
-%% @end
--spec flatten_type(avro_type_or_name()) -> {avro_type_or_name(), [avro_type()]}.
-flatten_type(TypeName) when ?IS_NAME(TypeName) ->
-  %% it's a reference
-  {TypeName, []};
-flatten_type(Type) when ?IS_AVRO_TYPE(Type) ->
-  case avro:is_named_type(Type) of
-    true ->
-      {NewType, Extracted} = flatten(Type),
-      Fullname = avro:get_type_fullname(NewType),
-      %% Named types are replaced by their fullnames.
-      {Fullname, [NewType | Extracted]};
-    false ->
-      flatten(Type)
-  end.
 
 %%%_* Internal Functions =======================================================
 
@@ -249,53 +197,6 @@ import_schema_json(AssignedName, Json, Store) ->
   add_type(AssignedName, Schema, Store).
 
 %% @private
--spec do_expand_type(fullname(), store()) ->
-        fullname() | avro_type() | no_return().
-do_expand_type(Fullname, Store) when ?IS_NAME(Fullname) ->
-  Hist = erlang:get(?SEEN),
-  case lists:member(Fullname, Hist) of
-    true ->
-      %% This type name has been resolved earlier
-      %% do not go deeper for 2 reasons:
-      %% 1. There is no need to duplicate the type definitions
-      %% 2. To avoid stack overflow in case of recursive reference
-      Fullname;
-    false ->
-      {ok, T} = lookup_type(Fullname, Store),
-      erlang:put(?SEEN, [Fullname | Hist]),
-      expand(T, Store)
-  end.
-
-%% @private
--spec expand(avro_type(), store()) -> avro_type() | no_return().
-expand(#avro_record_type{fields = Fields} = T, Store) ->
-  ResolvedFields =
-    lists:map(
-      fun(#avro_record_field{type = Type} = F) ->
-        ResolvedType = expand(Type, Store),
-        F#avro_record_field{type = ResolvedType}
-      end, Fields),
-  T#avro_record_type{fields = ResolvedFields};
-expand(#avro_array_type{type = SubType} = T, Store) ->
-  ResolvedSubType = expand(SubType, Store),
-  T#avro_array_type{type = ResolvedSubType};
-expand(#avro_map_type{type = SubType} = T, Store) ->
-  ResolvedSubType = expand(SubType, Store),
-  T#avro_map_type{type = ResolvedSubType};
-expand(#avro_union_type{types = SubTypes} = T, Store) ->
-  ResolvedSubTypes =
-    lists:map(
-      fun({Index, SubType}) ->
-        ResolvedSubType = expand(SubType, Store),
-        {Index, ResolvedSubType}
-      end, SubTypes),
-  T#avro_union_type{types = ResolvedSubTypes};
-expand(Fullname, Store) when ?IS_NAME(Fullname) ->
-  do_expand_type(Fullname, Store);
-expand(T, _Store) when ?IS_AVRO_TYPE(T) ->
-  T.
-
-%% @private
 -spec do_add_type(avro_type(), store()) -> store().
 do_add_type(Type, Store) ->
   FullName = avro:get_type_fullname(Type),
@@ -319,48 +220,6 @@ do_add_type_by_names([Name|Rest], Type, Store) ->
       Store1 = put_type_to_store(Name, Type, Store),
       do_add_type_by_names(Rest, Type, Store1)
   end.
-
-%% @private
--spec flatten(avro_type()) -> {avro_type(), [avro_type()]}.
-flatten(#avro_primitive_type{} = Primitive) ->
-  {Primitive, []};
-flatten(#avro_enum_type{} = Enum) ->
-  {Enum, []};
-flatten(#avro_fixed_type{} = Fixed) ->
-  {Fixed, []};
-flatten(#avro_record_type{} = Record) ->
-  {NewFields, ExtractedTypes} =
-    lists:foldr(
-      fun(Field, {FieldsAcc, ExtractedAcc}) ->
-          {NewType, Extracted} = flatten_type(Field#avro_record_field.type),
-          {[Field#avro_record_field{type = NewType}|FieldsAcc],
-           Extracted ++ ExtractedAcc}
-      end,
-      {[], []},
-      Record#avro_record_type.fields),
-  {Record#avro_record_type{fields = NewFields}, ExtractedTypes};
-flatten(#avro_array_type{} = Array) ->
-  ChildType = avro_array:get_items_type(Array),
-  {NewChildType, Extracted} = flatten_type(ChildType),
-  {avro_array:type(NewChildType), Extracted};
-flatten(#avro_map_type{type = ChildType} = Map) ->
-  {NewChildType, Extracted} = flatten_type(ChildType),
-  {Map#avro_map_type{type = NewChildType}, Extracted};
-flatten(#avro_union_type{} = Union) ->
-  ChildrenTypes = avro_union:get_types(Union),
-  {NewChildren, ExtractedTypes} =
-    lists:foldr(
-      fun(ChildType, {FlattenAcc, ExtractedAcc}) ->
-          {ChildType1, Extracted} = flatten_type(ChildType),
-          {[ChildType1 | FlattenAcc], Extracted ++ ExtractedAcc}
-      end,
-      {[], []},
-      ChildrenTypes),
-  {avro_union:type(NewChildren), ExtractedTypes}.
-
-%%%===================================================================
-%%% Low level store access
-%%%===================================================================
 
 %% @private
 -spec put_type_to_store(fullname(), avro_type(), store()) -> store().
