@@ -163,9 +163,10 @@ do_encode_type(#avro_map_type{type = Type}, EnclosingNamespace) ->
   [ {type,   encode_string(?AVRO_MAP)}
   , {values, do_encode_type(Type, EnclosingNamespace)}
   ];
-do_encode_type(#avro_union_type{types = Types}, EnclosingNamespace) ->
-  F = fun({_Index, Type}) -> do_encode_type(Type, EnclosingNamespace) end,
-  lists:map(F, Types);
+do_encode_type(#avro_union_type{} = T, EnclosingNamespace) ->
+  Members = avro_union:get_types(T),
+  F = fun(Type) -> do_encode_type(Type, EnclosingNamespace) end,
+  lists:map(F, Members);
 do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace) ->
   #avro_fixed_type{ name = Name
                   , namespace = Namespace

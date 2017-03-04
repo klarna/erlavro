@@ -244,14 +244,11 @@ expand(#avro_array_type{type = SubType} = T, Store) ->
 expand(#avro_map_type{type = SubType} = T, Store) ->
   ResolvedSubType = expand(SubType, Store),
   T#avro_map_type{type = ResolvedSubType};
-expand(#avro_union_type{types = SubTypes} = T, Store) ->
+expand(#avro_union_type{} = T, Store) ->
+  SubTypes = avro_union:get_types(T),
   ResolvedSubTypes =
-    lists:map(
-      fun({Index, SubType}) ->
-        ResolvedSubType = expand(SubType, Store),
-        {Index, ResolvedSubType}
-      end, SubTypes),
-  T#avro_union_type{types = ResolvedSubTypes};
+    lists:map(fun(SubType) -> expand(SubType, Store) end, SubTypes),
+  avro_union:type(ResolvedSubTypes);
 expand(Fullname, Store) when ?IS_NAME(Fullname) ->
   do_expand_type(Fullname, Store);
 expand(T, _Store) when ?IS_AVRO_TYPE(T) ->

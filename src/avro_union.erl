@@ -34,11 +34,10 @@
 %% API
 -export([ cast/2
         , encode/3
-        , get_child_type_name/1
         , get_child_type_index/1
         , get_types/1
         , get_value/1
-        , lookup_child_type/2
+        , lookup_type/2
         , new/2
         , resolve_fullname/2
         , to_term/1
@@ -48,12 +47,14 @@
 %% API functions which should be used only inside erlavro
 -export([new_direct/2]).
 
--export_type([ types_dict/0
+-export_type([ id2type/0
+             , name2id/0
              ]).
 
 -include("avro_internal.hrl").
 
--type types_dict() :: dict:dict(fullname(), {union_index(), avro_type()}).
+-type id2type() :: gb_trees:tree(union_index(), avro_type_or_name()).
+-type name2id() :: gb_trees:tree(name(), {union_index(), boolean()}).
 -type encode_result() :: avro_binary() | avro_json().
 -type encode_fun() :: fun((avro_type(), avro:in(),
                            union_index()) -> encode_result()).
@@ -67,17 +68,17 @@
 type([]) ->
   erlang:error(<<"union should have at least one member type">>);
 type([_ | _ ] = Types0) ->
+  IsUnion = fun(T) -> ?AVRO_IS_UNION_TYPE(T) end,
+  lists:any(IsUnion, Types0) andalso
+    erlang:error(<<"union should not have union as member">>),
   Types = lists:map(fun avro_util:canonicalize_type_or_name/1, Types0),
   Count = length(Types),
   IndexedTypes = lists:zip(lists:seq(0, Count - 1), Types),
-  TypesDict =
-    case Count > 10 of
-      true  -> build_types_dict(IndexedTypes);
-      false -> undefined
-    end,
+  Name2Id = build_name_to_id(IndexedTypes),
+  ok = assert_no_duplicated_names(Name2Id, []),
   #avro_union_type
-  { types      = IndexedTypes
-  , types_dict = TypesDict
+  { id2type = gb_trees:from_orddict(IndexedTypes)
+  , name2id = gb_trees:from_orddict(orddict:from_list(Name2Id))
   }.
 
 %% @doc Resolve fullname by newly discovered enclosing namespace.
@@ -89,26 +90,33 @@ resolve_fullname(T0, Ns) ->
 
 %% @doc Get the union member types in a list.
 -spec get_types(union_type()) -> [avro_type()].
-get_types(#avro_union_type{types = IndexedTypes}) ->
-  {_Ids, Types} = lists:unzip(IndexedTypes),
+get_types(#avro_union_type{id2type = IndexedTypes}) ->
+  {_Ids, Types} = lists:unzip(gb_trees:to_list(IndexedTypes)),
   Types.
 
 %% @doc Search for a union member by its index or full name.
--spec lookup_child_type(union_type(), name_raw() | union_index()) ->
-        false | {ok, avro_type()}.
-lookup_child_type(Union, NameOrId) when ?IS_NAME_RAW(NameOrId) orelse
-                                        is_integer(NameOrId) ->
-  case lookup(NameOrId, Union) of
-    {ok, {_TypeId, Type}} -> {ok, Type};
-    false                 -> false
-  end.
+-spec lookup_type(name_raw() | union_index(), union_type()) ->
+        {ok, avro_type()} | false.
+lookup_type(TypeId, #avro_union_type{id2type = Types}) when is_integer(TypeId) ->
+  case gb_trees:lookup(TypeId, Types) of
+    {value, Type} -> {ok, Type};
+    none          -> false
+  end;
+lookup_type(Name, Union) when ?IS_NAME(Name) ->
+  case lookup_index(Name, Union) of
+    {ok, {_Id, true}} -> {ok, avro:name2type(Name)};
+    {ok, {Id, false}} -> {ok, _} = lookup_type(Id, Union);
+    false             -> false
+  end;
+lookup_type(Name, Union) when ?IS_NAME_RAW(Name) ->
+  lookup_type(?NAME(Name), Union).
 
 %% @doc Get member type index.
 -spec get_child_type_index(avro_value()) -> union_index().
 get_child_type_index(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   UnionType = ?AVRO_VALUE_TYPE(Union),
   TypeName = get_child_type_name(Union),
-  {ok, {TypeId, _Type}} = lookup(TypeName, UnionType),
+  {ok, {TypeId, _IsSelfRef}} = lookup_index(TypeName, UnionType),
   TypeId.
 
 %% @doc Get typeed member's full type name.
@@ -118,8 +126,7 @@ get_child_type_index(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 -spec get_child_type_name(avro_value()) -> fullname().
 get_child_type_name(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
   TypedData = ?AVRO_VALUE_DATA(Union),
-  get_type_fullname_ex(?AVRO_VALUE_TYPE(TypedData)).
-
+  avro:get_type_fullname(?AVRO_VALUE_TYPE(TypedData)).
 
 %% @doc Create a wrapped (boxed) value.
 -spec new(union_type(), avro:in()) -> avro_value() | no_return().
@@ -145,13 +152,23 @@ get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 %% @end
 -spec encode(avro_type_or_name(), avro:in(), encode_fun()) ->
         encode_result() | no_return().
-encode(Type, {MemberId, Value}, EncodeFun) ->
-  case lookup(MemberId, Type) of
-    {ok, {MemberIdInteger, MemberType}} ->
-      %% the union input value is tagged with a union member name or id
-      EncodeFun(MemberType, Value, MemberIdInteger);
+encode(Type, {MemberId, Value}, EncodeFun) when is_integer(MemberId) ->
+  case lookup_type(MemberId, Type) of
+    {ok, MemberType} ->
+      EncodeFun(MemberType, Value, MemberId);
     false ->
       erlang:error({unknown_tag, Type, MemberId})
+  end;
+encode(Type, {MemberName, Value}, EncodeFun) when ?IS_NAME_RAW(MemberName) ->
+  case lookup_index(MemberName, Type) of
+    {ok, {MemberId, true}} ->
+      EncodeFun(avro:name2type(MemberName), Value, MemberId);
+    {ok, {MemberId, false}} ->
+      {ok, MemberType} = lookup_type(MemberId, Type),
+      %% the union input value is tagged with a union member name or id
+      EncodeFun(MemberType, Value, MemberId);
+    false ->
+      erlang:error({unknown_tag, Type, MemberName})
   end;
 encode(Type, Value, EncodeFun) ->
   MemberTypes = avro_union:get_types(Type),
@@ -173,6 +190,27 @@ to_term(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 
 %%%_* Internal functions =======================================================
 
+%% @private Build the member type name to member index mapping.
+%% The map result is the id and a 'IsSefRef' boolean tag.
+%% When the tag is set to true, there is no need to lookup the id2type
+%% mapping for type because:
+%% 1. when it's primitive type, simply call avro:name2type would be
+%%    faster than another lookup
+%% 2. when it's a remote reference to the named member type, the lookup
+%%    result would be the name itsef
+%% @end
+-spec build_name_to_id([{union_index(), avro_type_or_name()}]) ->
+        [{name(), {union_index(), IsSelfRef :: boolean()}}].
+build_name_to_id(IndexedTypes) ->
+  lists:map(
+    fun({Id, FullName}) when ?IS_NAME(FullName) ->
+        %% This is full name ref to a member type
+        {FullName, {Id, _IsSelfRef = true}};
+       ({Id, Type}) ->
+        FullName = avro:get_type_fullname(Type),
+        {FullName, {Id, _IsSelfRef = ?AVRO_IS_PRIMITIVE_TYPE(Type)}}
+    end, IndexedTypes).
+
 %% @private
 -spec try_encode_union_loop(union_type(), [avro_type()], avro:in(),
                             union_index(), encode_fun()) ->
@@ -186,82 +224,50 @@ try_encode_union_loop(UnionType, [MemberT | Rest], Value, Index, EncodeFun) ->
     try_encode_union_loop(UnionType, Rest, Value, Index + 1, EncodeFun)
   end.
 
-%% @private
--spec build_types_dict([{union_index(), avro_type()}]) -> types_dict().
-build_types_dict(IndexedTypes) ->
-  lists:foldl(
-    fun({Index, Type}, D) ->
-        dict:store(get_type_fullname_ex(Type), {Index, Type}, D)
-    end,
-    dict:new(),
-    IndexedTypes).
-
-%% @private If type is specified by its name then return this name,
-%% otherwise return type's full name.
-%% @end
--spec get_type_fullname_ex(fullname() | avro_type()) -> fullname().
-get_type_fullname_ex(TypeName) when ?IS_NAME(TypeName) ->
-  TypeName;
-get_type_fullname_ex(Type) ->
-  avro:get_type_fullname(Type).
-
-%% @private
--spec lookup(name_raw() | union_index(), union_type()) ->
-        {ok, {union_index(), avro_type()}} | false.
-lookup(TypeId, #avro_union_type{types = Types}) when is_integer(TypeId) ->
-  case lists:keyfind(TypeId, 1, Types) of
-    {TypeId, Type} -> {ok, {TypeId, Type}};
-    false          -> false
-  end;
-lookup(TypeName, #avro_union_type{ types      = Types
-                                 , types_dict = undefined
-                                 }) when ?IS_NAME(TypeName) ->
-  scan(TypeName, Types);
-lookup(TypeName, #avro_union_type{types_dict = Dict}) when ?IS_NAME(TypeName) ->
-  case dict:find(TypeName, Dict) of
-    {ok, _IndexedType} = Res -> Res;
-    error                    -> false
-  end;
-lookup(TypeName, Union) when ?IS_NAME_RAW(TypeName) ->
-  lookup(?NAME(TypeName), Union).
-
-%% @private
--spec scan(name(), [{union_index(), avro_type()}]) ->
-        {ok, {union_index(), avro_type()}} | false.
-scan(_TypeName, []) -> false;
-scan(TypeName, [{Id, Type} | Rest]) ->
-  CandidateTypeName = get_type_fullname_ex(Type),
-  case TypeName =:= CandidateTypeName of
-    true  -> {ok, {Id, Type}};
-    false -> scan(TypeName, Rest)
+%% @private Lookup union member index by union member name.
+-spec lookup_index(name(), union_type()) ->
+        {ok, {union_index(), boolean()}} | false.
+lookup_index(Name, #avro_union_type{name2id = Ids}) when ?IS_NAME_RAW(Name) ->
+  case gb_trees:lookup(?NAME(Name), Ids) of
+    {value, Id} -> {ok, Id};
+    none        -> false
   end.
 
 %% @private
 -spec do_cast(union_type(), avro:in()) -> avro_value().
 do_cast(Type, {MemberId, Value}) ->
-  case lookup(MemberId, Type) of
-    {ok, {_MemberIdInteger, MemberType}} ->
+  case lookup_type(MemberId, Type) of
+    {ok, MemberType} ->
       %% the union input value is tagged with a union member name or id
       avro:cast(MemberType, Value);
     false ->
       erlang:error({unknown_tag, Type, MemberId})
   end;
 do_cast(Type, Value) ->
-  case cast_over_types(Type#avro_union_type.types, Value) of
+  case cast_over_types(get_types(Type), Value) of
     {ok, V} -> {ok, ?AVRO_VALUE(Type, V)};
     Err     -> Err
   end.
 
 %% @private
--spec cast_over_types([], _Value) -> {ok, avro_value()} | {error, term()}.
+-spec cast_over_types([avro_type()], avro:in()) ->
+        {ok, avro_value()} | {error, term()}.
 cast_over_types([], _Value) ->
   {error, type_mismatch};
-cast_over_types([{_Id,Type} | Rest], Value) ->
+cast_over_types([Type | Rest], Value) ->
   case avro:cast(Type, Value) of
     {error, _} -> cast_over_types(Rest, Value);
     R          -> R %% appropriate type found
   end.
 
+-spec assert_no_duplicated_names([{name(), union_index()}], [name()]) ->
+        ok | no_return().
+assert_no_duplicated_names([], _UniqueNames) -> ok;
+assert_no_duplicated_names([{Name, _Index} | Rest], UniqueNames) ->
+  case lists:member(Name, UniqueNames) of
+    true  -> erlang:error({<<"duplicated union member">>, Name});
+    false -> assert_no_duplicated_names(Rest, [Name | UniqueNames])
+  end.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

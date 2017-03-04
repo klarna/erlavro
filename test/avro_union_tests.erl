@@ -36,33 +36,41 @@ tiny_union() ->
 big_union() ->
   avro_union:type([get_record(N) || N <- lists:seq(1,200)]).
 
+duplicated_member_test() ->
+  ?assertError({<<"duplicated union member">>, <<"int">>},
+               avro_union:type([int, null, int])).
+
+union_can_not_be_a_member_of_union_test() ->
+  ?assertError(<<"union should not have union as member">>,
+               avro_union:type([avro_union:type([int])])).
+
 new_direct_test() ->
   Type = avro_union:type([int, string]),
   NewVersion = avro_union:new(Type, "Foo"),
   DirectVersion = avro_union:new_direct(Type, avro_primitive:string("Foo")),
   ?assertEqual(NewVersion, DirectVersion).
 
-lookup_child_type_from_tiny_union_test() ->
+lookup_type_from_tiny_union_test() ->
   Type = tiny_union(),
   ExpectedRec1 = get_record(1),
   ?assertEqual({ok, ExpectedRec1},
-               avro_union:lookup_child_type(Type, "com.klarna.test.R1")),
+               avro_union:lookup_type("com.klarna.test.R1", Type)),
   ?assertEqual({ok, ExpectedRec1},
-               avro_union:lookup_child_type(Type, 0)),
+               avro_union:lookup_type(0, Type)),
   ExpectedRec2 = get_record(2),
   ?assertEqual({ok, ExpectedRec2},
-               avro_union:lookup_child_type(Type, "com.klarna.test.R2")),
+               avro_union:lookup_type("com.klarna.test.R2", Type)),
   ?assertEqual({ok, ExpectedRec2},
-               avro_union:lookup_child_type(Type, 1)).
+               avro_union:lookup_type(1, Type)).
 
 
-lookup_child_type_from_big_union_test() ->
+lookup_type_from_big_union_test() ->
   Type = big_union(),
   ExpectedRec = get_record(100),
   ?assertEqual({ok, ExpectedRec},
-               avro_union:lookup_child_type(Type, "com.klarna.test.R100")),
+               avro_union:lookup_type("com.klarna.test.R100", Type)),
   ?assertEqual({ok, ExpectedRec},
-               avro_union:lookup_child_type(Type, 99)).
+               avro_union:lookup_type(99, Type)).
 
 to_term_test() ->
   Type = avro_union:type([null, int]),
