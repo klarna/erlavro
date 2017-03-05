@@ -227,9 +227,9 @@ For a big union like below
 
 ### Caution when unioning string type and int/long arrays.
 
-As `[integer()]` list is `string()` in Erlang, this will confuse the encoder, 
-please make sure to use `binary()` as avro string encoding input or tag it. 
-and always tag int/long array value.
+As `[integer()]` list is `string()` in Erlang, this will confuse the encoder.
+Please make sure to use `binary()` as avro string encoding input or tag it, 
+and always tag int/long array value like `{array, [1, 2, 3]}`.
 
 There are two ways to encode such unions
 
@@ -254,6 +254,4 @@ See `avro_ocf.erl` for details
 # TODOs
 
 1. Full support for avro 1.8
-2. Support `atom() | binary()` as type names
-3. Decoded string should be binary() not [byte()] -- for 2.0 as it brakes backward compatibility
 
