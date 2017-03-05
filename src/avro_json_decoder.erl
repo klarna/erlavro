@@ -134,7 +134,7 @@ parse_schema(Name, _Lkup) when ?IS_NAME(Name) ->
   %% Return #avro_primitive_type{} for primitive types
   %% otherwise make full name.
   try
-    primitive_type(Name)
+    primitive_type(Name, [])
   catch error : {unknown_type, _} ->
     ok = avro_util:verify_dotted_name(Name),
     Name
@@ -156,20 +156,17 @@ parse_type(Attrs, Lkup) ->
     ?AVRO_FIXED ->
       parse_fixed_type(Attrs);
     Name ->
-      primitive_type(Name)
+      CustomProps = filter_custom_props(Attrs, []),
+      primitive_type(Name, CustomProps)
   end.
 
 %% @private
--spec primitive_type(binary()) -> primitive_type() | no_return().
-primitive_type(?AVRO_NULL)    -> avro_primitive:null_type();
-primitive_type(?AVRO_BOOLEAN) -> avro_primitive:boolean_type();
-primitive_type(?AVRO_INT)     -> avro_primitive:int_type();
-primitive_type(?AVRO_LONG)    -> avro_primitive:long_type();
-primitive_type(?AVRO_FLOAT)   -> avro_primitive:float_type();
-primitive_type(?AVRO_DOUBLE)  -> avro_primitive:double_type();
-primitive_type(?AVRO_BYTES)   -> avro_primitive:bytes_type();
-primitive_type(?AVRO_STRING)  -> avro_primitive:string_type();
-primitive_type(Other)         -> erlang:error({unknown_type, Other}).
+-spec primitive_type(name(), [custom_prop()]) ->
+        primitive_type() | no_return().
+primitive_type(Name, CustomProps) when ?IS_PRIMITIVE_NAME(Name) ->
+  avro_primitive:type(Name, CustomProps);
+primitive_type(Name, _CustomProps) ->
+  erlang:error({unknown_type, Name}).
 
 %% @private
 -spec parse_record_type([{binary(), json_value()}],
@@ -181,10 +178,12 @@ parse_record_type(Attrs, Lkup) ->
   Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
   Fields0 = avro_util:get_opt(<<"fields">>,    Attrs),
   Fields  = parse_record_fields(Fields0, Lkup),
+  Custom  = filter_custom_props(Attrs, [<<"fields">>]),
   avro_record:type(Name, Fields,
-                   [ {namespace, Ns}
-                   , {doc,       Doc}
-                   , {aliases,   Aliases}
+                   [ {namespace,    Ns}
+                   , {doc,          Doc}
+                   , {aliases,      Aliases}
+                   | Custom
                    ]).
 
 %% @private
@@ -238,18 +237,20 @@ parse_order(<<"descending">>) -> descending;
 parse_order(<<"ignore">>)     -> ignore.
 
 %% @private
--spec parse_enum_type(json_value()) -> enum_type().
+-spec parse_enum_type([{binary(), json_value()}]) -> enum_type().
 parse_enum_type(Attrs) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
   NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
   Doc     = avro_util:get_opt(<<"doc">>,       Attrs, <<"">>),
   Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
   Symbols = avro_util:get_opt(<<"symbols">>,   Attrs),
+  Custom  = filter_custom_props(Attrs, [<<"symbols">>]),
   avro_enum:type(NameBin,
                  parse_enum_symbols(Symbols),
-                 [ {namespace, NsBin}
-                 , {doc,       Doc}
-                 , {aliases,   parse_aliases(Aliases)}
+                 [ {namespace,    NsBin}
+                 , {doc,          Doc}
+                 , {aliases,      parse_aliases(Aliases)}
+                 | Custom
                  ]).
 
 %% @private
@@ -258,28 +259,34 @@ parse_enum_symbols([_|_] = SymbolsArray) ->
   SymbolsArray.
 
 %% @private
--spec parse_array_type(json_value(), lkup_fun()) -> array_type().
+-spec parse_array_type([{binary(), json_value()}], lkup_fun()) -> array_type().
 parse_array_type(Attrs, Lkup) ->
-  Items = avro_util:get_opt(<<"items">>, Attrs),
-  avro_array:type(parse_schema(Items, Lkup)).
+  Items  = avro_util:get_opt(<<"items">>, Attrs),
+  Custom = filter_custom_props(Attrs, [<<"items">>]),
+  avro_array:type(parse_schema(Items, Lkup), Custom).
 
 %% @private
--spec parse_map_type(json_value(), lkup_fun()) -> map_type().
+-spec parse_map_type([{binary(), json_value()}], lkup_fun()) -> map_type().
 parse_map_type(Attrs, Lkup) ->
   Values = avro_util:get_opt(<<"values">>, Attrs),
-  avro_map:type(parse_schema(Values, Lkup)).
+  Custom = filter_custom_props(Attrs, [<<"values">>]),
+  avro_map:type(parse_schema(Values, Lkup), Custom).
 
 %% @private
--spec parse_fixed_type(json_value()) -> fixed_type().
+-spec parse_fixed_type([{binary(), json_value()}]) -> fixed_type().
 parse_fixed_type(Attrs) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
   NsBin   = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
   Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
-  Size    = avro_util:get_opt(<<"size">>, Attrs),
+  Doc     = avro_util:get_opt(<<"doc">>,       Attrs, ?NO_DOC),
+  Size    = avro_util:get_opt(<<"size">>,      Attrs),
+  Custom  = filter_custom_props(Attrs, [<<"size">>]),
   avro_fixed:type(NameBin,
                   parse_fixed_size(Size),
-                  [ {namespace, NsBin}
-                  , {aliases,   parse_aliases(Aliases)}
+                  [ {namespace,    NsBin}
+                  , {aliases,      parse_aliases(Aliases)}
+                  , {doc,          Doc}
+                  | Custom
                   ]).
 
 %% @private
@@ -523,7 +530,15 @@ do_parse_union_ex(ValueTypeName, Value, UnionType,
 -spec decode_json(binary()) -> json_value().
 decode_json(JSON) -> jsone:decode(JSON, [{object_format, tuple}]).
 
-%%%_* Emacs ============================================================
+%% @private Filter out non-custom properties.
+-spec filter_custom_props([{binary(), json_value()}], [name()]) ->
+        [custom_prop()].
+filter_custom_props(Attrs, Keys0) ->
+  Keys = [<<"type">>, <<"name">>, <<"namespace">>,
+          <<"doc">>, <<"aliases">> | Keys0],
+  avro_util:delete_opts(Attrs, Keys).
+
+%%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
 %%% erlang-indent-level: 2

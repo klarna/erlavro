@@ -155,6 +155,51 @@ primitive_cast_error_test() ->
   ?assertException(error, {type_mismatch, IntType, "foo"},
                    avro_primitive:int("foo")).
 
+get_custom_props_test() ->
+  Date = avro_primitive:type(int, [{logicalType, "Date"}, {"p", "v"}]),
+  Union = avro_union:type([null, int]),
+  Array = avro_array:type(int, [{"p", "v"}]),
+  Enum = avro_enum:type("abc", ["a", "b", "c"], [{"p", "v"}]),
+  Fixed  = avro_fixed:type("twobytes", 2, [{key, value}]),
+  Map = avro_map:type(int, [{key, value}]),
+  MyRecordType =
+    avro_record:type(
+      <<"MyRecord">>,
+      [ avro_record:define_field(k1, int)
+      , avro_record:define_field(k2, Union)
+      , avro_record:define_field(date, Date)
+      , avro_record:define_field(array, Array)
+      , avro_record:define_field(enum, Enum)
+      , avro_record:define_field(fixed, Fixed)
+      , avro_record:define_field(map, Map)
+      ],
+      [ {namespace, 'com.example'}
+      , {key_fields, [k1, k2]}
+      ]),
+  ?assertEqual([{<<"key_fields">>, [<<"k1">>, <<"k2">>]}],
+               avro:get_custom_props(MyRecordType, store)),
+  FieldTypeProps =
+    fun(Fn) ->
+      FieldType = avro_record:get_field_type(Fn, MyRecordType),
+      avro:get_custom_props(FieldType)
+    end,
+  ?assertEqual([], FieldTypeProps(k1)),
+  ?assertEqual([], FieldTypeProps(k2)),
+  ?assertEqual([{<<"logicalType">>, <<"Date">>},
+                {<<"p">>, <<"v">>}],
+               FieldTypeProps(date)),
+  ?assertEqual([{<<"p">>, <<"v">>}], FieldTypeProps(array)),
+  ?assertEqual([{<<"p">>, <<"v">>}], FieldTypeProps(enum)),
+  ?assertEqual([{<<"key">>, <<"value">>}], FieldTypeProps(fixed)),
+  ?assertEqual([{<<"key">>, <<"value">>}], FieldTypeProps(map)),
+  JSON = avro_json_encoder:encode_schema(MyRecordType),
+  ?assertEqual(MyRecordType,
+               avro_json_decoder:decode_schema(iolist_to_binary(JSON))),
+  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
+  ?assertEqual([{<<"key_fields">>, [<<"k1">>, <<"k2">>]}],
+               avro:get_custom_props("com.example.MyRecord", Store)),
+  ok.
+
 encode_wrapped(CodecOptions) ->
   NullableInt = avro_union:type([null, int]),
   MyRecordType1 =

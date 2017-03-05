@@ -75,6 +75,7 @@ type(Name0, Symbols0, Opts) ->
          , doc       = ?DOC(Doc)
          , symbols   = Symbols
          , fullname  = avro:build_type_fullname(Name, Ns)
+         , custom    = avro_util:canonicalize_custom_props(Opts)
          },
   ok = avro_util:verify_type(Type),
   Type.

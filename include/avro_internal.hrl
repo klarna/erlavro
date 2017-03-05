@@ -65,7 +65,8 @@
 
 %% fullname of a primitive types is always equal to its name
 -record(avro_primitive_type,
-        { name      = ?REQUIRED :: name()
+        { name      = ?REQUIRED  :: name()
+        , custom    = []         :: [custom_prop()]
         }).
 
 -record(avro_record_type,
@@ -74,8 +75,8 @@
         , doc       = ?NO_DOC    :: typedoc()
         , aliases   = []         :: [name()]
         , fields    = ?REQUIRED  :: [record_field()]
-        %% -- service fields --
         , fullname  = ?REQUIRED  :: fullname()
+        , custom    = []         :: [custom_prop()]
         }).
 
 -record(avro_enum_type,
@@ -84,30 +85,33 @@
         , aliases   = []         :: [name()]
         , doc       = ?NO_DOC    :: typedoc()
         , symbols   = ?REQUIRED  :: [enum_symbol()]
-        %% -- service fields --
         , fullname  = ?REQUIRED  :: fullname()
+        , custom    = []         :: [custom_prop()]
         }).
 
 -record(avro_array_type,
-        { type = ?REQUIRED :: avro_type_or_name()
+        { type      = ?REQUIRED  :: avro_type_or_name()
+        , custom    = []         :: [custom_prop()]
         }).
 
 -record(avro_map_type,
-        { type = ?REQUIRED :: avro_type_or_name()
+        { type      = ?REQUIRED  :: avro_type_or_name()
+        , custom    = []         :: [custom_prop()]
         }).
 
 -record(avro_union_type,
-        { id2type = ?REQUIRED :: avro_union:id2type()
-        , name2id = ?REQUIRED :: avro_union:name2id()
+        { id2type   = ?REQUIRED  :: avro_union:id2type()
+        , name2id   = ?REQUIRED  :: avro_union:name2id()
         }).
 
 -record(avro_fixed_type,
         { name      = ?REQUIRED  :: name()
         , namespace = ?NS_GLOBAL :: namespace()
         , aliases   = []         :: [name()]
+        , doc       = ?NO_DOC    :: typedoc()
         , size      = ?REQUIRED  :: integer()
-        %% -- service fields --
         , fullname  = ?REQUIRED  :: fullname()
+        , custom    = []         :: [custom_prop()]
         }).
 
 -type primitive_type() :: #avro_primitive_type{}.
@@ -127,6 +131,11 @@
                     | union_type().
 
 -type avro_type_or_name() :: avro_type() | name_raw().
+
+-type custom_prop_name() :: binary().
+%% No plan to support recursive definition
+-type custom_prop_value() :: number() | binary() | [binary()].
+-type custom_prop() :: {custom_prop_name(), custom_prop_value()}.
 
 -define(IS_PRIMITIVE_NAME(N),
         (N =:= ?AVRO_NULL    orelse
@@ -163,8 +172,8 @@
 -type schema_store() :: avro_schema_store:store().
 -type canonicalized_value() :: null | boolean() | integer() | float() | binary().
 
--type type_prop_name() :: namespace | doc | aliases.
--type type_prop_value() :: namespace() | typedoc() | [name()].
+-type type_prop_name() :: namespace | doc | aliases | custom_prop_name().
+-type type_prop_value() :: namespace() | typedoc() | [name()] | custom_prop_value().
 -type type_props() :: [{type_prop_name(), type_prop_value()}].
 
 -type avro_json() :: jsone:json_object().

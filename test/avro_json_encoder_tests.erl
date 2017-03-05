@@ -33,6 +33,12 @@ encode_null_test() ->
 encode_boolean_type_test() ->
   Json = encode_type(avro_primitive:boolean_type()),
   ?assertEqual(<<"\"boolean\"">>, Json).
+
+encode_type_with_custom_prop_test() ->
+  Props = [{<<"logicalType">>, <<"x">>}],
+  Json = encode_type(avro_primitive:type(bytes, Props)),
+  ?assertEqual(<<"{\"type\":\"bytes\",\"logicalType\":\"x\"}">>, Json).
+
 encode_boolean_test() ->
   JsonTrue = encode_value(avro_primitive:boolean(true)),
   JsonFalse = encode_value(avro_primitive:boolean(false)),

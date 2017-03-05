@@ -24,7 +24,8 @@
 -module(avro_primitive).
 
 %% API
--export([ boolean_type/0
+-export([ type/2
+        , boolean_type/0
         , bytes_type/0
         , double_type/0
         , float_type/0
@@ -52,21 +53,34 @@
 %%% API: Types
 %%%===================================================================
 
-null_type()    -> #avro_primitive_type{name = ?AVRO_NULL}.
+-spec type(name_raw(), [custom_prop()]) -> primitive_type().
+type(Name0, CustomProps) ->
+  Name = ?NAME(Name0),
+  case ?IS_PRIMITIVE_NAME(Name) of
+    true ->
+      Custom = avro_util:canonicalize_custom_props(CustomProps),
+      #avro_primitive_type{ name   = Name
+                          , custom = Custom
+                          };
+    false ->
+      erlang:error({unknown_name, Name})
+  end.
 
-boolean_type() -> #avro_primitive_type{name = ?AVRO_BOOLEAN}.
+null_type()    -> type(?AVRO_NULL, []).
 
-int_type()     -> #avro_primitive_type{name = ?AVRO_INT}.
+boolean_type() -> type(?AVRO_BOOLEAN, []).
 
-long_type()    -> #avro_primitive_type{name = ?AVRO_LONG}.
+int_type()     -> type(?AVRO_INT, []).
 
-float_type()   -> #avro_primitive_type{name = ?AVRO_FLOAT}.
+long_type()    -> type(?AVRO_LONG, []).
 
-double_type()  -> #avro_primitive_type{name = ?AVRO_DOUBLE}.
+float_type()   -> type(?AVRO_FLOAT, []).
 
-bytes_type()   -> #avro_primitive_type{name = ?AVRO_BYTES}.
+double_type()  -> type(?AVRO_DOUBLE, []).
 
-string_type()  -> #avro_primitive_type{name = ?AVRO_STRING}.
+bytes_type()   -> type(?AVRO_BYTES, []).
+
+string_type()  -> type(?AVRO_STRING, []).
 
 %%%===================================================================
 %%% API: Casting

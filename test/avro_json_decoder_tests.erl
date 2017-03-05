@@ -26,6 +26,7 @@
 
 -include_lib("erlavro/include/avro_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
+
 -define(JSON_OBJ(__FIELDS__), {__FIELDS__}).
 
 parse_primitive_type_name_test() ->
@@ -37,6 +38,18 @@ parse_primitive_type_object_test() ->
   %% Check that primitive types specified by type objects are parsed correctly
   Type = ?JSON_OBJ([{<<"type">>, <<"int">>}]),
   ?assertEqual(avro_primitive:int_type(),
+               parse_schema(Type, none)).
+
+parse_custom_prop_test() ->
+  Type = ?JSON_OBJ([ {<<"type">>, <<"int">>}
+                   , {<<"logicalType">>, <<"my-type">>}
+                   , {<<"foo">>, 42}
+                   , {<<"bar">>, 3.14}
+                   ]),
+  ?assertEqual(avro_primitive:type(int, [ {<<"logicalType">>, <<"my-type">>}
+                                        , {<<"foo">>, 42}
+                                        , {<<"bar">>, 3.14}
+                                        ]),
                parse_schema(Type, none)).
 
 parse_record_type_test() ->

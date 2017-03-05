@@ -62,7 +62,10 @@
 %%%_* APIs =====================================================================
 
 %% @doc Define a union type.
-%% A union should have at least one member.
+%% Exception when any of the below constraints is violated:
+%% 1. A union should have at least one member and no duplication
+%% 2. Union should no have union as direct member
+%% 3. No duplicated types are allowed in members
 %% @end
 -spec type([avro_type_or_name()]) -> union_type() | no_return().
 type([]) ->

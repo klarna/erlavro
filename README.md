@@ -1,6 +1,6 @@
-Avro support for Erlang (http://avro.apache.org/).
+Avro support for Erlang/Elixir (http://avro.apache.org/).
 
-Current version implements Apache Avro 1.7.5 specification.
+Current version implements Apache Avro 1.8.1 specification.
 
 License: Apache License 2.0
 
@@ -251,7 +251,18 @@ NOTE: only named complex types are tagged by this hook, you can of course write 
 
 See `avro_ocf.erl` for details
 
-# TODOs
+# Logical types and custom type properties.
 
-1. Full support for avro 1.8
+NOTE: There is no logical type or custom type properties based on avro 'union' type.
+
+`erlavro` encodes/decodes logical types as well as custom type properties but (so far) 
+does not validate or transform the encoder/encoder input/output.
+
+e.g. The underlying data type of 'Date' logical type is 'int', in a perfect word, 
+the encoder should accept `{Y, M, D}` as input and the decoder should transform the integer 
+back to `{Y, M, D}` --- but this is not supported so far.
+
+Call `avro:get_custom_props/2` to access logical type info (as well as any extra customized type properties) 
+for extra data validation/transformation at application level.
+
 

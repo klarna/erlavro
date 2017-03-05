@@ -28,7 +28,8 @@
 -module(avro_json_encoder).
 
 %% API
--export([ encode_type/1
+-export([ encode_schema/1
+        , encode_type/1
         , encode_value/1
         , encode/3
         ]).
@@ -42,9 +43,13 @@
 
 %% @doc Encode avro schema in JSON format.
 %% @end
--spec encode_type(avro_type()) -> iodata().
-encode_type(Type) ->
+-spec encode_schema(avro_type()) -> iodata().
+encode_schema(Type) ->
   encode_json(do_encode_type(Type, _Namespace = ?NS_GLOBAL)).
+
+%% @doc Encode avro schema in JSON format.
+-spec encode_type(avro_type()) -> iodata().
+encode_type(Type) -> encode_schema(Type).
 
 %% @doc Encode avro value in JSON format.
 %% @end
@@ -118,14 +123,19 @@ do_encode_type(Name, EnclosingNamespace) when ?IS_NAME(Name) ->
       {_ShortName, _AnotherNamespace} -> Name
     end,
   encode_string(MaybeShortName);
-do_encode_type(#avro_primitive_type{name = Name}, _Namespace) ->
+do_encode_type(#avro_primitive_type{name = Name, custom = []}, _Ns) ->
   encode_string(Name);
+do_encode_type(#avro_primitive_type{name = Name, custom = Custom}, _Ns) ->
+  [ {type, encode_string(Name)}
+  | Custom
+  ];
 do_encode_type(#avro_record_type{} = T, EnclosingNamespace) ->
   #avro_record_type{ name      = Name
                    , namespace = Namespace
                    , doc       = Doc
                    , aliases   = Aliases
                    , fields    = Fields
+                   , custom    = CustomProps
                    } = T,
   {Name, NextLevelEnclosingNs} = avro:split_type_name(T, Namespace),
   SchemaObjectFields =
@@ -138,6 +148,7 @@ do_encode_type(#avro_record_type{} = T, EnclosingNamespace) ->
     , {fields, lists:map(fun(F) ->
                              encode_field(F, NextLevelEnclosingNs)
                          end, Fields)}
+    | CustomProps
     ],
   lists:flatten(SchemaObjectFields);
 do_encode_type(#avro_enum_type{} = T, EnclosingNamespace) ->
@@ -145,7 +156,9 @@ do_encode_type(#avro_enum_type{} = T, EnclosingNamespace) ->
                  , namespace = Namespace
                  , aliases   = Aliases
                  , doc       = Doc
-                 , symbols   = Symbols} = T,
+                 , symbols   = Symbols
+                 , custom    = CustomProps
+                 } = T,
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
                      ?NS_GLOBAL, fun encode_string/1)
@@ -154,25 +167,34 @@ do_encode_type(#avro_enum_type{} = T, EnclosingNamespace) ->
     , optional_field(doc,       Doc,  ?NO_DOC, fun encode_string/1)
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
     , {symbols, lists:map(fun encode_string/1, Symbols)}
+    | CustomProps
     ],
   lists:flatten(SchemaObjectFields);
-do_encode_type(#avro_array_type{type = Type}, EnclosingNamespace) ->
+do_encode_type(#avro_array_type{ type   = Type
+                               , custom = CustomProps
+                               }, EnclosingNamespace) ->
   [ {type,  encode_string(?AVRO_ARRAY)}
   , {items, do_encode_type(Type, EnclosingNamespace)}
+  | CustomProps
   ];
-do_encode_type(#avro_map_type{type = Type}, EnclosingNamespace) ->
+do_encode_type(#avro_map_type{ type   = Type
+                             , custom = CustomProps
+                             }, EnclosingNamespace) ->
   [ {type,   encode_string(?AVRO_MAP)}
   , {values, do_encode_type(Type, EnclosingNamespace)}
+  | CustomProps
   ];
 do_encode_type(#avro_union_type{} = T, EnclosingNamespace) ->
   Members = avro_union:get_types(T),
   F = fun(Type) -> do_encode_type(Type, EnclosingNamespace) end,
   lists:map(F, Members);
 do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace) ->
-  #avro_fixed_type{ name = Name
+  #avro_fixed_type{ name      = Name
                   , namespace = Namespace
-                  , aliases = Aliases
-                  , size = Size} = T,
+                  , aliases   = Aliases
+                  , size      = Size
+                  , custom    = CustomProps
+                  } = T,
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
                      ?NS_GLOBAL, fun encode_string/1)
@@ -180,6 +202,7 @@ do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace) ->
     , {name, encode_string(Name)}
     , {size, encode_integer(Size)}
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1)
+    | CustomProps
     ],
   lists:flatten(SchemaObjectFields).
 

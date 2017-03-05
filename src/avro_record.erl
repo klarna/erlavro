@@ -81,6 +81,7 @@ type(Name0, Fields0, Opts) ->
          , fields    = Fields
          , aliases   = avro_util:canonicalize_aliases(Aliases, Ns)
          , fullname  = avro:build_type_fullname(Name, Ns)
+         , custom    = avro_util:canonicalize_custom_props(Opts)
          },
   ok = avro_util:verify_type(Type),
   Type.
