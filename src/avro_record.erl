@@ -37,7 +37,7 @@
 -export([cast/2]).
 
 -export([new/2]).
--export([new_encoded/3]). %% DEPRECATED
+-export([new_encoded/3]).
 -export([get/2]). %% DEPRECATED
 -export([get_value/2]).
 -export([set/2]). %% DEPRECATED
@@ -49,7 +49,6 @@
 -export([to_term/1]).
 -export([encode/3]).
 
--deprecated({new_encoded, 3, eventually}).
 -deprecated({type, 4, eventually}).
 -deprecated({type, 6, eventually}).
 -deprecated({field, 3 ,eventually}).

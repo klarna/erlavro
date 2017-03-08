@@ -262,6 +262,11 @@
         fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
 -endif.
 
+-define(AVRO_ENCODED_VALUE_JSON(Type, Value),
+        ?AVRO_VALUE(Type, {json, Value})).
+-define(AVRO_ENCODED_VALUE_BINARY(Type, Value),
+        ?AVRO_VALUE(Type, {binary, Value})).
+
 %%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
