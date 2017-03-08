@@ -260,12 +260,13 @@
 %% By default, the hook fun does nothing else but calling the decode function.
 -define(DEFAULT_DECODER_HOOK,
         fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
--endif.
 
 -define(AVRO_ENCODED_VALUE_JSON(Type, Value),
         ?AVRO_VALUE(Type, {json, Value})).
 -define(AVRO_ENCODED_VALUE_BINARY(Type, Value),
         ?AVRO_VALUE(Type, {binary, Value})).
+
+-endif.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
