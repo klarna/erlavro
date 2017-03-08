@@ -376,8 +376,9 @@ make_fullname(Name, Namespace) ->
 %%% Internal functions: casting
 %%%===================================================================
 
-%% @private
-%% Checks if the type has specified full name
+%% @private Checks if the type has specified full name.
+has_fullname(FullName, FullName) ->
+  true;
 has_fullname(Type, FullName) ->
   is_named_type(Type) andalso get_type_fullname(Type) =:= FullName.
 
