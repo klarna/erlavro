@@ -20,7 +20,7 @@
 -define(_ERLAVRO_HRL_, true).
 
 -record(avro_value,
-        { type :: avro:avro_type()
+        { type :: avro:avro_type_or_name()
         , data :: avro:avro_value()
         }).
 
@@ -29,8 +29,8 @@
                     | [#avro_value{}]                %% array
                     | [{avro:name(), #avro_value{}}] %% record
                     | avro_map:data()                %% map
-                    | {json, iodata()}               %% serialized
-                    | {binary, iodata()}.            %% serialized
+                    | {json, binary()}               %% serialized
+                    | {binary, binary()}.            %% serialized
 
 -define(IS_AVRO_VALUE(Value), is_record(Value, avro_value)).
 -define(AVRO_VALUE(Type,Data), #avro_value{type = Type, data = Data}).

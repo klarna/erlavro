@@ -79,29 +79,39 @@ encode_json(Input) -> jsone:encode(Input, [native_utf8]).
 %% @private
 -spec do_encode(lkup_fun(), avro_type_or_name(), avro_value() | avro:in()) ->
         json_value().
-do_encode(_Lkup, Type, #avro_value{type = Type} = V) ->
-  do_encode_value(V);
+do_encode(Lkup, Type, #avro_value{type = T} = V) ->
+  case avro:get_type_fullname(Type) =:= avro:get_type_fullname(T) of
+    true  -> do_encode_value(V);
+    false -> enc(Lkup, Type, V)
+  end;
 do_encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
-  do_encode(Lkup, Lkup(?NAME(TypeName)), Value);
-do_encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
+  enc(Lkup, Lkup(?NAME(TypeName)), Value);
+do_encode(Lkup, Type, Value) ->
+  enc(Lkup, Type, Value).
+
+%% @private
+-spec enc(lkup_fun(), avro_type_or_name(), avro_value() | avro:in()) ->
+        json_value().
+enc(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro_primitive:cast(Type, Value),
   do_encode_value(AvroValue);
-do_encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
   avro_record:encode(Type, Value,
     fun({FN, FT, FV}) -> {encode_string(FN), do_encode(Lkup, FT, FV)} end);
-do_encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   encode_string(Value);
-do_encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   avro_array:encode(Type, Value,
     fun(IType, Item) -> do_encode(Lkup, IType, Item) end);
-do_encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
   avro_map:encode(Type, Value,
     fun(IType, K, V) -> {encode_string(K), do_encode(Lkup, IType, V)} end);
-do_encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   ?INLINE(encode_binary(Value));
-do_encode(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
+enc(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
+  {ok, _} = avro_union:lookup_type(null, Type), %% assert
   null; %do not encode null
-do_encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
+enc(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
   Encoded = avro_union:encode(Type, Union,
     fun(MemberT, Value, _UnionIndex) ->
       {
