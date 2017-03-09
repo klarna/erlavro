@@ -242,6 +242,26 @@ encode_wrapped(CodecOptions) ->
   ] = Decoder(MyArray, Bin),
   ok.
 
+encode_wrapped_unnamed_test() ->
+  Rec1 = avro_record:type("rec1", [avro_record:define_field("f1", int)]),
+  Rec2 = avro_record:type("rec2", [avro_record:define_field("f1", int)]),
+  Lkup = fun(<<"rec1">>) -> Rec1;
+            (<<"rec2">>) -> Rec2 end,
+  Union = avro_union:type(["rec1", "rec2"]),
+  EncRec2JSON = avro:encode_wrapped(Lkup, Rec2, [{"f1", 1}], avro_json),
+  EncJSON = avro:encode_wrapped(Lkup, Union, EncRec2JSON, avro_json),
+  ExpectedJSON = <<"{\"rec2\":{\"f1\":1}}">>,
+  ?assertMatch(?AVRO_ENCODED_VALUE_JSON(_, ExpectedJSON),
+               EncJSON),
+  EncRec2Bin = avro:encode_wrapped(Lkup, Rec2, [{"f1", 1}], avro_binary),
+  EncRec2BinTagged = {"rec2", EncRec2Bin},
+  EncBin1 = avro:encode_wrapped(Lkup, Union, EncRec2Bin, avro_binary),
+  EncBin2 = avro:encode_wrapped(Lkup, Union, EncRec2BinTagged, avro_binary),
+  ?assertEqual(EncBin1, EncBin2),
+  ?assertMatch(?AVRO_ENCODED_VALUE_BINARY(_, _),
+               EncBin1),
+  ok.
+
 %% @private
 priv_dir() ->
   case code:priv_dir(erlavro) of

@@ -77,37 +77,46 @@ encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 %% i.e. data can be recursive, but recursive types are resolved by
 %% schema lookup
 %% @end
--spec encode(schema_store() | lkup_fun(), avro_type_or_name(), avro:in()) ->
-        iodata().
+-spec encode(schema_store() | lkup_fun(), avro_type_or_name(),
+             avro_value() | avro:in()) -> iodata().
 encode(Store, TypeName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeName, Value);
-encode(_Lkup, Type, #avro_value{type = Type} = V) ->
-  encode_value(V);
+encode(Lkup, Type, #avro_value{type = T} = V) ->
+  case avro:get_type_fullname(Type) =:= avro:get_type_fullname(T) of
+    true  -> encode_value(V);
+    false -> enc(Lkup, Type, V)
+  end;
 encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
-  encode(Lkup, Lkup(?NAME(TypeName)), Value);
-encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
+  enc(Lkup, Lkup(?NAME(TypeName)), Value);
+encode(Lkup, Type, Value) ->
+  enc(Lkup, Type, Value).
+
+%% @private
+-spec enc(schema_store() | lkup_fun(), avro_type_or_name(),
+          avro_value() | avro:in()) -> iodata().
+enc(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro:cast(Type, Value),
   encode_value(AvroValue);
-encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
   avro_record:encode(Type, Value,
     fun({_, FT, FV}) -> encode(Lkup, FT, FV) end);
-encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
   int(avro_enum:get_index(Type, Value));
-encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
   Count = length(Value),
   Encoded = avro_array:encode(Type, Value,
     fun(IType, Item) -> encode(Lkup, IType, Item) end),
   block(Count, Encoded);
-encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
   Encoded = avro_map:encode(Type, Value,
     fun(IType, K, V) -> [string(K), encode(Lkup, IType, V)] end),
   Count = length(Value),
   block(Count, Encoded);
-encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
   %% force binary size check for the value
   encode_value(avro_fixed:new(Type, Value));
-encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
+enc(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
   avro_union:encode(Type, Union,
     fun(MemberT, Value, Index) ->
       [long(Index), encode(Lkup, MemberT, Value)]

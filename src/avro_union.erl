@@ -223,7 +223,7 @@ try_encode_union_loop(UnionType, [], Value, _Index, _EncodeFun) ->
 try_encode_union_loop(UnionType, [MemberT | Rest], Value, Index, EncodeFun) ->
   try
     EncodeFun(MemberT, Value, Index)
-  catch _ : _ ->
+  catch _C : _E ->
     try_encode_union_loop(UnionType, Rest, Value, Index + 1, EncodeFun)
   end.
 

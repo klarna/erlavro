@@ -151,24 +151,6 @@ cast_by_aliases_test() ->
   ?assertEqual(avro_primitive:string("foo"), get_value("a", Record)),
   ?assertEqual(avro_primitive:int(1), get_value("b", Record)).
 
-new_encoded_test() ->
-  Type = type("Test",
-              [ define_field("field1", long)
-              , define_field("field2", string)],
-              [ {namespace, "name.space"} ]),
-  Fields = [ {"field1", avro_primitive:long(1)}
-           , {"field2", avro_primitive:string("f")}
-           ],
-  Lkup = fun(_) -> erlang:error(unexpected) end,
-  Rec = avro:encode_wrapped(Lkup, Type, Fields, avro_json),
-  ?assertException(throw, {value_already_encoded, _},
-                   get_value("any", Rec)),
-  ?assertException(throw, {value_already_encoded, _},
-                   set_value("any", "whatever", Rec)),
-  ?assertException(throw, {value_already_encoded, _},
-                   update("any", fun()-> "care not" end, Rec)),
-  ?assertException(throw, {value_already_encoded, _}, to_list(Rec)).
-
 encode_test() ->
   EncodeFun = fun({FieldName, _FieldType, Input}) ->
                   {FieldName, {encoded, Input}}

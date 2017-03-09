@@ -160,8 +160,14 @@ encode(StoreOrLkup, Type, Value, avro_binary) ->
 encode_wrapped(S, TypeOrName, Value, Encoding) when not is_function(S) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(S),
   encode_wrapped(Lkup, TypeOrName, Value, Encoding);
-encode_wrapped(Lkup, Type, Value, Encoding) ->
-  Encoded = iolist_to_binary(encode(Lkup, Type, Value, Encoding)),
+encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME_RAW(Name) ->
+  encode_wrapped(Lkup, Lkup(Name), Value, Encoding);
+encode_wrapped(Lkup, Type0, Value, Encoding) when ?IS_AVRO_TYPE(Type0) ->
+  Encoded = iolist_to_binary(encode(Lkup, Type0, Value, Encoding)),
+  Type = case is_named_type(Type0) of
+           true  -> get_type_fullname(Type0);
+           false -> Type0
+         end,
   case Encoding of
     avro_json   -> ?AVRO_ENCODED_VALUE_JSON(Type, Encoded);
     avro_binary -> ?AVRO_ENCODED_VALUE_BINARY(Type, Encoded)
@@ -262,14 +268,15 @@ get_type_namespace(#avro_union_type{})                -> ?NS_GLOBAL.
 %% @doc Returns fullname stored inside the type.
 %% For unnamed types their Avro name is returned.
 %% @end
--spec get_type_fullname(avro_type()) -> name() | fullname().
+-spec get_type_fullname(avro_type_or_name()) -> name() | fullname().
 get_type_fullname(#avro_array_type{})                 -> ?AVRO_ARRAY;
 get_type_fullname(#avro_enum_type{fullname = Name})   -> Name;
 get_type_fullname(#avro_fixed_type{fullname = Name})  -> Name;
 get_type_fullname(#avro_map_type{})                   -> ?AVRO_MAP;
 get_type_fullname(#avro_primitive_type{name = Name})  -> Name;
 get_type_fullname(#avro_record_type{fullname = Name}) -> Name;
-get_type_fullname(#avro_union_type{})                 -> ?AVRO_UNION.
+get_type_fullname(#avro_union_type{})                 -> ?AVRO_UNION;
+get_type_fullname(Name) when ?IS_NAME_RAW(Name)       -> ?NAME(Name).
 
 %% @doc Returns aliases for the type.
 %% Types without aliases defined are considered to have empty alias list.
