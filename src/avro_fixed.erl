@@ -50,7 +50,6 @@ type(Name0, Size, Opts) ->
   Ns          = ?NAME(avro_util:get_opt(namespace, Opts, Ns0)),
   true        = (Ns0 =:= ?NS_GLOBAL orelse Ns0 =:= Ns), %% assert
   Aliases     = avro_util:get_opt(aliases, Opts, []),
-  Doc         = avro_util:get_opt(doc, Opts, ?NO_DOC),
   ok          = avro_util:verify_aliases(Aliases),
   ?ERROR_IF(not is_integer(Size) orelse Size < 1, {invalid_size, Size}),
   Type = #avro_fixed_type
@@ -60,7 +59,6 @@ type(Name0, Size, Opts) ->
          , size      = Size
          , fullname  = avro:build_type_fullname(Name, Ns)
          , custom    = avro_util:canonicalize_custom_props(Opts)
-         , doc       = ?DOC(Doc)
          },
   ok = avro_util:verify_type(Type),
   Type.

@@ -208,7 +208,7 @@ resolve_fullname(#avro_union_type{} = Type, Ns) ->
   avro_union:resolve_fullname(Type, Ns).
 
 %% @doc Create primitive type definiton from name.
-%% In case the give name is not a prmitive type name,
+%% In case the give name is not a primitive type name,
 %% its canonicalized format is returned.
 %% @end
 -spec name2type(name_raw()) -> primitive_type() | name().

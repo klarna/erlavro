@@ -108,7 +108,6 @@
         { name      = ?REQUIRED  :: name()
         , namespace = ?NS_GLOBAL :: namespace()
         , aliases   = []         :: [name()]
-        , doc       = ?NO_DOC    :: typedoc()
         , size      = ?REQUIRED  :: integer()
         , fullname  = ?REQUIRED  :: fullname()
         , custom    = []         :: [custom_prop()]
