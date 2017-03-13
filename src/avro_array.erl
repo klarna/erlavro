@@ -30,6 +30,7 @@
         , resolve_fullname/2
         , to_term/1
         , type/1
+        , type/2
         ]).
 
 %% API to be used only inside erlavro
@@ -41,8 +42,14 @@
 
 %% @doc Define array type.
 -spec type(avro_type_or_name()) -> array_type().
-type(Type) ->
-  #avro_array_type{type = avro_util:canonicalize_type_or_name(Type)}.
+type(Type) -> type(Type, []).
+
+%% @doc Define array type with custom properties.
+-spec type(avro_type_or_name(), [custom_prop()]) -> array_type().
+type(Type, CustomProps) ->
+  #avro_array_type{ type   = avro_util:canonicalize_type_or_name(Type)
+                  , custom = avro_util:canonicalize_custom_props(CustomProps)
+                  }.
 
 %% @doc Resolve children type's fullnames.
 -spec resolve_fullname(array_type(), namespace()) -> array_type().

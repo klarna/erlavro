@@ -33,6 +33,7 @@
         , to_list/1
         , to_term/1
         , type/1
+        , type/2
         ]).
 
 -export_type([data/0]).
@@ -53,8 +54,14 @@
 
 %% @doc Define a map type.
 -spec type(avro_type()) -> map_type().
-type(Type) ->
-  #avro_map_type{type = avro_util:canonicalize_type_or_name(Type)}.
+type(Type) -> type(Type, []).
+
+%% @doc Define a map type with given custom properties.
+-spec type(avro_type(), [custom_prop()]) -> map_type().
+type(Type, CustomProps) ->
+  #avro_map_type{ type   = avro_util:canonicalize_type_or_name(Type)
+                , custom = avro_util:canonicalize_custom_props(CustomProps)
+                }.
 
 %% @doc Resolve fullname by newly discovered enclosing namespace.
 -spec resolve_fullname(map_type(), namespace()) -> map_type().

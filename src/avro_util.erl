@@ -26,8 +26,10 @@
 
 %% API
 -export([ canonicalize_aliases/2
+        , canonicalize_custom_props/1
         , canonicalize_name/1
         , canonicalize_type_or_name/1
+        , delete_opts/2
         , ensure_binary/1
         , expand_type/2
         , flatten_type/1
@@ -53,6 +55,7 @@
 
 %%%_* APIs =====================================================================
 
+%% @doc Get prop from prop-list, 'error' exception if prop is not found.
 -spec get_opt(Key, [{Key, Value}]) -> Value | no_return()
         when Key :: atom() | binary(), Value :: term().
 get_opt(Key, Opts) ->
@@ -61,6 +64,7 @@ get_opt(Key, Opts) ->
     false        -> erlang:error({not_found, Key})
   end.
 
+%% @doc Get prop from prop-list, return the given Default if prop is not found.
 -spec get_opt(Key, [{Key, Value}], Value) -> Value
         when Key :: atom() | binary(), Value :: term().
 get_opt(Key, Opts, Default) ->
@@ -68,6 +72,35 @@ get_opt(Key, Opts, Default) ->
     {Key, Value} -> Value;
     false        -> Default
   end.
+
+%% @doc Delete props from prop-list.
+-spec delete_opts([{Key, Value}], [Key]) -> [{Key, Value}]
+        when Key :: atom() | binary(), Value :: term().
+delete_opts(KvList, Keys) ->
+  lists:foldl(fun(K, Acc) -> lists:keydelete(K, 1, Acc) end, KvList, Keys).
+
+%% @doc Ensure all keys and values are binary in custom properties.
+-spec canonicalize_custom_props([{KeyIn, ValueIn}]) -> [{KeyOut, ValueOut}]
+        when KeyIn :: name_raw(),
+             KeyOut :: name(),
+             ValueIn :: atom() | number() | string() | binary()
+                      | [atom() | string() | binary()],
+             ValueOut :: number() | binary() |  [number() | binary()].
+canonicalize_custom_props(Props0) ->
+  %% Filter out all type_prop_name() keys first
+  Props = delete_opts(Props0, [namespace, doc, aliases]),
+  CanonicalizeValue = fun(V) when is_number(V) -> V;
+                         (V)                   -> ensure_binary(V)
+                      end,
+  F = fun({K, V}) ->
+          Key = ensure_binary(K),
+          Val = case is_array(V) of
+                  true  -> lists:map(CanonicalizeValue, V);
+                  false -> CanonicalizeValue(V)
+                end,
+          {Key, Val}
+      end,
+  lists:map(F, Props).
 
 %% @doc Assert validity of a list of names.
 -spec verify_names([name_raw()]) -> ok | no_return().
@@ -330,6 +363,10 @@ tokens_ex([Delimiter|Rest], Delimiter) ->
 tokens_ex([C|Rest], Delimiter) ->
   [Token|Tail] = tokens_ex(Rest, Delimiter),
   [[C|Token]|Tail].
+
+%% @private Best-effort of arrary recognition.
+is_array([H | _]) -> not is_integer(H); %% a string
+is_array(_)       -> false.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

@@ -58,6 +58,7 @@ type(Name0, Size, Opts) ->
          , aliases   = avro_util:canonicalize_aliases(Aliases, Ns)
          , size      = Size
          , fullname  = avro:build_type_fullname(Name, Ns)
+         , custom    = avro_util:canonicalize_custom_props(Opts)
          },
   ok = avro_util:verify_type(Type),
   Type.
