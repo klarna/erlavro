@@ -85,7 +85,7 @@ new(Options) ->
   {Name, EtsOpts} =
     case avro_util:get_opt(name, Options, undefined) of
       undefined -> {?MODULE, []};
-      Name_     -> {Name_, [named_table]}
+      Name1     -> {Name1, [named_table]}
     end,
   ets:new(Name, [Access, {read_concurrency, true} | EtsOpts]).
 
@@ -156,17 +156,15 @@ add_type(Type, Store) when ?IS_STORE(Store) ->
 -spec add_type(undefined | name_raw(), avro_type(), store()) -> store().
 add_type(AssignedName, Type0, Store) when ?IS_STORE(Store) ->
   {Type, FlattenTypes} = avro:flatten_type(Type0),
-  case ?IS_NAME(Type) of
-    true ->
-      [Type1 | _] = FlattenTypes,
-      Store1 = do_add_type_by_names([?NAME(AssignedName)], Type1, Store),
-      lists:foldl(fun do_add_type/2, Store1, FlattenTypes);
-    false when AssignedName =/= undefined ->
-      Store1 = do_add_type_by_names([?NAME(AssignedName)], Type, Store),
-      lists:foldl(fun do_add_type/2, Store1, FlattenTypes);
-    false when AssignedName =:= undefined ->
-      erlang:error({unnamed_type, Type})
-  end.
+  %% Add the root type with assigned name.
+  %% Even when the flattened result is a name reference.
+  Store1 = add_by_assigned_name(AssignedName, Type, Store),
+  %% Exception when the root type is not named but assigned name is not given.
+  case ?IS_TYPE_RECORD(Type) andalso AssignedName =:= undefined of
+    true  -> erlang:error({unnamed_type, Type});
+    false -> ok
+  end,
+  lists:foldl(fun do_add_type/2, Store1, FlattenTypes).
 
 %% @doc Lookup a type using its full name.
 -spec lookup_type(name_raw(), store()) -> {ok, avro_type()} | false.
@@ -174,6 +172,15 @@ lookup_type(FullName, Store) when ?IS_STORE(Store) ->
   get_type_from_store(?NAME(FullName), Store).
 
 %%%_* Internal Functions =======================================================
+
+%% @private Add type by an assigned name.
+%% Except when assigned name is 'undefined'
+%% @end
+-spec add_by_assigned_name(undefined | name_raw(),
+                           type_or_name(), store()) -> store().
+add_by_assigned_name(undefined, _Type, Store) -> Store;
+add_by_assigned_name(AssignedName, Type, Store) ->
+  do_add_type_by_names([?NAME(AssignedName)], Type, Store).
 
 %% @private Parse file basename. try to strip ".avsc" or ".json" extension.
 -spec parse_basename(filename()) -> name().

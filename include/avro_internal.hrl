@@ -21,97 +21,27 @@
 
 -include("erlavro.hrl").
 
-%% Names of primitive types
--define(AVRO_NULL,    <<"null">>).
--define(AVRO_BOOLEAN, <<"boolean">>).
--define(AVRO_INT,     <<"int">>).
--define(AVRO_LONG,    <<"long">>).
--define(AVRO_FLOAT,   <<"float">>).
--define(AVRO_DOUBLE,  <<"double">>).
--define(AVRO_BYTES,   <<"bytes">>).
--define(AVRO_STRING,  <<"string">>).
-
-%% Other reserved types names
--define(AVRO_RECORD,  <<"record">>).
--define(AVRO_ENUM,    <<"enum">>).
--define(AVRO_ARRAY,   <<"array">>).
--define(AVRO_MAP,     <<"map">>).
--define(AVRO_UNION,   <<"union">>).
--define(AVRO_FIXED,   <<"fixed">>).
-
 -define(INT4_MIN, -2147483648).
 -define(INT4_MAX,  2147483647).
 
 -define(INT8_MIN, -9223372036854775808).
 -define(INT8_MAX,  9223372036854775807).
 
--define(NS_GLOBAL, <<"">>).
--define(NO_DOC, <<"">>).
+-define(NS_GLOBAL, ?AVRO_NS_GLOBAL).
+-define(NO_DOC, ?AVRO_NO_DOC).
 
--define(REQUIRED, erlang:error({required_field_missed, ?MODULE, ?LINE})).
-
--type avro_ordering() :: ascending | descending | ignore.
+-type ordering() :: ascending | descending | ignore.
 
 -record(avro_record_field,
-        { name      = ?REQUIRED  :: name()
-        , doc       = ?NS_GLOBAL :: typedoc()
-        , type      = ?REQUIRED  :: avro_type_or_name()
-        , default                :: undefined | avro:in() | avro_value()
-        , order     = ascending  :: avro_ordering()
-        , aliases   = []         :: [name()]
+        { name      = ?AVRO_REQUIRED :: name()
+        , doc       = ?NS_GLOBAL     :: typedoc()
+        , type      = ?AVRO_REQUIRED :: type_or_name()
+        , default                    :: undefined | avro:in() | avro_value()
+        , order     = ascending      :: ordering()
+        , aliases   = []             :: [name()]
         }).
 
 -type record_field() :: #avro_record_field{}.
-
-%% fullname of a primitive types is always equal to its name
--record(avro_primitive_type,
-        { name      = ?REQUIRED  :: name()
-        , custom    = []         :: [custom_prop()]
-        }).
-
--record(avro_record_type,
-        { name      = ?REQUIRED  :: name()
-        , namespace = ?NS_GLOBAL :: namespace()
-        , doc       = ?NO_DOC    :: typedoc()
-        , aliases   = []         :: [name()]
-        , fields    = ?REQUIRED  :: [record_field()]
-        , fullname  = ?REQUIRED  :: fullname()
-        , custom    = []         :: [custom_prop()]
-        }).
-
--record(avro_enum_type,
-        { name      = ?REQUIRED  :: name()
-        , namespace = ?NS_GLOBAL :: namespace()
-        , aliases   = []         :: [name()]
-        , doc       = ?NO_DOC    :: typedoc()
-        , symbols   = ?REQUIRED  :: [enum_symbol()]
-        , fullname  = ?REQUIRED  :: fullname()
-        , custom    = []         :: [custom_prop()]
-        }).
-
--record(avro_array_type,
-        { type      = ?REQUIRED  :: avro_type_or_name()
-        , custom    = []         :: [custom_prop()]
-        }).
-
--record(avro_map_type,
-        { type      = ?REQUIRED  :: avro_type_or_name()
-        , custom    = []         :: [custom_prop()]
-        }).
-
--record(avro_union_type,
-        { id2type   = ?REQUIRED  :: avro_union:id2type()
-        , name2id   = ?REQUIRED  :: avro_union:name2id()
-        }).
-
--record(avro_fixed_type,
-        { name      = ?REQUIRED  :: name()
-        , namespace = ?NS_GLOBAL :: namespace()
-        , aliases   = []         :: [name()]
-        , size      = ?REQUIRED  :: integer()
-        , fullname  = ?REQUIRED  :: fullname()
-        , custom    = []         :: [custom_prop()]
-        }).
 
 -type primitive_type() :: #avro_primitive_type{}.
 -type array_type() :: #avro_array_type{}.
@@ -129,24 +59,12 @@
                     | record_type()
                     | union_type().
 
--type avro_type_or_name() :: avro_type() | name_raw().
+-type type_or_name() :: avro_type() | name_raw().
 
 -type custom_prop_name() :: binary().
 %% No plan to support recursive definition
 -type custom_prop_value() :: number() | binary() | [binary()].
 -type custom_prop() :: {custom_prop_name(), custom_prop_value()}.
-
--define(IS_PRIMITIVE_NAME(N),
-        (N =:= ?AVRO_NULL    orelse
-         N =:= ?AVRO_BOOLEAN orelse
-         N =:= ?AVRO_INT     orelse
-         N =:= ?AVRO_LONG    orelse
-         N =:= ?AVRO_STRING  orelse
-         N =:= ?AVRO_FLOAT   orelse
-         N =:= ?AVRO_DOUBLE  orelse
-         N =:= ?AVRO_BYTES)).
-
--define(IS_AVRO_TYPE(T), is_tuple(T)).
 
 -define(NAME(X), avro_util:canonicalize_name(X)).
 -define(DOC(X), unicode:characters_to_binary(X, utf8)).
@@ -180,118 +98,66 @@
 
 %% Type checks
 
--define(AVRO_IS_PRIMITIVE_TYPE(Type), is_record(Type, avro_primitive_type)).
+-define(IS_PRIMITIVE_TYPE(Type), is_record(Type, avro_primitive_type)).
 
--define(AVRO_IS_NULL_TYPE(Type),
-        ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+-define(IS_NULL_TYPE(Type),
+        ?IS_PRIMITIVE_TYPE(Type) andalso
         Type#avro_primitive_type.name =:= ?AVRO_NULL).
 
--define(AVRO_IS_BOOLEAN_TYPE(Type),
-        ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+-define(IS_BOOLEAN_TYPE(Type),
+        ?IS_PRIMITIVE_TYPE(Type) andalso
         Type#avro_primitive_type.name =:= ?AVRO_BOOLEAN).
 
--define(AVRO_IS_INT_TYPE(Type),
-        ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+-define(IS_INT_TYPE(Type),
+        ?IS_PRIMITIVE_TYPE(Type) andalso
         Type#avro_primitive_type.name =:= ?AVRO_INT).
 
--define(AVRO_IS_LONG_TYPE(Type),
-        ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+-define(IS_LONG_TYPE(Type),
+        ?IS_PRIMITIVE_TYPE(Type) andalso
         Type#avro_primitive_type.name =:= ?AVRO_LONG).
 
--define(AVRO_IS_FLOAT_TYPE(Type),
-        ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+-define(IS_FLOAT_TYPE(Type),
+        ?IS_PRIMITIVE_TYPE(Type) andalso
         Type#avro_primitive_type.name =:= ?AVRO_FLOAT).
 
--define(AVRO_IS_DOUBLE_TYPE(Type),
-        ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+-define(IS_DOUBLE_TYPE(Type),
+        ?IS_PRIMITIVE_TYPE(Type) andalso
         Type#avro_primitive_type.name =:= ?AVRO_DOUBLE).
 
--define(AVRO_IS_BYTES_TYPE(Type),
-        ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+-define(IS_BYTES_TYPE(Type),
+        ?IS_PRIMITIVE_TYPE(Type) andalso
         Type#avro_primitive_type.name =:= ?AVRO_BYTES).
 
--define(AVRO_IS_STRING_TYPE(Type),
-        ?AVRO_IS_PRIMITIVE_TYPE(Type) andalso
+-define(IS_STRING_TYPE(Type),
+        ?IS_PRIMITIVE_TYPE(Type) andalso
         Type#avro_primitive_type.name =:= ?AVRO_STRING).
 
--define(AVRO_IS_RECORD_TYPE(Type), is_record(Type, avro_record_type)).
+-define(IS_RECORD_TYPE(Type), is_record(Type, avro_record_type)).
+-define(IS_ENUM_TYPE(Type),   is_record(Type, avro_enum_type)).
+-define(IS_ARRAY_TYPE(Type),  is_record(Type, avro_array_type)).
+-define(IS_MAP_TYPE(Type),    is_record(Type, avro_map_type)).
+-define(IS_UNION_TYPE(Type),  is_record(Type, avro_union_type)).
+-define(IS_FIXED_TYPE(Type),  is_record(Type, avro_fixed_type)).
 
--define(AVRO_IS_ENUM_TYPE(Type), is_record(Type, avro_enum_type)).
+-define(IS_TYPE_RECORD(Type), is_tuple(Type)).
 
--define(AVRO_IS_ARRAY_TYPE(Type), is_record(Type, avro_array_type)).
-
--define(AVRO_IS_MAP_TYPE(Type), is_record(Type, avro_map_type)).
-
--define(AVRO_IS_UNION_TYPE(Type), is_record(Type, avro_union_type)).
-
--define(AVRO_IS_FIXED_TYPE(Type), is_record(Type, avro_fixed_type)).
-
-%% Values checks
-
--define(AVRO_IS_NULL_VALUE(Value), ?AVRO_IS_NULL_TYPE(
-                                      ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_BOOLEAN_VALUE(Value), ?AVRO_IS_BOOLEAN_TYPE(
-                                         ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_INT_VALUE(Value), ?AVRO_IS_INT_TYPE(
-                                     ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_LONG_VALUE(Value), ?AVRO_IS_LONG_TYPE(
-                                      ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_FLOAT_VALUE(Value), ?AVRO_IS_FLOAT_TYPE(
-                                       ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_DOUBLE_VALUE(Value), ?AVRO_IS_DOUBLE_TYPE(
-                                        ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_BYTES_VALUE(Value), ?AVRO_IS_BYTES_TYPE(
-                                       ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_STRING_VALUE(Value), ?AVRO_IS_STRING_TYPE(
-                                        ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_RECORD_VALUE(Value), ?AVRO_IS_RECORD_TYPE(
-                                        ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_ENUM_VALUE(Value), ?AVRO_IS_ENUM_TYPE(
-                                      ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_ARRAY_VALUE(Value), ?AVRO_IS_ARRAY_TYPE(
-                                       ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_MAP_VALUE(Value), ?AVRO_IS_MAP_TYPE(
-                                     ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_UNION_VALUE(Value), ?AVRO_IS_UNION_TYPE(
-                                       ?AVRO_VALUE_TYPE(Value))).
-
--define(AVRO_IS_FIXED_VALUE(Value), ?AVRO_IS_FIXED_TYPE(
-                                       ?AVRO_VALUE_TYPE(Value))).
-
-%% avro_encoded_value() can be used as a nested inner value of
-%% a parent avor_value(), but can not be used for further update or
-%% inspection using APIs in avro_xxx modules.
--type avro_encoded_value() :: #avro_value{}.
-
--type dec_in() :: term(). %% binary() | decoded json struct / raw value
--type dec_out() :: term(). %% decoded raw value or #avro_value{}
+-define(IS_PRIMITIVE_VALUE(Value), ?IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value))).
+-define(IS_RECORD_VALUE(Value),    ?IS_RECORD_TYPE(?AVRO_VALUE_TYPE(Value))).
+-define(IS_ENUM_VALUE(Value),      ?IS_ENUM_TYPE(?AVRO_VALUE_TYPE(Value))).
+-define(IS_ARRAY_VALUE(Value),     ?IS_ARRAY_TYPE(?AVRO_VALUE_TYPE(Value))).
+-define(IS_MAP_VALUE(Value),       ?IS_MAP_TYPE(?AVRO_VALUE_TYPE(Value))).
+-define(IS_UNION_VALUE(Value),     ?IS_UNION_TYPE(?AVRO_VALUE_TYPE(Value))).
+-define(IS_FIXED_VALUE(Value),     ?IS_FIXED_TYPE(?AVRO_VALUE_TYPE(Value))).
 
 -type decoder_hook_fun() ::
-        fun((avro_type(), name() | integer(), dec_in(),
-            fun((dec_in()) -> dec_out())) -> dec_out()).
+        fun((avro_type(), name() | integer(), avro:in(),
+            fun((avro:in()) -> avro:out())) -> avro:out()).
 
 %% By default, the hook fun does nothing else but calling the decode function.
 -define(DEFAULT_DECODER_HOOK,
         fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
 
 -define(AVRO_SCHEMA_LOOKUP_FUN(Store), avro_schema_store:to_lookup_fun(Store)).
-
--define(AVRO_ENCODED_VALUE_JSON(Type, Value),
-        ?AVRO_VALUE(Type, {json, Value})).
--define(AVRO_ENCODED_VALUE_BINARY(Type, Value),
-        ?AVRO_VALUE(Type, {binary, Value})).
 
 %% Throw an exception in case the value is already encoded.
 -define(ASSERT_AVRO_VALUE(VALUE),

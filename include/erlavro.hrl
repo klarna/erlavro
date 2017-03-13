@@ -16,11 +16,94 @@
 %%% under the License.
 %%%-----------------------------------------------------------------------------
 
+%% Include for decoder hook implementation.
+
 -ifndef(_ERLAVRO_HRL_).
 -define(_ERLAVRO_HRL_, true).
 
+%% Names of primitive types
+-define(AVRO_NULL,    <<"null">>).
+-define(AVRO_BOOLEAN, <<"boolean">>).
+-define(AVRO_INT,     <<"int">>).
+-define(AVRO_LONG,    <<"long">>).
+-define(AVRO_FLOAT,   <<"float">>).
+-define(AVRO_DOUBLE,  <<"double">>).
+-define(AVRO_BYTES,   <<"bytes">>).
+-define(AVRO_STRING,  <<"string">>).
+%% Other reserved types names
+-define(AVRO_RECORD,  <<"record">>).
+-define(AVRO_ENUM,    <<"enum">>).
+-define(AVRO_ARRAY,   <<"array">>).
+-define(AVRO_MAP,     <<"map">>).
+-define(AVRO_UNION,   <<"union">>).
+-define(AVRO_FIXED,   <<"fixed">>).
+
+-define(IS_AVRO_PRIMITIVE_NAME(N),
+        (N =:= ?AVRO_NULL    orelse
+         N =:= ?AVRO_BOOLEAN orelse
+         N =:= ?AVRO_INT     orelse
+         N =:= ?AVRO_LONG    orelse
+         N =:= ?AVRO_STRING  orelse
+         N =:= ?AVRO_FLOAT   orelse
+         N =:= ?AVRO_DOUBLE  orelse
+         N =:= ?AVRO_BYTES)).
+
+-define(AVRO_REQUIRED, erlang:error({required_field_missed, ?MODULE, ?LINE})).
+
+-define(AVRO_NS_GLOBAL, <<"">>).
+-define(AVRO_NO_DOC, <<"">>).
+
+-record(avro_primitive_type,
+        { name      = ?AVRO_REQUIRED  :: avro:name()
+        , custom    = []              :: [avro:custom_prop()]
+        }).
+
+-record(avro_record_type,
+        { name      = ?AVRO_REQUIRED  :: avro:name()
+        , namespace = ?AVRO_NS_GLOBAL :: avro:namespace()
+        , doc       = ?AVRO_NO_DOC    :: avro:typedoc()
+        , aliases   = []              :: [avro:name()]
+        , fields    = ?AVRO_REQUIRED  :: [avro:record_field()]
+        , fullname  = ?AVRO_REQUIRED  :: avro:fullname()
+        , custom    = []              :: [avro:custom_prop()]
+        }).
+
+-record(avro_enum_type,
+        { name      = ?AVRO_REQUIRED  :: avro:name()
+        , namespace = ?AVRO_NS_GLOBAL :: avro:namespace()
+        , aliases   = []              :: [avro:name()]
+        , doc       = ?AVRO_NO_DOC    :: avro:typedoc()
+        , symbols   = ?AVRO_REQUIRED  :: [avro:enum_symbol()]
+        , fullname  = ?AVRO_REQUIRED  :: avro:fullname()
+        , custom    = []              :: [avro:custom_prop()]
+        }).
+
+-record(avro_array_type,
+        { type      = ?AVRO_REQUIRED  :: avro:type_or_name()
+        , custom    = []              :: [avro:custom_prop()]
+        }).
+
+-record(avro_map_type,
+        { type      = ?AVRO_REQUIRED  :: avro:type_or_name()
+        , custom    = []              :: [avro:custom_prop()]
+        }).
+
+-record(avro_union_type,
+        { id2type   = ?AVRO_REQUIRED  :: avro_union:id2type()
+        , name2id   = ?AVRO_REQUIRED  :: avro_union:name2id()
+        }).
+
+-record(avro_fixed_type,
+        { name      = ?AVRO_REQUIRED  :: avro:name()
+        , namespace = ?AVRO_NS_GLOBAL :: avro:namespace()
+        , aliases   = []              :: [avro:name()]
+        , size      = ?AVRO_REQUIRED  :: pos_integer()
+        , fullname  = ?AVRO_REQUIRED  :: avro:fullname()
+        , custom    = []              :: [avro:custom_prop()]
+        }).
+
 -record(avro_value,
-        { type :: avro:avro_type_or_name()
+        { type :: avro:type_or_name()
         , data :: avro:avro_value()
         }).
 
@@ -38,6 +121,11 @@
 -define(AVRO_VALUE_DATA(Value), Value#avro_value.data).
 
 -type avro_encoding() :: avro_json | avro_binary.
+
+-define(AVRO_ENCODED_VALUE_JSON(Type, Value),
+        ?AVRO_VALUE(Type, {json, Value})).
+-define(AVRO_ENCODED_VALUE_BINARY(Type, Value),
+        ?AVRO_VALUE(Type, {binary, Value})).
 
 -endif.
 

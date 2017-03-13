@@ -41,11 +41,11 @@
 %%%_* APIs =====================================================================
 
 %% @doc Define array type.
--spec type(avro_type_or_name()) -> array_type().
+-spec type(type_or_name()) -> array_type().
 type(Type) -> type(Type, []).
 
 %% @doc Define array type with custom properties.
--spec type(avro_type_or_name(), [custom_prop()]) -> array_type().
+-spec type(type_or_name(), [custom_prop()]) -> array_type().
 type(Type, CustomProps) ->
   #avro_array_type{ type   = avro_util:canonicalize_type_or_name(Type)
                   , custom = avro_util:canonicalize_custom_props(CustomProps)
@@ -58,7 +58,7 @@ resolve_fullname(#avro_array_type{type = SubType} = T, Ns) ->
 
 %% @doc Get array element type.
 -spec get_items_type(array_type()) -> avro_type().
-get_items_type(ArrayType) when ?AVRO_IS_ARRAY_TYPE(ArrayType) ->
+get_items_type(ArrayType) when ?IS_ARRAY_TYPE(ArrayType) ->
   ArrayType#avro_array_type.type.
 
 %% @doc Create a wrapped (boxed) empty array avro value.
@@ -68,7 +68,7 @@ new(Type) ->
 
 %% @doc Create a wrapped (boxed) avro value with given array data.
 -spec new(array_type(), [term()]) -> avro_value() | no_return().
-new(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+new(Type, List) when ?IS_ARRAY_TYPE(Type) ->
   case cast(Type, List) of
     {ok, Value}  -> Value;
     {error, Err} -> erlang:error(Err)
@@ -79,17 +79,17 @@ new(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
 %% types one more time during casting. Should only be used inside erlavro.
 %% @end
 -spec new_direct(array_type(), [avro:in()]) -> avro_value().
-new_direct(Type, List) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+new_direct(Type, List) when ?IS_ARRAY_TYPE(Type) ->
   ?AVRO_VALUE(Type, List).
 
 %% @doc Returns array contents as a list of avro values.
 -spec get_items(avro_value()) -> [avro_value()].
-get_items(Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
+get_items(Value) when ?IS_ARRAY_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
 
 %% @doc Prepend elements to the array.
 -spec prepend([term()], avro_value()) -> avro_value() | no_return().
-prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
+prepend(Items0, Value) when ?IS_ARRAY_VALUE(Value) ->
   Type = ?AVRO_VALUE_TYPE(Value),
   Data = ?AVRO_VALUE_DATA(Value),
   #avro_array_type{type = ItemType} = Type,
@@ -98,16 +98,16 @@ prepend(Items0, Value) when ?AVRO_IS_ARRAY_VALUE(Value) ->
 
 %% @hidden Only other Avro array type or erlang list can be casted to arrays.
 -spec cast(array_type(), [avro:in()]) -> {ok, avro_value()} | {error, term()}.
-cast(Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+cast(Type, Value) when ?IS_ARRAY_TYPE(Type) ->
   do_cast(Type, Value).
 
 %% @hidden Recursively unbox typed value.
 -spec to_term(avro_value()) -> list().
-to_term(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
+to_term(Array) when ?IS_ARRAY_VALUE(Array) ->
   [ avro:to_term(Item) || Item <- ?AVRO_VALUE_DATA(Array) ].
 
 %% @hidden Encoder help function. For internal use only.
--spec encode(avro_type_or_name(), list(), fun()) -> list().
+-spec encode(type_or_name(), list(), fun()) -> list().
 encode(Type, Value, EncodeFun) ->
   ItemsType = avro_array:get_items_type(Type),
   lists:map(fun(Element) -> EncodeFun(ItemsType, Element) end, Value).
@@ -117,7 +117,7 @@ encode(Type, Value, EncodeFun) ->
 %%%===================================================================
 
 %% @private
--spec do_cast(#avro_array_type{}, [avro:in()]) ->
+-spec do_cast(array_type(), [avro:in()]) ->
         {ok, avro_value()} | {error, term()}.
 do_cast(Type, Items) when is_list(Items) ->
   #avro_array_type{type = ItemType} = Type,

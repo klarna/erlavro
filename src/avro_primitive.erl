@@ -56,7 +56,7 @@
 -spec type(name_raw(), [custom_prop()]) -> primitive_type().
 type(Name0, CustomProps) ->
   Name = ?NAME(Name0),
-  case ?IS_PRIMITIVE_NAME(Name) of
+  case ?IS_AVRO_PRIMITIVE_NAME(Name) of
     true ->
       Custom = avro_util:canonicalize_custom_props(CustomProps),
       #avro_primitive_type{ name   = Name
@@ -87,35 +87,35 @@ string_type()  -> type(?AVRO_STRING, []).
 %%%===================================================================
 
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
-cast(Type, null) when ?AVRO_IS_NULL_TYPE(Type) ->
+cast(Type, null) when ?IS_NULL_TYPE(Type) ->
   {ok, ?AVRO_VALUE(Type, null)};
-cast(Type, Value) when ?AVRO_IS_BOOLEAN_TYPE(Type) andalso
+cast(Type, Value) when ?IS_BOOLEAN_TYPE(Type) andalso
                        is_boolean(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-cast(Type, Value) when ?AVRO_IS_INT_TYPE(Type) andalso
+cast(Type, Value) when ?IS_INT_TYPE(Type) andalso
                        Value >= ?INT4_MIN andalso
                        Value =< ?INT4_MAX ->
   {ok, ?AVRO_VALUE(Type, Value)};
-cast(Type, Value) when ?AVRO_IS_LONG_TYPE(Type) andalso
+cast(Type, Value) when ?IS_LONG_TYPE(Type) andalso
                        Value >= ?INT8_MIN andalso
                        Value =< ?INT8_MAX ->
   {ok, ?AVRO_VALUE(Type, Value)};
-cast(Type, Value) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
+cast(Type, Value) when ?IS_FLOAT_TYPE(Type) andalso
                        is_integer(Value) ->
   {ok, ?AVRO_VALUE(Type, erlang:float(Value))};
-cast(Type, Value) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
+cast(Type, Value) when ?IS_FLOAT_TYPE(Type) andalso
                        is_float(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
+cast(Type, Value) when ?IS_DOUBLE_TYPE(Type) andalso
                        is_integer(Value) ->
   {ok, ?AVRO_VALUE(Type, erlang:float(Value))};
-cast(Type, Value) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
+cast(Type, Value) when ?IS_DOUBLE_TYPE(Type) andalso
                        is_float(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-cast(Type, Value) when ?AVRO_IS_BYTES_TYPE(Type) andalso
+cast(Type, Value) when ?IS_BYTES_TYPE(Type) andalso
                        is_binary(Value) ->
   {ok, ?AVRO_VALUE(Type, Value)};
-cast(Type, Value) when ?AVRO_IS_STRING_TYPE(Type) andalso
+cast(Type, Value) when ?IS_STRING_TYPE(Type) andalso
                        (is_list(Value) orelse is_binary(Value)) ->
   {ok, ?AVRO_VALUE(Type, erlang:iolist_to_binary(Value))};
 cast(Type, Value) -> {error, {type_mismatch, Type, Value}}.
@@ -142,7 +142,7 @@ string(Value) -> from_cast(cast(string_type(), Value)).
 
 %% Get underlying erlang value from an Avro primitive value
 -spec get_value(avro_value()) -> canonicalized_value().
-get_value(Value) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
+get_value(Value) when ?IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(Value)) ->
   ?AVRO_VALUE_DATA(Value).
 
 %%%===================================================================

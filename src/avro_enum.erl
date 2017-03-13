@@ -94,7 +94,7 @@ resolve_fullname(#avro_enum_type{ fullname = Fullname
 %% @doc Create a enum wrapped (boxed) value.
 -spec new(enum_type(), avro_value() | symbol_raw()) ->
         avro_value() | no_return().
-new(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
+new(Type, Value) when ?IS_ENUM_TYPE(Type) ->
   case cast(Type, Value) of
     {ok, Rec}    -> Rec;
     {error, Err} -> erlang:error(Err)
@@ -102,12 +102,12 @@ new(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
 
 %% @doc Get the enum symbol.
 -spec get_value(avro_value()) -> symbol().
-get_value(Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
+get_value(Value) when ?IS_ENUM_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
 
 %% @doc Get symbol index from boxed value.
 -spec get_index(avro_value()) -> index().
-get_index(Value) when ?AVRO_IS_ENUM_VALUE(Value) ->
+get_index(Value) when ?IS_ENUM_VALUE(Value) ->
   Type = ?AVRO_VALUE_TYPE(Value),
   Symbol = ?AVRO_VALUE_DATA(Value),
   get_index(Type, Symbol).
@@ -119,13 +119,13 @@ get_index(Type, Symbol) ->
 
 %% @doc Find symbol from index.
 -spec get_symbol_from_index(enum_type(), index()) -> symbol().
-get_symbol_from_index(T, Index) when ?AVRO_IS_ENUM_TYPE(T) ->
+get_symbol_from_index(T, Index) when ?IS_ENUM_TYPE(T) ->
   true = (Index < length(T#avro_enum_type.symbols)),
   lists:nth(Index + 1, T#avro_enum_type.symbols).
 
 %% @doc Enums can be casted from other enums or strings.
 -spec cast(avro_type(), symbol_raw()) -> {ok, avro_value()} | {error, term()}.
-cast(Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
+cast(Type, Value) when ?IS_ENUM_TYPE(Type) ->
   do_cast(Type, Value).
 
 %%%===================================================================

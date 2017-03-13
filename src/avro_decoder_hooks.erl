@@ -67,7 +67,7 @@
         , print_debug_trace/2
         ]).
 
--include("avro_internal.hrl").
+-include("erlavro.hrl").
 
 -define(PD_PP_INDENTATION, '$avro_decoder_pp_indentation').
 -define(PD_DECODER_HIST, '$avro_decoder_hist').
@@ -80,7 +80,7 @@
 %% This hook function is to tag union values with union type names
 %% NOTE: null values are not tagged
 %% @end
--spec tag_unions() -> decoder_hook_fun().
+-spec tag_unions() -> avro:decoder_hook_fun().
 tag_unions() -> fun tag_unions/4.
 
 %% @doc This hook is useful when a decoder has failed on decoding,
@@ -89,7 +89,8 @@ tag_unions() -> fun tag_unions/4.
 %% NOTE: Always call this API to retrieve the hook, never save the hook
 %%       and re-use for different decode attempts
 %% @end.
--spec print_debug_trace(fun((iodata()) -> ok), count()) -> decoder_hook_fun().
+-spec print_debug_trace(fun((iodata()) -> ok), count()) ->
+        avro:decoder_hook_fun().
 print_debug_trace(PrintFun, MaxHistoryLength) ->
   ok = erase_hist(),
   fun(T, Sub, Data, DecodeFun) ->
@@ -99,7 +100,7 @@ print_debug_trace(PrintFun, MaxHistoryLength) ->
 %% @doc This hook prints the type tree with indentation, and the leaf values
 %% to the current group leader.
 %% @end
--spec pretty_print_hist() -> decoder_hook_fun().
+-spec pretty_print_hist() -> avro:decoder_hook_fun().
 pretty_print_hist() ->
   _ = erase(?PD_PP_INDENTATION),
   fun(T, SubInfo, Data, DecodeFun) ->
@@ -120,7 +121,7 @@ pretty_print_hist() ->
           _                    -> "\n"
         end
       ],
-    io:format("~s", [ToPrint]),
+    io:put_chars(user, ToPrint),
     _ = put(?PD_PP_INDENTATION, Indentation + 1),
     DecodeResult = DecodeFun(Data),
     ResultToPrint = get_pretty_print_result(DecodeResult),
@@ -132,7 +133,7 @@ pretty_print_hist() ->
 %%%_* Internal functions =======================================================
 
 %% @private
-tag_unions(T, SubInfo, DecodeIn, DecodeFun) when ?AVRO_IS_UNION_TYPE(T) ->
+tag_unions(#avro_union_type{} = T, SubInfo, DecodeIn, DecodeFun) ->
   Result = DecodeFun(DecodeIn),
   Name = get_union_member_name(T, SubInfo),
   case Result of
@@ -151,16 +152,16 @@ tag_unions(_T, _SubInfo, DecodeIn, DecodeFun) ->
 get_union_member_name(Type, Id) when is_integer(Id) ->
   %% when decoding avro binary, lookup member name by union member index.
   {ok, ChildType} = avro_union:lookup_type(Id, Type),
-  case ?IS_NAME(ChildType) of
+  case is_binary(ChildType) of
     true  -> ChildType;
     false -> avro:get_type_fullname(ChildType)
   end;
-get_union_member_name(_Type, Name) when ?IS_NAME(Name) ->
+get_union_member_name(_Type, Name) when is_binary(Name) ->
   %% when decoding JSON, the value is already tagged with union member name
   Name.
 
 %% @private Never tag primitives and unnamed complex types.
-maybe_tag(N, Value) when ?IS_PRIMITIVE_NAME(N) -> Value;
+maybe_tag(N, Value) when ?IS_AVRO_PRIMITIVE_NAME(N) -> Value;
 maybe_tag(?AVRO_ARRAY, Value) -> Value;
 maybe_tag(?AVRO_MAP, Value) -> Value;
 maybe_tag(Name, Value) -> {Name, Value}.
@@ -228,7 +229,7 @@ print_trace(PrintFun, HistCount) ->
 %% Return the type stack and last N decode history entries as iodata().
 %% @end
 -spec format_trace(TraceHist :: [trace_hist_entry()],
-                   TypeStack :: [{name(), atom() | string() | integer()}],
+                   TypeStack :: [{avro:name(), atom() | string() | integer()}],
                    FormattedTrace :: iodata(),
                    MaxHistEntryCount :: count()) -> {iodata(), iodata()}.
 format_trace([], Stack, Hist, _HistCount) ->
@@ -240,7 +241,7 @@ format_trace([{push, Name, Sub} | Rest], Stack, Hist, HistCount) ->
                 []                   -> "";
                 none                 -> "";
                 I when is_integer(I) -> [".", integer_to_list(I)];
-                S when ?IS_NAME(S)   -> [".", S]
+                S when is_binary(S)  -> [".", S]
               end, "\n"]),
   NewHist = lists:sublist([Line | Hist], HistCount),
   format_trace(Rest, [{Name, Sub} | Stack], NewHist, HistCount);
@@ -266,7 +267,7 @@ get_pretty_print_result({Result, Tail}) when is_binary(Tail) ->
 %% @private
 pretty_print_result(_Sub = [], Result, _IndentationStr) ->
   %% print the value if it's a leaf in the type tree
-  io:format("~1000000p\n", [Result]);
+  io:put_chars(user, [io_lib:print(Result)]);
 pretty_print_result(_Sub, _Result, _IndentationStr) ->
   ok.
 
