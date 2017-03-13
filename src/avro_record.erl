@@ -101,12 +101,12 @@ resolve_fullname(#avro_record_type{ fullname  = FullName
                     }.
 
 %% @doc Define a record field with default properties.
--spec define_field(name_raw(), avro_type_or_name()) -> record_field().
+-spec define_field(name_raw(), type_or_name()) -> record_field().
 define_field(Name, Type) ->
   define_field(Name, Type, []).
 
 %% @doc Define a record field.
--spec define_field(name_raw(), avro_type_or_name(), field_opts()) ->
+-spec define_field(name_raw(), type_or_name(), field_opts()) ->
         record_field().
 define_field(Name, Type0, Opts) ->
   Type = avro_util:canonicalize_type_or_name(Type0),
@@ -129,7 +129,7 @@ define_field(Name, Type0, Opts) ->
 %% @end
 -spec get_field_type(field_name_raw(), record_type()) ->
         avro_type() | no_return().
-get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
+get_field_type(FieldName, Type) when ?IS_RECORD_TYPE(Type) ->
   case get_field_def(FieldName, Type) of
     {ok, #avro_record_field{type = FieldType}} -> FieldType;
     false -> erlang:error({unknown_field, FieldName})
@@ -139,8 +139,8 @@ get_field_type(FieldName, Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
 %% with filed name and field type zipped.
 %% @end
 -spec get_all_field_types(record_type()) ->
-        [{field_name(), avro_type_or_name()}].
-get_all_field_types(Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
+        [{field_name(), type_or_name()}].
+get_all_field_types(Type) when ?IS_RECORD_TYPE(Type) ->
   #avro_record_type{fields = Fields} = Type,
   lists:map(
     fun(#avro_record_field{ name = FieldName
@@ -153,11 +153,11 @@ get_all_field_types(Type) when ?AVRO_IS_RECORD_TYPE(Type) ->
 
 -spec cast(avro_type(), [{field_name_raw(), avro:in()}]) ->
         {ok, avro_value()} | {error, any()}.
-cast(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+cast(Type, Value) when ?IS_RECORD_TYPE(Type) ->
   do_cast(Type, Value).
 
 -spec new(record_type(), avro:in()) -> avro_value().
-new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+new(Type, Value) when ?IS_RECORD_TYPE(Type) ->
   case cast(Type, Value) of
     {ok, Rec}    -> Rec;
     {error, Err} -> erlang:error(Err)
@@ -166,7 +166,7 @@ new(Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
 -spec get_value(field_name_raw(), avro_value()) -> avro_value() | no_return().
 get_value(FieldName, Record) when not ?IS_NAME(FieldName) ->
   get_value(?NAME(FieldName), Record);
-get_value(FieldName, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+get_value(FieldName, Record) when ?IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
   case lists:keyfind(FieldName, 1, Data) of
@@ -190,7 +190,7 @@ set_values(Values, Record) ->
         avro_value() | no_return().
 set_value(FieldName, Value, Record) when not ?IS_NAME(FieldName) ->
   set_value(?NAME(FieldName), Value, Record);
-set_value(FieldName, Value, Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+set_value(FieldName, Value, Record) when ?IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
   UpdateFun = fun(_OldFieldValue) -> Value end,
@@ -223,14 +223,14 @@ update(FieldName, Fun, Record) ->
 
 %% @doc Extract fields and their values from the record.
 -spec to_list(avro_value()) -> [{field_name(), avro_value()}].
-to_list(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+to_list(Record) when ?IS_RECORD_VALUE(Record) ->
   Data = ?AVRO_VALUE_DATA(Record),
   ok = ?ASSERT_AVRO_VALUE(Data),
   Data.
 
 %% @doc Recursively unbox field values.
 -spec to_term(avro_value()) -> avro:out().
-to_term(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+to_term(Record) when ?IS_RECORD_VALUE(Record) ->
   lists:map(fun({N, V}) -> {N, avro:to_term(V)} end, to_list(Record)).
 
 %% @hidden Help function for JSON/binary encoder.
@@ -251,8 +251,8 @@ encode(Type, Fields, EncodeFun) ->
 %% their fullnames need to be resolved with THIS record type's namespace
 %% as enclosing namespace.
 %% @end
--spec resolve_field_type_fullnames([#avro_record_field{}], namespace()) ->
-        [#avro_record_field{}].
+-spec resolve_field_type_fullnames([record_field()], namespace()) ->
+        [record_field()].
 resolve_field_type_fullnames(Fields, Ns) ->
   F = fun(#avro_record_field{type = Type} = Field) ->
           Field#avro_record_field{type = avro:resolve_fullname(Type, Ns)}

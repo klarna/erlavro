@@ -49,7 +49,7 @@
 %%%_* APIs =====================================================================
 
 %% @doc decode/4 equivalent with default hook fun.
--spec decode(iodata(), avro_type_or_name(),
+-spec decode(iodata(), type_or_name(),
              schema_store() | lkup_fun()) -> avro:out().
 decode(IoData, Type, StoreOrLkupFun) ->
   decode(IoData, Type, StoreOrLkupFun, ?DEFAULT_DECODER_HOOK).
@@ -57,7 +57,7 @@ decode(IoData, Type, StoreOrLkupFun) ->
 %% @doc Decode bytes into unwrapped avro value, assuming the input bytes
 %% matches the given schema without tailing bytes.
 %% @end
--spec decode(iodata(), avro_type_or_name(),
+-spec decode(iodata(), type_or_name(),
              schema_store() | lkup_fun(), hook()) -> avro:out().
 decode(IoData, Type, StoreOrLkupFun, Hook) ->
   %% return decoded value as raw erlang term directly
@@ -65,7 +65,7 @@ decode(IoData, Type, StoreOrLkupFun, Hook) ->
   Value.
 
 %% @doc decode_stream/4 equivalent with default hook fun.
--spec decode_stream(iodata(), avro_type_or_name(),
+-spec decode_stream(iodata(), type_or_name(),
                     schema_store() | lkup_fun()) ->
         {avro:out(), binary()}.
 decode_stream(IoData, Type, StoreOrLkupFun) ->
@@ -74,7 +74,7 @@ decode_stream(IoData, Type, StoreOrLkupFun) ->
 %% @doc Decode the header of a byte stream, return unwrapped value and tail
 %% bytes in a tuple.
 %% @end
--spec decode_stream(iodata(), avro_type_or_name(),
+-spec decode_stream(iodata(), type_or_name(),
                     schema_store() | lkup_fun(), hook()) ->
         {avro:out(), binary()}.
 decode_stream(IoData, Type, StoreOrLkupFun, Hook) ->
@@ -83,7 +83,7 @@ decode_stream(IoData, Type, StoreOrLkupFun, Hook) ->
 %%%_* Internal functions =======================================================
 
 %% @private
--spec do_decode(iodata(), avro_type_or_name(),
+-spec do_decode(iodata(), type_or_name(),
                 schema_store() | lkup_fun(), hook()) -> {avro:out(), binary()}.
 do_decode(IoData, Type, Store, Hook) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
@@ -97,42 +97,38 @@ do_decode(Bin, Type, Lkup, Hook) when is_function(Hook, 4) ->
 
 %% @private
 -spec dec(binary(), avro_type(), lkup_fun(), hook()) -> {avro:out(), binary()}.
-dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_PRIMITIVE_TYPE(T) ->
+dec(Bin, T, _Lkup, Hook) when ?IS_PRIMITIVE_TYPE(T) ->
   Hook(T, "", Bin, fun(B) -> prim(B, T#avro_primitive_type.name) end);
-dec(Bin, T, Lkup, Hook) when ?AVRO_IS_RECORD_TYPE(T) ->
+dec(Bin, T, Lkup, Hook) when ?IS_RECORD_TYPE(T) ->
   Hook(T, none, Bin, fun(B) -> dec_record(B, T, Lkup, Hook) end);
-dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_ENUM_TYPE(T) ->
+dec(Bin, T, _Lkup, Hook) when ?IS_ENUM_TYPE(T) ->
   {Index, Tail} = int(Bin),
   Hook(T, Index, Tail,
        fun(B) ->
          Symbol = avro_enum:get_symbol_from_index(T, Index),
          {Symbol, B}
        end);
-dec(Bin, T, Lkup, Hook) when ?AVRO_IS_ARRAY_TYPE(T) ->
+dec(Bin, T, Lkup, Hook) when ?IS_ARRAY_TYPE(T) ->
   ItemsType = avro_array:get_items_type(T),
   ItemDecodeFun =
     fun(Index, BinIn) ->
-      Hook(T, Index, BinIn,
-           fun(B) -> do_decode(B, ItemsType, Lkup, Hook) end)
+      dec_item(T, Index, ItemsType, BinIn, Lkup, Hook)
     end,
   blocks(Bin, ItemDecodeFun);
-dec(Bin, T, Lkup, Hook) when ?AVRO_IS_MAP_TYPE(T) ->
+dec(Bin, T, Lkup, Hook) when ?IS_MAP_TYPE(T) ->
   ItemsType = avro_map:get_items_type(T),
   ItemDecodeFun =
     fun(_Index, BinIn) ->
       {Key, Tail1} = prim(BinIn, ?AVRO_STRING),
-      {Value, Tail} =
-        Hook(T, Key, Tail1,
-             fun(B) -> do_decode(B, ItemsType, Lkup, Hook) end),
+      {Value, Tail} = dec_item(T, Key, ItemsType, Tail1, Lkup, Hook),
       {{Key, Value}, Tail}
     end,
   blocks(Bin, ItemDecodeFun);
-dec(Bin, T, Lkup, Hook) when ?AVRO_IS_UNION_TYPE(T) ->
+dec(Bin, T, Lkup, Hook) when ?IS_UNION_TYPE(T) ->
   {Index, Tail} = long(Bin),
-  {ok, ChildType} = avro_union:lookup_type(Index, T),
-  Hook(T, Index, Tail,
-       fun(B) -> do_decode(B, ChildType, Lkup, Hook) end);
-dec(Bin, T, _Lkup, Hook) when ?AVRO_IS_FIXED_TYPE(T) ->
+  {ok, MemberType} = avro_union:lookup_type(Index, T),
+  dec_item(T, Index, MemberType, Tail, Lkup, Hook);
+dec(Bin, T, _Lkup, Hook) when ?IS_FIXED_TYPE(T) ->
   Hook(T, "", Bin,
        fun(B) ->
           Size = avro_fixed:get_size(T),
@@ -147,14 +143,21 @@ dec_record(Bin, T, Lkup, Hook) ->
   FieldTypes = avro_record:get_all_field_types(T),
   {FieldValuesReversed, Tail} =
     lists:foldl(
-      fun({FieldName, FieldTypeOrName}, {Values, BinIn}) ->
-        {Value, BinOut} =
-          Hook(T, FieldName, BinIn,
-               fun(B) -> do_decode(B, FieldTypeOrName, Lkup, Hook) end),
+      fun({FieldName, FieldType}, {Values, BinIn}) ->
+        {Value, BinOut} = dec_item(T, FieldName, FieldType, BinIn, Lkup, Hook),
         {[{FieldName, Value} | Values], BinOut}
       end, {[], Bin}, FieldTypes),
   FieldValues = lists:reverse(FieldValuesReversed),
   {FieldValues, Tail}.
+
+%% @private Common decode logic for map/array items, union members,
+%% and record fields.
+%% @end
+-spec dec_item(avro_type(), name() | non_neg_integer(), type_or_name(),
+               binary(), lkup_fun(), hook()) -> {avro:out(), binary()}.
+dec_item(ParentType, ItemId, ItemsType, Input, Lkup, Hook) ->
+  Hook(ParentType, ItemId, Input,
+       fun(B) -> do_decode(B, ItemsType, Lkup, Hook) end).
 
 %% @private Decode primitive values.
 %% NOTE: keep all binary decoding exceptions to error:{badmatch, _}
@@ -209,8 +212,8 @@ blocks(Bin, ItemDecodeFun, Index, Acc) ->
             %% block start with negative count number
             %% is followed by the block size in bytes
             %% here we simply discard the size info
-            {_Size, Rest_} = long(Rest),
-            {-Count0, Rest_};
+            {_Size, Rest1} = long(Rest),
+            {-Count0, Rest1};
           false ->
             {Count0, Rest}
         end,

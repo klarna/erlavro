@@ -53,7 +53,7 @@
 
 -include("avro_internal.hrl").
 
--type id2type() :: gb_trees:tree(union_index(), avro_type_or_name()).
+-type id2type() :: gb_trees:tree(union_index(), type_or_name()).
 -type name2id() :: gb_trees:tree(name(), {union_index(), boolean()}).
 -type encode_result() :: avro_binary() | avro_json().
 -type encode_fun() :: fun((avro_type(), avro:in(),
@@ -67,11 +67,11 @@
 %% 2. Union should no have union as direct member
 %% 3. No duplicated types are allowed in members
 %% @end
--spec type([avro_type_or_name()]) -> union_type() | no_return().
+-spec type([type_or_name()]) -> union_type() | no_return().
 type([]) ->
   erlang:error(<<"union should have at least one member type">>);
 type([_ | _ ] = Types0) ->
-  IsUnion = fun(T) -> ?AVRO_IS_UNION_TYPE(T) end,
+  IsUnion = fun(T) -> ?IS_UNION_TYPE(T) end,
   lists:any(IsUnion, Types0) andalso
     erlang:error(<<"union should not have union as member">>),
   Types = lists:map(fun avro_util:canonicalize_type_or_name/1, Types0),
@@ -116,7 +116,7 @@ lookup_type(Name, Union) when ?IS_NAME_RAW(Name) ->
 
 %% @doc Get member type index.
 -spec get_child_type_index(avro_value()) -> union_index().
-get_child_type_index(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+get_child_type_index(Union) when ?IS_UNION_VALUE(Union) ->
   UnionType = ?AVRO_VALUE_TYPE(Union),
   TypeName = get_child_type_name(Union),
   {ok, {TypeId, _IsSelfRef}} = lookup_index(TypeName, UnionType),
@@ -127,13 +127,13 @@ get_child_type_index(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 %% where member type full name instead of member index is used.
 %% @end
 -spec get_child_type_name(avro_value()) -> fullname().
-get_child_type_name(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+get_child_type_name(Union) when ?IS_UNION_VALUE(Union) ->
   TypedData = ?AVRO_VALUE_DATA(Union),
   avro:get_type_fullname(?AVRO_VALUE_TYPE(TypedData)).
 
 %% @doc Create a wrapped (boxed) value.
 -spec new(union_type(), avro:in()) -> avro_value() | no_return().
-new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
+new(Type, Value) when ?IS_UNION_TYPE(Type) ->
   case cast(Type, Value) of
     {ok, Union}  -> Union;
     {error, Err} -> erlang:error(Err)
@@ -143,17 +143,17 @@ new(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
 %% is already casted to one of the union types. Should only
 %% be used inside erlavro.
 %% @end
-new_direct(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
+new_direct(Type, Value) when ?IS_UNION_TYPE(Type) ->
   ?AVRO_VALUE(Type, Value).
 
 %% @doc Get current value of a union type variable
-get_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+get_value(Union) when ?IS_UNION_VALUE(Union) ->
   ?AVRO_VALUE_DATA(Union).
 
 %% @doc Encode shared logic for JSON and binary encoder.
 %% Encoding logic is implemented in EncodeFun.
 %% @end
--spec encode(avro_type_or_name(), avro:in(), encode_fun()) ->
+-spec encode(type_or_name(), avro:in(), encode_fun()) ->
         encode_result() | no_return().
 encode(Type, {MemberId, Value}, EncodeFun) when is_integer(MemberId) ->
   case lookup_type(MemberId, Type) of
@@ -183,12 +183,12 @@ encode(Type, Value, EncodeFun) ->
 %% use such combinations of types at all.
 %% @end
 -spec cast(union_type(), avro:in()) -> {ok, avro_value()} | {error, any()}.
-cast(Type, Value) when ?AVRO_IS_UNION_TYPE(Type) ->
+cast(Type, Value) when ?IS_UNION_TYPE(Type) ->
   do_cast(Type, Value).
 
 %% @doc Recursively unbox typed value.
 -spec to_term(avro_value()) -> term().
-to_term(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+to_term(Union) when ?IS_UNION_VALUE(Union) ->
   avro:to_term(?AVRO_VALUE_DATA(Union)).
 
 %%%_* Internal functions =======================================================
@@ -202,7 +202,7 @@ to_term(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 %% 2. when it's a remote reference to the named member type, the lookup
 %%    result would be the name itsef
 %% @end
--spec build_name_to_id([{union_index(), avro_type_or_name()}]) ->
+-spec build_name_to_id([{union_index(), type_or_name()}]) ->
         [{name(), {union_index(), IsSelfRef :: boolean()}}].
 build_name_to_id(IndexedTypes) ->
   lists:map(
@@ -211,7 +211,7 @@ build_name_to_id(IndexedTypes) ->
         {FullName, {Id, _IsSelfRef = true}};
        ({Id, Type}) ->
         FullName = avro:get_type_fullname(Type),
-        {FullName, {Id, _IsSelfRef = ?AVRO_IS_PRIMITIVE_TYPE(Type)}}
+        {FullName, {Id, _IsSelfRef = ?IS_PRIMITIVE_TYPE(Type)}}
     end, IndexedTypes).
 
 %% @private

@@ -59,6 +59,7 @@
              , custom_prop_name/0
              , custom_prop_value/0
              , decode_fun/0
+             , decoder_hook_fun/0
              , encode_fun/0
              , enum_symbol/0
              , enum_symbol_raw/0
@@ -69,11 +70,15 @@
              , name_raw/0
              , namespace/0
              , namespace_raw/0
+             , ordering/0
              , out/0
+             , record_field/0
+             , schema_store/0
              , typedoc/0
              , type_prop_name/0
              , type_prop_value/0
              , type_props/0
+             , type_or_name/0
              , union_index/0
              ]).
 
@@ -96,10 +101,8 @@
              | [{name(), avro:out()}].
 
 -type codec_options() :: [proplists:property()].
--type encode_fun() ::
-        fun((avro_type_or_name(), term()) -> iodata() | avro_value()).
--type decode_fun() ::
-        fun((avro_type_or_name(), binary()) -> term()).
+-type encode_fun() :: fun((type_or_name(), term()) -> iodata() | avro_value()).
+-type decode_fun() :: fun((type_or_name(), binary()) -> term()).
 
 %% @doc Make a encoder function.
 %% Supported codec options:
@@ -143,7 +146,7 @@ make_decoder(StoreOrLkupFun, Options) ->
   end.
 
 %% @doc Encode value to json or binary format.
--spec encode(schema_store() | lkup_fun(), avro_type_or_name(),
+-spec encode(schema_store() | lkup_fun(), type_or_name(),
              term(), avro_encoding()) -> iodata().
 encode(StoreOrLkup, Type, Value, avro_json) ->
   avro_json_encoder:encode(StoreOrLkup, Type, Value);
@@ -155,14 +158,14 @@ encode(StoreOrLkup, Type, Value, avro_binary) ->
 %% wrapper structure. e.g. encode a big array of some complex type
 %% and use the result as a field value of a parent record
 %% @end
--spec encode_wrapped(schema_store() | lkup_fun(), avro_type_or_name(),
+-spec encode_wrapped(schema_store() | lkup_fun(), type_or_name(),
                      term(), avro_encoding()) -> avro_value().
 encode_wrapped(S, TypeOrName, Value, Encoding) when not is_function(S) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(S),
   encode_wrapped(Lkup, TypeOrName, Value, Encoding);
 encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME_RAW(Name) ->
   encode_wrapped(Lkup, Lkup(Name), Value, Encoding);
-encode_wrapped(Lkup, Type0, Value, Encoding) when ?IS_AVRO_TYPE(Type0) ->
+encode_wrapped(Lkup, Type0, Value, Encoding) when ?IS_TYPE_RECORD(Type0) ->
   Encoded = iolist_to_binary(encode(Lkup, Type0, Value, Encoding)),
   Type = case is_named_type(Type0) of
            true  -> get_type_fullname(Type0);
@@ -176,7 +179,7 @@ encode_wrapped(Lkup, Type0, Value, Encoding) when ?IS_AVRO_TYPE(Type0) ->
 %% @doc Decode value return unwarpped values.
 -spec decode(avro_encoding(),
              Data :: binary(),
-             avro_type_or_name(),
+             type_or_name(),
              schema_store() | lkup_fun(),
              decoder_hook_fun()) -> term().
 decode(avro_json, JSON, TypeOrName, StoreOrLkup, Hook) ->
@@ -268,7 +271,7 @@ get_type_namespace(#avro_union_type{})                -> ?NS_GLOBAL.
 %% @doc Returns fullname stored inside the type.
 %% For unnamed types their Avro name is returned.
 %% @end
--spec get_type_fullname(avro_type_or_name()) -> name() | fullname().
+-spec get_type_fullname(type_or_name()) -> name() | fullname().
 get_type_fullname(#avro_array_type{})                 -> ?AVRO_ARRAY;
 get_type_fullname(#avro_enum_type{fullname = Name})   -> Name;
 get_type_fullname(#avro_fixed_type{fullname = Name})  -> Name;
@@ -295,14 +298,14 @@ get_aliases(#avro_union_type{})                   -> [].
 %% is called to retrieve the type definition from schema store in case it is
 %% type name provided.
 %% @end
--spec get_custom_props(avro_type_or_name(), lkup_fun() | schema_store()) ->
+-spec get_custom_props(type_or_name(), lkup_fun() | schema_store()) ->
         [custom_prop()].
 get_custom_props(NameOrType, Store) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   get_custom_props(NameOrType, Lkup);
 get_custom_props(TypeName, Lkup) when ?IS_NAME_RAW(TypeName) ->
   get_custom_props(Lkup(?NAME(TypeName)), Lkup);
-get_custom_props(Type, _Lkup) when ?IS_AVRO_TYPE(Type) ->
+get_custom_props(Type, _Lkup) when ?IS_TYPE_RECORD(Type) ->
   get_custom_props(Type).
 
 %% @doc Get custom type properties such as logical type info.
@@ -330,7 +333,7 @@ expand_type(Type, Store) -> avro_util:expand_type(Type, Store).
 %%%===================================================================
 
 %% @doc Splits type's name parts to its canonical short name and namespace.
--spec split_type_name(avro_type_or_name(), name_raw()) -> {name(), namespace()}.
+-spec split_type_name(type_or_name(), name_raw()) -> {name(), namespace()}.
 split_type_name(TypeName0, Namespace0) when ?IS_NAME_RAW(TypeName0) ->
   TypeName = ?NAME(TypeName0),
   Namespace = ?NAME(Namespace0),
@@ -358,7 +361,7 @@ build_type_fullname(TypeName, Namespace) when ?IS_NAME_RAW(TypeName) ->
 %% @doc Tries to cast a value (which can be another Avro value or some erlang
 %% term) to the specified Avro type performing conversion if required.
 %% @end
--spec cast(avro_type_or_name(), avro:in()) ->
+-spec cast(type_or_name(), avro:in()) ->
         {ok, avro_value()} | {error, term()}.
 cast(T, ?AVRO_VALUE(T, _) = V) ->
   %% When casting to same type just return the original value

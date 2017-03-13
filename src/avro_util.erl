@@ -151,10 +151,10 @@ ensure_binary(L) when is_list(L)   -> iolist_to_binary(L);
 ensure_binary(B) when is_binary(B) -> B.
 
 %% @doc Canonicalize name if it is not a type.
--spec canonicalize_type_or_name(avro_type_or_name()) -> avro_type_or_name().
+-spec canonicalize_type_or_name(type_or_name()) -> type_or_name().
 canonicalize_type_or_name(Name) when ?IS_NAME_RAW(Name) ->
   avro:name2type(Name);
-canonicalize_type_or_name(Type) when ?IS_AVRO_TYPE(Type) ->
+canonicalize_type_or_name(Type) when ?IS_TYPE_RECORD(Type) ->
   Type.
 
 %% @doc Flatten out all named types, return the extracted format and all
@@ -162,11 +162,11 @@ canonicalize_type_or_name(Type) when ?IS_AVRO_TYPE(Type) ->
 %% If the type is named (i.e. record type), the extracted format is its
 %% full name, and the type itself is added to the extracted list.
 %% @end
--spec flatten_type(avro_type_or_name()) -> {avro_type_or_name(), [avro_type()]}.
+-spec flatten_type(type_or_name()) -> {type_or_name(), [avro_type()]}.
 flatten_type(TypeName) when ?IS_NAME(TypeName) ->
   %% it's a reference
   {TypeName, []};
-flatten_type(Type) when ?IS_AVRO_TYPE(Type) ->
+flatten_type(Type) when ?IS_TYPE_RECORD(Type) ->
   case avro:is_named_type(Type) of
     true ->
       {NewType, Extracted} = flatten(Type),
@@ -181,7 +181,7 @@ flatten_type(Type) when ?IS_AVRO_TYPE(Type) ->
 %% This should allow callers to write a root type to one avsc schema file
 %% instead of scattering all named types to their own avsc files.
 %% @end
--spec expand_type(avro_type_or_name(), store()) -> avro_type() | no_return().
+-spec expand_type(type_or_name(), store()) -> avro_type() | no_return().
 expand_type(Type0, Store) ->
   Type = avro_util:canonicalize_type_or_name(Type0),
   try
@@ -284,9 +284,8 @@ expand(#avro_union_type{} = T, Store) ->
   avro_union:type(ResolvedSubTypes);
 expand(Fullname, Store) when ?IS_NAME(Fullname) ->
   do_expand_type(Fullname, Store);
-expand(T, _Store) when ?IS_AVRO_TYPE(T) ->
+expand(T, _Store) when ?IS_TYPE_RECORD(T) ->
   T.
-
 
 %% @private Ensure string() format name for validation.
 -spec name_string(name_raw()) -> string().

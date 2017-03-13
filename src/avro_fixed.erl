@@ -80,7 +80,7 @@ get_size(#avro_fixed_type{ size = Size }) -> Size.
 
 %% @doc Create a wrapped (boxed) value.
 -spec new(fixed_type(), avro:in()) -> avro_value() | no_return().
-new(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
+new(Type, Value) when ?IS_FIXED_TYPE(Type) ->
   case cast(Type, Value) of
     {ok, Rec}    -> Rec;
     {error, Err} -> erlang:error(Err)
@@ -88,14 +88,14 @@ new(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
 
 %% @doc Return (non-recursive) data in the wrapped (boxed) value.
 -spec get_value(avro_value()) -> binary().
-get_value(Value) when ?AVRO_IS_FIXED_VALUE(Value) ->
+get_value(Value) when ?IS_FIXED_VALUE(Value) ->
   ?AVRO_VALUE_DATA(Value).
 
 %% @doc Fixed values can be casted from other fixed values, from integers
 %% or from binaries.
 %% @end
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
-cast(Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
+cast(Type, Value) when ?IS_FIXED_TYPE(Type) ->
   do_cast(Type, Value).
 
 %%%_* Internal functions =======================================================

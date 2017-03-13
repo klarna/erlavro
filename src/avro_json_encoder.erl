@@ -53,7 +53,7 @@ encode_type(Type) -> encode_schema(Type).
 
 %% @doc Encode avro value in JSON format.
 %% @end
--spec encode_value(avro_value() | avro_encoded_value()) -> iodata().
+-spec encode_value(avro_value()) -> iodata().
 encode_value(Value) ->
   encode_json(do_encode_value(Value)).
 
@@ -62,8 +62,8 @@ encode_value(Value) ->
 %% i.e. data can be recursive, but recursive types are resolved by
 %% schema lookup
 %% @end
--spec encode(schema_store() | lkup_fun(), avro_type_or_name(), avro:in()) ->
-        iodata().
+-spec encode(schema_store() | lkup_fun(),
+             type_or_name(), avro:in()) -> iodata().
 encode(Store, TypeOrName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeOrName, Value);
@@ -77,7 +77,7 @@ encode(Lkup, TypeOrName, Value) ->
 encode_json(Input) -> jsone:encode(Input, [native_utf8]).
 
 %% @private
--spec do_encode(lkup_fun(), avro_type_or_name(), avro_value() | avro:in()) ->
+-spec do_encode(lkup_fun(), type_or_name(), avro_value() | avro:in()) ->
         json_value().
 do_encode(Lkup, Type, #avro_value{type = T} = V) ->
   case avro:get_type_fullname(Type) =:= avro:get_type_fullname(T) of
@@ -90,28 +90,28 @@ do_encode(Lkup, Type, Value) ->
   enc(Lkup, Type, Value).
 
 %% @private
--spec enc(lkup_fun(), avro_type_or_name(), avro_value() | avro:in()) ->
+-spec enc(lkup_fun(), type_or_name(), avro_value() | avro:in()) ->
         json_value().
-enc(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro_primitive:cast(Type, Value),
   do_encode_value(AvroValue);
-enc(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?IS_RECORD_TYPE(Type) ->
   avro_record:encode(Type, Value,
     fun({FN, FT, FV}) -> {encode_string(FN), do_encode(Lkup, FT, FV)} end);
-enc(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?IS_ENUM_TYPE(Type) ->
   encode_string(Value);
-enc(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?IS_ARRAY_TYPE(Type) ->
   avro_array:encode(Type, Value,
     fun(IType, Item) -> do_encode(Lkup, IType, Item) end);
-enc(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?IS_MAP_TYPE(Type) ->
   avro_map:encode(Type, Value,
     fun(IType, K, V) -> {encode_string(K), do_encode(Lkup, IType, V)} end);
-enc(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?IS_FIXED_TYPE(Type) ->
   ?INLINE(encode_binary(Value));
-enc(_Lkup, Type, null) when ?AVRO_IS_UNION_TYPE(Type) ->
+enc(_Lkup, Type, null) when ?IS_UNION_TYPE(Type) ->
   {ok, _} = avro_union:lookup_type(null, Type), %% assert
   null; %do not encode null
-enc(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
+enc(Lkup, Type, Union) when ?IS_UNION_TYPE(Type) ->
   Encoded = avro_union:encode(Type, Union,
     fun(MemberT, Value, _UnionIndex) ->
       {
@@ -259,51 +259,50 @@ encode_order(ignore)     -> <<"ignore">>.
 -spec do_encode_value(avro_value()) -> json_value().
 do_encode_value(?AVRO_ENCODED_VALUE_JSON(_Type, _Value = Encoded)) ->
   ?INLINE(Encoded);
-do_encode_value(Value) when ?AVRO_IS_NULL_VALUE(Value) ->
-  null;
-do_encode_value(Value) when ?AVRO_IS_BOOLEAN_VALUE(Value) ->
-  ?AVRO_VALUE_DATA(Value);
-do_encode_value(Value) when ?AVRO_IS_INT_VALUE(Value) ->
-  ?AVRO_VALUE_DATA(Value);
-do_encode_value(Value) when ?AVRO_IS_LONG_VALUE(Value) ->
-  ?AVRO_VALUE_DATA(Value);
-do_encode_value(Value) when ?AVRO_IS_FLOAT_VALUE(Value) ->
-  encode_float(?AVRO_VALUE_DATA(Value));
-do_encode_value(Value) when ?AVRO_IS_DOUBLE_VALUE(Value) ->
-  encode_float(?AVRO_VALUE_DATA(Value));
-do_encode_value(Value) when ?AVRO_IS_BYTES_VALUE(Value) ->
-  %% jsone treats binary as utf8 string
-  ?INLINE(encode_binary(?AVRO_VALUE_DATA(Value)));
-do_encode_value(Value) when ?AVRO_IS_STRING_VALUE(Value) ->
-  encode_string(?AVRO_VALUE_DATA(Value));
-do_encode_value(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+do_encode_value(Value) when ?IS_PRIMITIVE_VALUE(Value) ->
+  #avro_primitive_type{name = Name} = ?AVRO_VALUE_TYPE(Value),
+  encode_primitive(Name, ?AVRO_VALUE_DATA(Value));
+do_encode_value(Record) when ?IS_RECORD_VALUE(Record) ->
   FieldsAndValues = avro_record:to_list(Record),
   lists:map(fun encode_field_with_value/1, FieldsAndValues);
-do_encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
+do_encode_value(Enum) when ?IS_ENUM_VALUE(Enum) ->
   encode_string(?AVRO_VALUE_DATA(Enum));
-do_encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
+do_encode_value(Array) when ?IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
-do_encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
+do_encode_value(Map) when ?IS_MAP_VALUE(Map) ->
   L = avro_map:to_list(Map),
   lists:map(fun encode_field_with_value/1, L);
-do_encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+do_encode_value(Fixed) when ?IS_FIXED_VALUE(Fixed) ->
+  %% jsone treats binary as utf8 string
+  ?INLINE(encode_binary(?AVRO_VALUE_DATA(Fixed)));
+do_encode_value(Union) when ?IS_UNION_VALUE(Union) ->
   Data = ?AVRO_VALUE_DATA(Union),
-  case ?AVRO_IS_NULL_VALUE(Data) of
+  MemberType = ?AVRO_VALUE_TYPE(Data),
+  case ?IS_NULL_TYPE(MemberType) of
     true ->
       null; %% Nulls don't need a type to be specified
     false ->
-      TypeName = encode_string(avro:get_type_fullname(?AVRO_VALUE_TYPE(Data))),
+      TypeName = encode_string(avro:get_type_fullname(MemberType)),
       [{TypeName, do_encode_value(Data)}]
-  end;
-do_encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
-  %% jsone treats binary as utf8 string
-  ?INLINE(encode_binary(?AVRO_VALUE_DATA(Fixed))).
+  end.
+
+%% @private
+encode_primitive(?AVRO_NULL, _)        -> null;
+encode_primitive(?AVRO_BOOLEAN, Bool)  -> Bool;
+encode_primitive(?AVRO_INT, Int)       -> Int;
+encode_primitive(?AVRO_LONG, Long)     -> Long;
+encode_primitive(?AVRO_FLOAT, Float)   -> encode_float(Float);
+encode_primitive(?AVRO_DOUBLE, Double) -> encode_float(Double);
+encode_primitive(?AVRO_BYTES, Bytes)   -> ?INLINE(encode_binary(Bytes));
+encode_primitive(?AVRO_STRING, String) -> encode_string(String).
 
 %% @private
 encode_field_with_value({FieldName, Value}) ->
   {encode_string(FieldName), do_encode_value(Value)}.
 
-%% @private
+%% @private jsone treats binary as utf8 string.
+%% encode per avro spec.
+%% @end
 encode_binary(Bin) ->
   [$", encode_binary_body(Bin), $"].
 

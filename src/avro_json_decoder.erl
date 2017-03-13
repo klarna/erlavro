@@ -45,7 +45,7 @@
 -type hook() :: decoder_hook_fun().
 -type json_value() :: jsone:json_value().
 
--define(JSON_OBJ(__FIELDS__), {__FIELDS__}).
+-define(JSON_OBJ(FIELDS), {FIELDS}).
 
 %%%_* APIs =====================================================================
 
@@ -88,7 +88,7 @@ decode_schema(JsonSchema, Lkup) ->
 %%       map:    [{Key :: string(), Value :: avro:out()}].
 %%       record: [{FieldName() :: binary(), FieldValue :: avro:out()}]}
 %% @end
--spec decode_value(binary(), avro_type_or_name(),
+-spec decode_value(binary(), type_or_name(),
                    schema_store() | lkup_fun(),
                    options(), hook()) -> avro_value() | avro:out().
 decode_value(JsonValue, Schema, Store, Options, Hook)
@@ -104,15 +104,13 @@ decode_value(JsonValue, Schema, Lkup, Options, Hook) ->
   parse(DecodedJson, Schema, Lkup, IsWrapped, Hook).
 
 %% @doc Decode value with default options and default hook.
--spec decode_value(binary(),
-                   avro_type_or_name(),
+-spec decode_value(binary(), type_or_name(),
                    schema_store() | lkup_fun()) -> avro_value().
 decode_value(JsonValue, Schema, StoreOrLkupFun) ->
   decode_value(JsonValue, Schema, StoreOrLkupFun, []).
 
 %% @doc Decode value with default hook.
--spec decode_value(binary(),
-                   avro_type_or_name(),
+-spec decode_value(binary(), type_or_name(),
                    schema_store() | lkup_fun(),
                    options()) -> avro_value() | avro:out().
 decode_value(JsonValue, Schema, StoreOrLkupFun, Options) ->
@@ -163,7 +161,7 @@ parse_type(Attrs, Lkup) ->
 %% @private
 -spec primitive_type(name(), [custom_prop()]) ->
         primitive_type() | no_return().
-primitive_type(Name, CustomProps) when ?IS_PRIMITIVE_NAME(Name) ->
+primitive_type(Name, CustomProps) when ?IS_AVRO_PRIMITIVE_NAME(Name) ->
   avro_primitive:type(Name, CustomProps);
 primitive_type(Name, _CustomProps) ->
   erlang:error({unknown_type, Name}).
@@ -220,8 +218,7 @@ parse_record_field(Attrs, Lkup) ->
         undefined | avro_value().
 parse_default_value(undefined, _FieldType, _Lkup) ->
   undefined;
-parse_default_value(Value, FieldType, Lkup)
-  when ?AVRO_IS_UNION_TYPE(FieldType) ->
+parse_default_value(Value, FieldType, Lkup) when ?IS_UNION_TYPE(FieldType) ->
   %% Strange agreement about unions: default value for an union field
   %% corresponds to the first type in this union.
   %% Why not to use normal union values format?
@@ -320,14 +317,13 @@ parse_value(Value, Type, Lkup) ->
   parse(Value, Type, Lkup, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
 
 %% @private
--spec parse(json_value(), avro_type_or_name(), lkup_fun(), boolean(), hook()) ->
+-spec parse(json_value(), type_or_name(), lkup_fun(), boolean(), hook()) ->
         avro_value() | avro:out() | no_return().
 parse(Value, TypeName, Lkup, IsWrapped, Hook) when ?IS_NAME_RAW(TypeName) ->
   %% Type is defined by its name
   Type = Lkup(?NAME(TypeName)),
   parse(Value, Type, Lkup, IsWrapped, Hook);
-parse(Value, Type, _Lkup, IsWrapped, Hook)
- when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
+parse(Value, Type, _Lkup, IsWrapped, Hook) when ?IS_PRIMITIVE_TYPE(Type) ->
  Hook(Type, <<>>, Value,
       fun(JsonV) ->
         WrappedValue = parse_prim(JsonV, Type),
@@ -336,7 +332,7 @@ parse(Value, Type, _Lkup, IsWrapped, Hook)
           false -> avro_primitive:get_value(WrappedValue)
         end
       end);
-parse(V, Type, _Lkup, IsWrapped, Hook) when ?AVRO_IS_ENUM_TYPE(Type),
+parse(V, Type, _Lkup, IsWrapped, Hook) when ?IS_ENUM_TYPE(Type),
                                             is_binary(V) ->
   Hook(Type, <<>>, V,
        fun(JsonV) ->
@@ -345,7 +341,7 @@ parse(V, Type, _Lkup, IsWrapped, Hook) when ?AVRO_IS_ENUM_TYPE(Type),
            false -> JsonV
          end
        end);
-parse(V, Type, _Lkup, IsWrapped, Hook) when ?AVRO_IS_FIXED_TYPE(Type) ->
+parse(V, Type, _Lkup, IsWrapped, Hook) when ?IS_FIXED_TYPE(Type) ->
   Hook(Type, <<>>, V,
        fun(JsonV) ->
          case IsWrapped of
@@ -353,42 +349,42 @@ parse(V, Type, _Lkup, IsWrapped, Hook) when ?AVRO_IS_FIXED_TYPE(Type) ->
            false -> parse_bytes(JsonV)
          end
        end);
-parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_RECORD_TYPE(Type) ->
+parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_RECORD_TYPE(Type) ->
   parse_record(V, Type, Lkup, IsWrapped, Hook);
-parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_ARRAY_TYPE(Type) ->
   parse_array(V, Type, Lkup, IsWrapped, Hook);
-parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_MAP_TYPE(Type) ->
+parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_MAP_TYPE(Type) ->
   parse_map(V, Type, Lkup, IsWrapped, Hook);
-parse(V, Type, Lkup, IsWrapped, Hook) when ?AVRO_IS_UNION_TYPE(Type) ->
+parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_UNION_TYPE(Type) ->
   parse_union(V, Type, Lkup, IsWrapped, Hook).
 
 %% @private Parse primitive values, return wrapped (boxed) value.
 -spec parse_prim(json_value(), avro_type()) -> avro_value().
-parse_prim(null, Type) when ?AVRO_IS_NULL_TYPE(Type) ->
+parse_prim(null, Type) when ?IS_NULL_TYPE(Type) ->
   avro_primitive:null();
-parse_prim(V, Type) when ?AVRO_IS_BOOLEAN_TYPE(Type) andalso is_boolean(V) ->
+parse_prim(V, Type) when ?IS_BOOLEAN_TYPE(Type) andalso is_boolean(V) ->
   avro_primitive:boolean(V);
-parse_prim(V, Type) when ?AVRO_IS_INT_TYPE(Type) andalso
-                         is_integer(V)           andalso
-                         V >= ?INT4_MIN          andalso
+parse_prim(V, Type) when ?IS_INT_TYPE(Type) andalso
+                         is_integer(V)      andalso
+                         V >= ?INT4_MIN     andalso
                          V =< ?INT4_MAX ->
   avro_primitive:int(V);
-parse_prim(V, Type) when ?AVRO_IS_LONG_TYPE(Type) andalso
-                          is_integer(V)            andalso
-                          V >= ?INT8_MIN           andalso
+parse_prim(V, Type) when ?IS_LONG_TYPE(Type) andalso
+                          is_integer(V)      andalso
+                          V >= ?INT8_MIN     andalso
                           V =< ?INT8_MAX ->
   avro_primitive:long(V);
-parse_prim(V, Type) when ?AVRO_IS_FLOAT_TYPE(Type) andalso
+parse_prim(V, Type) when ?IS_FLOAT_TYPE(Type) andalso
                           (is_float(V) orelse is_integer(V)) ->
   avro_primitive:float(V);
-parse_prim(V, Type) when ?AVRO_IS_DOUBLE_TYPE(Type) andalso
+parse_prim(V, Type) when ?IS_DOUBLE_TYPE(Type) andalso
                          (is_float(V) orelse is_integer(V)) ->
   avro_primitive:double(V);
-parse_prim(V, Type) when ?AVRO_IS_BYTES_TYPE(Type) andalso
+parse_prim(V, Type) when ?IS_BYTES_TYPE(Type) andalso
                          is_binary(V) ->
   Bin = parse_bytes(V),
   avro_primitive:bytes(Bin);
-parse_prim(V, Type) when ?AVRO_IS_STRING_TYPE(Type) andalso
+parse_prim(V, Type) when ?IS_STRING_TYPE(Type) andalso
                          is_binary(V) ->
   avro_primitive:string(V).
 

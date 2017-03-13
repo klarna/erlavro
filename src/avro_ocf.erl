@@ -75,7 +75,7 @@ decode_file(Filename) ->
 
 %% @doc Write objects in a single block to the given file name.
 -spec write_file(filename(), schema_store(),
-                 avro_type_or_name(), [avro:in()]) -> ok.
+                 type_or_name(), [avro:in()]) -> ok.
 write_file(Filename, SchemaStore, Schema, Objects) ->
   Header = make_header(Schema),
   {ok, Fd} = file:open(Filename, [write]),
@@ -100,7 +100,7 @@ write_header(Fd, Header) ->
 
 %% @doc Append a block ocf block to the opened IO device.
 -spec append_file(file:io_device(), header(), schema_store(),
-                  avro_type_or_name(), [avro:in()]) -> ok.
+                  type_or_name(), [avro:in()]) -> ok.
 append_file(Fd, Header, SchemaStore, Schema, Objects) ->
   Count = length(Objects),
   Bytes = iolist_to_binary([avro_binary_encoder:encode(SchemaStore, Schema, O)
