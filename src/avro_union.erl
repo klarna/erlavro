@@ -243,7 +243,8 @@ do_cast(Type, {MemberId, Value}) ->
   case lookup_type(MemberId, Type) of
     {ok, MemberType} ->
       %% the union input value is tagged with a union member name or id
-      avro:cast(MemberType, Value);
+      {ok, WrappedValue} = avro:cast(MemberType, Value),
+      {ok, ?AVRO_VALUE(Type, WrappedValue)};
     false ->
       {error, {unknown_tag, Type, MemberId}}
   end;

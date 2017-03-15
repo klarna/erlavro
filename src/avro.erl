@@ -164,7 +164,7 @@ encode_wrapped(S, TypeOrName, Value, Encoding) when not is_function(S) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(S),
   encode_wrapped(Lkup, TypeOrName, Value, Encoding);
 encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME_RAW(Name) ->
-  encode_wrapped(Lkup, Lkup(Name), Value, Encoding);
+  encode_wrapped(Lkup, Lkup(?NAME(Name)), Value, Encoding);
 encode_wrapped(Lkup, Type0, Value, Encoding) when ?IS_TYPE_RECORD(Type0) ->
   Encoded = iolist_to_binary(encode(Lkup, Type0, Value, Encoding)),
   Type = case is_named_type(Type0) of
@@ -363,24 +363,61 @@ build_type_fullname(TypeName, Namespace) when ?IS_NAME_RAW(TypeName) ->
 %% @end
 -spec cast(type_or_name(), avro:in()) ->
         {ok, avro_value()} | {error, term()}.
-cast(T, ?AVRO_VALUE(T, _) = V) ->
-  %% When casting to same type just return the original value
-  {ok, V};
-cast(TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
-  cast(name2type(TypeName), Value);
-cast(#avro_primitive_type{} = T, V) -> avro_primitive:cast(T, V);
-cast(#avro_record_type{} = T,    V) -> avro_record:cast(T, V);
-cast(#avro_enum_type{} = T,      V) -> avro_enum:cast(T, V);
-cast(#avro_array_type{} = T,     V) -> avro_array:cast(T, V);
-cast(#avro_map_type{} = T,       V) -> avro_map:cast(T, V);
-cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
-cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V).
+cast(T1, ?AVRO_VALUE(_, _) = V) -> cast_value(T1, V);
+cast(Type, Value) when ?IS_TYPE_RECORD(Type) -> do_cast(Type, Value);
+cast(Type, Value) when ?IS_NAME_RAW(Type) -> do_cast(name2type(Type), Value).
 
 %% @doc Convert avro values to erlang term.
 -spec to_term(avro_value()) -> term().
 to_term(#avro_value{type = T} = V) -> to_term(T, V).
 
 %%%_* Internal functions =======================================================
+
+%% @private A specical case to cast wrapped value to union.
+%% Other types, compare use is_same_type
+%% @end
+-spec cast_value(type_or_name(), avro_value()) ->
+        {ok, avro_value()} | {error, any()}.
+cast_value(T1, ?AVRO_VALUE(T2, _) = V) when ?IS_UNION_TYPE(T1) andalso
+                                            not ?IS_UNION_TYPE(T2) ->
+  %% Union, the value can be a member
+  MemberTypeName = get_type_fullname(T2),
+  %% Tag the value, delegate to avro_union
+  avro_union:cast(T1, {MemberTypeName, V});
+cast_value(T1, ?AVRO_VALUE(T2, _) = V) ->
+  case is_same_type(T1, T2) of
+    true  -> {ok, V};
+    false -> {error, {type_mismatch, T1, T2}}
+  end.
+
+%% @private Compare two types to check if they are the same.
+%% The types can either be type records or type names.
+%% @end
+-spec is_same_type(type_or_name(), type_or_name()) -> boolean().
+is_same_type(T1, T2) when ?IS_ARRAY_TYPE(T1) andalso
+                          ?IS_ARRAY_TYPE(T2) ->
+  %% For array, compare items type
+  is_same_type(avro_array:get_items_type(T1),
+               avro_array:get_items_type(T2));
+is_same_type(T1, T2) when ?IS_MAP_TYPE(T1) andalso
+                          ?IS_MAP_TYPE(T2) ->
+  %% For map, compare items type
+  is_same_type(avro_map:get_items_type(T1),
+               avro_map:get_items_type(T2));
+is_same_type(T1, T2) ->
+  %% Named types and primitive types fall into this clause
+  %% Should be enough to just compare their names
+  get_type_fullname(T1) =:= get_type_fullname(T2).
+
+%% @private
+-spec do_cast(avro_type(), avro:in()) -> {ok, avro_value()} | {error, any()}.
+do_cast(#avro_primitive_type{} = T, V) -> avro_primitive:cast(T, V);
+do_cast(#avro_record_type{} = T,    V) -> avro_record:cast(T, V);
+do_cast(#avro_enum_type{} = T,      V) -> avro_enum:cast(T, V);
+do_cast(#avro_array_type{} = T,     V) -> avro_array:cast(T, V);
+do_cast(#avro_map_type{} = T,       V) -> avro_map:cast(T, V);
+do_cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
+do_cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V).
 
 %% @private Splits FullName to {Name, Namespace} or returns false
 %% if the given name is a short name (no dots).

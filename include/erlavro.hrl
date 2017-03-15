@@ -127,6 +127,8 @@
 -define(AVRO_ENCODED_VALUE_BINARY(Type, Value),
         ?AVRO_VALUE(Type, {binary, Value})).
 
+-define(AVRO_DEFAULT_DECODER_HOOK,
+        fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
 -endif.
 
 %%%_* Emacs ====================================================================
