@@ -262,6 +262,27 @@ encode_wrapped_unnamed_test() ->
                EncBin1),
   ok.
 
+%% one may use encoded-wrapped values to construct parent objects
+wrapped_union_cast_test() ->
+  Rec1 = avro_record:type("rec1", [avro_record:define_field("f1", int)]),
+  Rec2 = avro_record:type("rec2", [avro_record:define_field("f1", int)]),
+  Lkup = fun(<<"rec1">>) -> Rec1;
+            (<<"rec2">>) -> Rec2 end,
+  Union = avro_union:type(["rec1", "rec2"]),
+  Rec1Val = avro:encode_wrapped(Lkup, "rec2", [{"f1", 1}], avro_binary),
+  {ok, UnionVal} = avro:cast(Union, Rec1Val),
+  Bin1 = avro_binary_encoder:encode_value(UnionVal),
+  Bin2 = avro:encode(Lkup, Union, Rec1Val, avro_binary),
+  ?assertEqual(Bin1, Bin2),
+  Decoded = avro:decode(avro_binary, Bin1, Union, Lkup, ?DEFAULT_DECODER_HOOK),
+  ?assertEqual([{<<"f1">>, 1}], Decoded).
+
+wrapped_map_cast_test() ->
+  Map = avro_map:type(int),
+  Wrapped = avro:encode_wrapped(undefined, Map, [{"key", 33}], avro_binary),
+  {ok, Cast} = avro:cast(Map, Wrapped),
+  ?assertEqual(Wrapped, Cast).
+
 %% @private
 priv_dir() ->
   case code:priv_dir(erlavro) of

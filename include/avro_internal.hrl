@@ -154,8 +154,7 @@
             fun((avro:in()) -> avro:out())) -> avro:out()).
 
 %% By default, the hook fun does nothing else but calling the decode function.
--define(DEFAULT_DECODER_HOOK,
-        fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
+-define(DEFAULT_DECODER_HOOK, ?AVRO_DEFAULT_DECODER_HOOK).
 
 -define(AVRO_SCHEMA_LOOKUP_FUN(Store), avro_schema_store:to_lookup_fun(Store)).
 

@@ -156,14 +156,14 @@ add_type(Type, Store) when ?IS_STORE(Store) ->
 -spec add_type(undefined | name_raw(), avro_type(), store()) -> store().
 add_type(AssignedName, Type0, Store) when ?IS_STORE(Store) ->
   {Type, FlattenTypes} = avro:flatten_type(Type0),
-  %% Add the root type with assigned name.
-  %% Even when the flattened result is a name reference.
-  Store1 = add_by_assigned_name(AssignedName, Type, Store),
   %% Exception when the root type is not named but assigned name is not given.
   case ?IS_TYPE_RECORD(Type) andalso AssignedName =:= undefined of
     true  -> erlang:error({unnamed_type, Type});
     false -> ok
   end,
+  %% Add the root type with assigned name.
+  %% Even when the flattened result is a name reference.
+  Store1 = add_by_assigned_name(AssignedName, Type, Store),
   lists:foldl(fun do_add_type/2, Store1, FlattenTypes).
 
 %% @doc Lookup a type using its full name.
