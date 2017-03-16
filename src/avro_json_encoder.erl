@@ -80,9 +80,9 @@ encode_json(Input) -> jsone:encode(Input, [native_utf8]).
 -spec do_encode(lkup_fun(), type_or_name(), avro_value() | avro:in()) ->
         json_value().
 do_encode(Lkup, Type, #avro_value{type = T} = V) ->
-  case avro:get_type_fullname(Type) =:= avro:get_type_fullname(T) of
+  case avro:is_same_type(Type, T) of
     true  -> do_encode_value(V);
-    false -> enc(Lkup, Type, V)
+    false -> enc(Lkup, Type, V) %% try deeper
   end;
 do_encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
   enc(Lkup, Lkup(?NAME(TypeName)), Value);

@@ -32,6 +32,7 @@
         , get_type_namespace/1
         , get_type_fullname/1
         , is_named_type/1
+        , is_same_type/2
         , make_decoder/2
         , make_encoder/2
         , resolve_fullname/2
@@ -354,6 +355,35 @@ build_type_fullname(TypeName, Namespace) when ?IS_NAME_RAW(TypeName) ->
   {ShortName, Ns} = split_type_name(TypeName, Namespace),
   make_fullname(ShortName, Ns).
 
+%% @private Compare two types to check if they are the same.
+%% The types can either be type records or type names.
+%% @end
+-spec is_same_type(type_or_name(), type_or_name()) -> boolean().
+is_same_type(T1, T2) when ?IS_ARRAY_TYPE(T1) andalso
+                          ?IS_ARRAY_TYPE(T2) ->
+  %% For array, compare items type
+  is_same_type(avro_array:get_items_type(T1),
+               avro_array:get_items_type(T2));
+is_same_type(T1, T2) when ?IS_MAP_TYPE(T1) andalso
+                          ?IS_MAP_TYPE(T2) ->
+  %% For map, compare items type
+  is_same_type(avro_map:get_items_type(T1),
+               avro_map:get_items_type(T2));
+is_same_type(T1, T2) when ?IS_UNION_TYPE(T1) andalso
+                          ?IS_UNION_TYPE(T2) ->
+  %% For unions, compare the number of members and
+  %% the order of the members
+  Members1 = avro_union:get_types(T1),
+  Members2 = avro_union:get_types(T2),
+  length(Members1) =:= length(Members2) andalso
+    lists:all(fun({Tt1, Tt2}) ->
+                  is_same_type(Tt1, Tt2)
+              end, lists:zip(Members1, Members2));
+is_same_type(T1, T2) ->
+  %% Named types and primitive types fall into this clause
+  %% Should be enough to just compare their names
+  get_type_fullname(T1) =:= get_type_fullname(T2).
+
 %%%=============================================================================
 %%% API: Checking correctness of names and types specifications
 %%%=============================================================================
@@ -389,35 +419,6 @@ cast_value(T1, ?AVRO_VALUE(T2, _) = V) ->
     true  -> {ok, V};
     false -> {error, {type_mismatch, T1, T2}}
   end.
-
-%% @private Compare two types to check if they are the same.
-%% The types can either be type records or type names.
-%% @end
--spec is_same_type(type_or_name(), type_or_name()) -> boolean().
-is_same_type(T1, T2) when ?IS_ARRAY_TYPE(T1) andalso
-                          ?IS_ARRAY_TYPE(T2) ->
-  %% For array, compare items type
-  is_same_type(avro_array:get_items_type(T1),
-               avro_array:get_items_type(T2));
-is_same_type(T1, T2) when ?IS_MAP_TYPE(T1) andalso
-                          ?IS_MAP_TYPE(T2) ->
-  %% For map, compare items type
-  is_same_type(avro_map:get_items_type(T1),
-               avro_map:get_items_type(T2));
-is_same_type(T1, T2) when ?IS_UNION_TYPE(T1) andalso
-                          ?IS_UNION_TYPE(T2) ->
-  %% For unions, compare the number of members and
-  %% the order of the members
-  Members1 = avro_union:get_types(T1),
-  Members2 = avro_union:get_types(T2),
-  length(Members1) =:= length(Members2) andalso
-    lists:all(fun({Tt1, Tt2}) ->
-                  is_same_type(Tt1, Tt2)
-              end, lists:zip(Members1, Members2));
-is_same_type(T1, T2) ->
-  %% Named types and primitive types fall into this clause
-  %% Should be enough to just compare their names
-  get_type_fullname(T1) =:= get_type_fullname(T2).
 
 %% @private
 -spec do_cast(avro_type(), avro:in()) -> {ok, avro_value()} | {error, any()}.
