@@ -160,7 +160,7 @@ encode(Type, {MemberId, Value}, EncodeFun) when is_integer(MemberId) ->
     {ok, MemberType} ->
       EncodeFun(MemberType, Value, MemberId);
     false ->
-      erlang:error({unknown_tag, Type, MemberId})
+      erlang:error({unknown_member, Type, MemberId})
   end;
 encode(Type, {MemberName, Value}, EncodeFun) when ?IS_NAME_RAW(MemberName) ->
   case lookup_index(MemberName, Type) of
@@ -171,7 +171,7 @@ encode(Type, {MemberName, Value}, EncodeFun) when ?IS_NAME_RAW(MemberName) ->
       %% the union input value is tagged with a union member name or id
       EncodeFun(MemberType, Value, MemberId);
     false ->
-      erlang:error({unknown_tag, Type, MemberName})
+      erlang:error({unknown_member, Type, MemberName})
   end;
 encode(Type, Value, EncodeFun) ->
   MemberTypes = avro_union:get_types(Type),
@@ -246,7 +246,7 @@ do_cast(Type, {MemberId, Value}) ->
       {ok, WrappedValue} = avro:cast(MemberType, Value),
       {ok, ?AVRO_VALUE(Type, WrappedValue)};
     false ->
-      {error, {unknown_tag, Type, MemberId}}
+      {error, {unknown_member, Type, MemberId}}
   end;
 do_cast(Type, Value) ->
   case cast_over_types(get_types(Type), Value) of

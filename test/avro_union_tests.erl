@@ -90,12 +90,12 @@ cast_test() ->
   ?assertEqual({error, type_mismatch}, avro_union:cast(Type, "str")),
   ?assertException(error, type_mismatch, avro_union:new(Type, "str")).
 
-unknown_tag_cast_test() ->
+unknown_member_cast_test() ->
   Type = avro_union:type([null, long]),
-  ?assertEqual({error, {unknown_tag, Type, 2}},
+  ?assertEqual({error, {unknown_member, Type, 2}},
                avro_union:cast(Type, {2, "s"})).
 
-unknown_tag_encode_test() ->
+unknown_member_encode_test() ->
   Type = avro_union:type([null, long]),
   EncodeFun = fun(_MemberType, InputValue, MemberIdInteger) ->
                   {encoded, MemberIdInteger, InputValue}
@@ -106,9 +106,9 @@ unknown_tag_encode_test() ->
                avro_union:encode(Type, {null, null}, EncodeFun)),
   ?assertEqual({encoded, 1, 42},
                avro_union:encode(Type, {long, 42}, EncodeFun)),
-  ?assertError({unknown_tag, Type, 2},
+  ?assertError({unknown_member, Type, 2},
                avro_union:encode(Type, {2, "s"}, EncodeFun)),
-  ?assertError({unknown_tag, Type, "int"},
+  ?assertError({unknown_member, Type, "int"},
                avro_union:encode(Type, {"int", 2}, EncodeFun)).
 
 loop_over_encode_test() ->
@@ -138,7 +138,7 @@ big_union_of_names_test() ->
   ?assertEqual({encoded, 199, value},
                avro_union:encode(Type, {<<"com.klarna.test.R200">>, value},
                                  EncodeFun)),
-  ?assertException(error, {unknown_tag, Type, <<"com.klarna.test.x">>},
+  ?assertException(error, {unknown_member, Type, <<"com.klarna.test.x">>},
                    avro_union:encode(Type, {<<"com.klarna.test.x">>, value},
                                      EncodeFun)).
 
