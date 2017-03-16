@@ -83,9 +83,9 @@ encode(Store, TypeName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeName, Value);
 encode(Lkup, Type, #avro_value{type = T} = V) ->
-  case avro:get_type_fullname(Type) =:= avro:get_type_fullname(T) of
+  case avro:is_same_type(Type, T) of
     true  -> encode_value(V);
-    false -> enc(Lkup, Type, V)
+    false -> enc(Lkup, Type, V) %% try deeper
   end;
 encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
   enc(Lkup, Lkup(?NAME(TypeName)), Value);
