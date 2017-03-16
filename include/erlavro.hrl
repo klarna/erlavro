@@ -129,6 +129,7 @@
 
 -define(AVRO_DEFAULT_DECODER_HOOK,
         fun(__Type__, __SubNameOrId__, Data, DecodeFun) -> DecodeFun(Data) end).
+
 -endif.
 
 %%%_* Emacs ====================================================================
