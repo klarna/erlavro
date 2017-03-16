@@ -283,6 +283,27 @@ wrapped_map_cast_test() ->
   {ok, Cast} = avro:cast(Map, Wrapped),
   ?assertEqual(Wrapped, Cast).
 
+array_of_union_cast_test() ->
+  Rec1 = avro_record:type("rec1", [avro_record:define_field("f", int)]),
+  Rec2 = avro_record:type("rec2", [avro_record:define_field("f", int)]),
+  Lkup = fun(<<"rec1">>) -> Rec1;
+            (<<"rec2">>) -> Rec2 end,
+  Union = avro_union:type(["rec1", "rec2"]),
+  Array = avro_array:type(Union),
+  Rec1Val = avro:encode_wrapped(Lkup, Union, {"rec1", [{"f", 1}]}, avro_binary),
+  Rec2Val = avro:encode_wrapped(Lkup, Union, {"rec2", [{"f", 1}]}, avro_binary),
+  {ok, #avro_value{ type = Array
+                  , data = [ #avro_value{type = Union, data = B1}
+                           , #avro_value{type = Union, data = B2}
+                           ]}} = avro:cast(Array, [Rec1Val, Rec2Val]),
+  ?assertEqual({binary, <<0,2>>}, B1),
+  ?assertEqual({binary, <<2,2>>}, B2),
+  Int = avro_primitive:type(int, []),
+  EncodedInt = avro:encode_wrapped(Lkup, Int, 1, avro_binary),
+  ?assertMatch({error, {unknown_member, Union, <<"int">>}},
+               avro:cast(Array, [EncodedInt])),
+  ok.
+
 %% @private
 priv_dir() ->
   case code:priv_dir(erlavro) of

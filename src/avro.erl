@@ -404,6 +404,16 @@ is_same_type(T1, T2) when ?IS_MAP_TYPE(T1) andalso
   %% For map, compare items type
   is_same_type(avro_map:get_items_type(T1),
                avro_map:get_items_type(T2));
+is_same_type(T1, T2) when ?IS_UNION_TYPE(T1) andalso
+                          ?IS_UNION_TYPE(T2) ->
+  %% For unions, compare the number of members and
+  %% the order of the members
+  Members1 = avro_union:get_types(T1),
+  Members2 = avro_union:get_types(T2),
+  length(Members1) =:= length(Members2) andalso
+    lists:all(fun({Tt1, Tt2}) ->
+                  is_same_type(Tt1, Tt2)
+              end, lists:zip(Members1, Members2));
 is_same_type(T1, T2) ->
   %% Named types and primitive types fall into this clause
   %% Should be enough to just compare their names
