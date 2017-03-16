@@ -1,5 +1,5 @@
-%%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%%-----------------------------------------------------------------------------
+%%% Copyright (c) 2013-2017 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -32,7 +32,8 @@
 %%% Error will be thrown when name conflict is detected during type
 %%% addition.
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+
 -module(avro_schema_store).
 
 %% Init/Terminate
@@ -46,32 +47,17 @@
 -export([ import_file/2
         , import_files/2
         , import_schema_json/2
+        , import_schema_json/3
         ]).
 
 %% Add/Lookup
 -export([ add_type/2
+        , add_type/3
         , lookup_type/2
         , to_lookup_fun/1
         ]).
 
-%% Flatten/Expand
--export([ flatten_type/1
-        , expand_type/2
-        ]).
-
-%% deprecated
--export([ fold/3
-        , lookup_type_json/2
-        ]).
-
--deprecated({fold, 3, eventually}).
--deprecated({lookup_type_json, 2, eventually}).
-
 -include("avro_internal.hrl").
-
--ifdef(TEST).
--export([extract_children_types/1]).
--endif.
 
 -opaque store() :: ets:tab().
 -type option_key() :: access | name.
@@ -80,7 +66,6 @@
 -export_type([store/0]).
 
 -define(IS_STORE(S), (is_integer(S) orelse is_atom(S))).
--define(SEEN, avro_get_nested_type_seen_full_names).
 
 %%%_* APIs =====================================================================
 
@@ -100,7 +85,7 @@ new(Options) ->
   {Name, EtsOpts} =
     case avro_util:get_opt(name, Options, undefined) of
       undefined -> {?MODULE, []};
-      Name_     -> {Name_, [named_table]}
+      Name1     -> {Name1, [named_table]}
     end,
   ets:new(Name, [Access, {read_concurrency, true} | EtsOpts]).
 
@@ -111,7 +96,7 @@ new(Options, Files) ->
   import_files(Files, Store).
 
 %% @doc Make a schema lookup function from store.
--spec to_lookup_fun(store()) -> fun((fullname()) -> avro_type()).
+-spec to_lookup_fun(store()) -> fun((name_raw()) -> avro_type()).
 to_lookup_fun(Store) ->
   fun(Name) ->
     {ok, Type} = ?MODULE:lookup_type(Name, Store),
@@ -124,20 +109,31 @@ import_files(Files, Store) when ?IS_STORE(Store) ->
   lists:foldl(fun(File, S) -> import_file(File, S) end, Store, Files).
 
 %% @doc Import avro JSON file into schema store.
+%% In case the schema is unnamed, the file basename is used as its
+%% lookup name.
+%% Extention ".avsc" or ".json" will be stripped,
+%% Otherwise the full file basename is used.
+%% e.g.
+%%  "/path/to/com.klarna.test.x.avsc" to 'com.klarna.etst.x"
+%%  "/path/to/com.klarna.test.x.json" to 'com.klarna.etst.x"
+%%  "/path/to/com.klarna.test.x"      to 'com.klarna.etst.x"
+%% @end
 -spec import_file(filename(), store()) -> store().
 import_file(File, Store) when ?IS_STORE(Store) ->
   case file:read_file(File) of
     {ok, Json} ->
-      import_schema_json(Json, Store);
+      Name = parse_basename(File),
+      import_schema_json(Name, Json, Store);
     {error, Reason} ->
       erlang:error({failed_to_read_schema_file, File, Reason})
   end.
 
 %% @doc Decode avro schema JSON into erlavro records.
+%% NOTE: Exception if the type is unnamed.
+%% @end
 -spec import_schema_json(binary(), store()) -> store().
 import_schema_json(Json, Store) when ?IS_STORE(Store) ->
-  Schema = avro_json_decoder:decode_schema(Json),
-  add_type(Schema, Store).
+  import_schema_json(undefined, Json, Store).
 
 %% @doc Delete the ets table.
 -spec close(store()) -> ok.
@@ -145,141 +141,67 @@ close(Store) ->
   ets:delete(Store),
   ok.
 
-%% @doc Add type into the schema store.
+%% @doc Add named type into the schema store.
 %% NOTE: the type is flattened before inserting into the schema store.
 %% i.e. named types nested in the given type are lifted up to root level.
+%% @end
 -spec add_type(avro_type(), store()) -> store().
 add_type(Type, Store) when ?IS_STORE(Store) ->
-  case avro:is_named_type(Type) of
-    true  ->
-      {ConvertedType, ExtractedTypes} = extract_children_types(Type),
-      lists:foldl(
-        fun do_add_type/2,
-        do_add_type(ConvertedType, Store),
-        ExtractedTypes);
-    false ->
-      erlang:error({unnamed_type_cant_be_added, Type})
-  end.
+  add_type(undefined, Type, Store).
+
+%% @doc Add (maybe unnamed) type to schema store.
+%% If the type is unnamed, the assigned name is used.
+%% For named types, the assigned name works like an alias.
+%% @end
+-spec add_type(undefined | name_raw(), avro_type(), store()) -> store().
+add_type(AssignedName, Type0, Store) when ?IS_STORE(Store) ->
+  {Type, FlattenTypes} = avro:flatten_type(Type0),
+  %% Exception when the root type is not named but assigned name is not given.
+  case ?IS_TYPE_RECORD(Type) andalso AssignedName =:= undefined of
+    true  -> erlang:error({unnamed_type, Type});
+    false -> ok
+  end,
+  %% Add the root type with assigned name.
+  %% Even when the flattened result is a name reference.
+  Store1 = add_by_assigned_name(AssignedName, Type, Store),
+  lists:foldl(fun do_add_type/2, Store1, FlattenTypes).
 
 %% @doc Lookup a type using its full name.
--spec lookup_type(fullname(), store()) -> {ok, avro_type()} | false.
+-spec lookup_type(name_raw(), store()) -> {ok, avro_type()} | false.
 lookup_type(FullName, Store) when ?IS_STORE(Store) ->
-  get_type_from_store(FullName, Store).
-
-%% @doc Get type and lookup sub-types recursively.
-%% This should allow callers to write a root type to one avsc schema file
-%% instead of scattering all named types to their own avsc files.
-%% @end
--spec expand_type(fullname() | avro_type(), store()) ->
-        avro_type() | none().
-expand_type(Type, Store) when ?IS_STORE(Store) ->
-  try
-    %% Use process dictionary to keep the history of seen type names
-    %% to simplify (comparing to a lists:foldr version) the loop functions.
-    %%
-    %% The ?SEEN names are 'previously' already resolved full names of types
-    %% when traversing the type tree, so there is no need to resolve
-    %% the 'current' type reference again.
-    %%
-    %% Otherwise the encoded JSON schema would be bloated with repeated
-    %% type definitions.
-    _ = erlang:put(?SEEN, []),
-    case ?IS_NAME(Type) of
-      true  -> do_expand_type(Type, Store);
-      false -> expand(Type, Store)
-    end
-  after
-    erlang:erase(?SEEN)
-  end.
-
-%% @deprecated Lookup a type as in JSON (already encoded)
-%% format using its full name.
-%% @end
--spec lookup_type_json(fullname(), store()) -> {ok, term()} | false.
-lookup_type_json(FullName, Store) when ?IS_STORE(Store) ->
-  get_type_json_from_store(FullName, Store).
-
-%% @deprecated
-fold(F, Acc0, Store) ->
-  ets:foldl(
-    fun({{json, _FullName}, _JSON}, Acc) ->
-        Acc;
-       ({FullName, Type}, Acc) ->
-        F(FullName, Type, Acc)
-    end,
-    Acc0,
-    Store).
-
-%% @doc Flatten out all named types, return the extracted format and all
-%% (recursively extracted) children types in a list.
-%% If the type is named (i.e. record type), the extracted format is its
-%% full name, and the type itself is added to the extracted list.
-%% @end
--spec flatten_type(avro:fullname() | avro_type()) ->
-        {avro:fullname() | avro_type(), [avro_type()]}.
-flatten_type(TypeName) when ?IS_NAME(TypeName) ->
-  %% it's a reference, do nothing
-  {TypeName, []};
-flatten_type(Type) when ?IS_AVRO_TYPE(Type) ->
-  %% go deeper
-  {NewType, Extracted} = extract_children_types(Type),
-  case avro:is_named_type(NewType) of
-    true  ->
-      %% Named types are replaced by their fullnames.
-      Fullname = avro:get_type_fullname(Type),
-      {Fullname, [NewType | Extracted]};
-    false ->
-      {NewType, Extracted}
-  end.
+  get_type_from_store(?NAME(FullName), Store).
 
 %%%_* Internal Functions =======================================================
 
-%% @private
--spec do_expand_type(fullname(), store()) ->
-        fullname() | avro_type() | no_return().
-do_expand_type(Fullname, Store) when ?IS_NAME(Fullname) ->
-  Hist = erlang:get(?SEEN),
-  case lists:member(Fullname, Hist) of
-    true ->
-      %% This type name has been resolved earlier
-      %% do not go deeper for 2 reasons:
-      %% 1. There is no need to duplicate the type definitions
-      %% 2. To avoid stack overflow in case of recursive reference
-      Fullname;
-    false ->
-      {ok, T} = lookup_type(Fullname, Store),
-      erlang:put(?SEEN, [Fullname | Hist]),
-      expand(T, Store)
-  end.
+%% @private Add type by an assigned name.
+%% Except when assigned name is 'undefined'
+%% @end
+-spec add_by_assigned_name(undefined | name_raw(),
+                           type_or_name(), store()) -> store().
+add_by_assigned_name(undefined, _Type, Store) -> Store;
+add_by_assigned_name(AssignedName, Type, Store) ->
+  do_add_type_by_names([?NAME(AssignedName)], Type, Store).
 
-%% @private
--spec expand(avro_type(), store()) -> avro_type() | no_return().
-expand(#avro_record_type{fields = Fields} = T, Store) ->
-  ResolvedFields =
-    lists:map(
-      fun(#avro_record_field{type = Type} = F) ->
-        ResolvedType = expand(Type, Store),
-        F#avro_record_field{type = ResolvedType}
-      end, Fields),
-  T#avro_record_type{fields = ResolvedFields};
-expand(#avro_array_type{type = SubType} = T, Store) ->
-  ResolvedSubType = expand(SubType, Store),
-  T#avro_array_type{type = ResolvedSubType};
-expand(#avro_map_type{type = SubType} = T, Store) ->
-  ResolvedSubType = expand(SubType, Store),
-  T#avro_map_type{type = ResolvedSubType};
-expand(#avro_union_type{types = SubTypes} = T, Store) ->
-  ResolvedSubTypes =
-    lists:map(
-      fun({Index, SubType}) ->
-        ResolvedSubType = expand(SubType, Store),
-        {Index, ResolvedSubType}
-      end, SubTypes),
-  T#avro_union_type{types = ResolvedSubTypes};
-expand(Fullname, Store) when ?IS_NAME(Fullname) ->
-  do_expand_type(Fullname, Store);
-expand(T, _Store) when ?IS_AVRO_TYPE(T) ->
-  T.
+%% @private Parse file basename. try to strip ".avsc" or ".json" extension.
+-spec parse_basename(filename()) -> name().
+parse_basename(FileName) ->
+  BaseName0 = filename:basename(FileName),
+  BaseName1 = filename:basename(FileName, ".avsc"),
+  BaseName2 = filename:basename(FileName, ".json"),
+  lists:foldl(
+    fun(N, Shortest) ->
+        BN = avro_util:ensure_binary(N),
+        case size(BN) < size(Shortest) of
+          true  -> BN;
+          false -> Shortest
+        end
+    end, avro_util:ensure_binary(BaseName0), [BaseName1, BaseName2]).
+
+%% @private Import JSON schema with assigned name.
+-spec import_schema_json(name_raw(), binary(), store()) -> store().
+import_schema_json(AssignedName, Json, Store) ->
+  Schema = avro_json_decoder:decode_schema(Json),
+  add_type(AssignedName, Schema, Store).
 
 %% @private
 -spec do_add_type(avro_type(), store()) -> store().
@@ -288,86 +210,37 @@ do_add_type(Type, Store) ->
   Aliases = avro:get_aliases(Type),
   do_add_type_by_names([FullName|Aliases], Type, Store).
 
--spec do_add_type_by_names([fullname()], avro_type(), store()) -> store().
-do_add_type_by_names([], _Type, Store) ->
-  Store;
+%% @private
+-spec do_add_type_by_names([fullname()], avro_type(), store()) ->
+        store() | no_return().
+do_add_type_by_names([], _Type, Store) -> Store;
 do_add_type_by_names([Name|Rest], Type, Store) ->
   case get_type_from_store(Name, Store) of
-    {ok, _} ->
-      erlang:error({type_with_same_name_already_exists_in_store, Name});
+    {ok, Type} ->
+      Store;
+    {ok, OtherType} ->
+      %% Name can be an assigned name for unnamed types,
+      %% This is why we raise error exception with name AND both
+      %% old / new types.
+      erlang:error({name_clash, Name, Type, OtherType});
     false   ->
       Store1 = put_type_to_store(Name, Type, Store),
       do_add_type_by_names(Rest, Type, Store1)
   end.
 
-%% @private Recursively extract all children types from the type
-%% replace extracted types with their full names as references.
-%% @end
--spec extract_children_types(avro_type()) -> {avro_type(), [avro_type()]}.
-extract_children_types(Primitive) when ?AVRO_IS_PRIMITIVE_TYPE(Primitive) ->
-  {Primitive, []};
-extract_children_types(Enum) when ?AVRO_IS_ENUM_TYPE(Enum) ->
-  {Enum, []};
-extract_children_types(Fixed) when ?AVRO_IS_FIXED_TYPE(Fixed) ->
-  {Fixed, []};
-extract_children_types(Record) when ?AVRO_IS_RECORD_TYPE(Record) ->
-  {NewFields, ExtractedTypes} =
-    lists:foldr(
-      fun(Field, {FieldsAcc, ExtractedAcc}) ->
-          {NewType, Extracted} =
-            flatten_type(Field#avro_record_field.type),
-          {[Field#avro_record_field{type = NewType}|FieldsAcc],
-           Extracted ++ ExtractedAcc}
-      end,
-      {[], []},
-      Record#avro_record_type.fields),
-  {Record#avro_record_type{ fields = NewFields }, ExtractedTypes};
-extract_children_types(Array) when ?AVRO_IS_ARRAY_TYPE(Array) ->
-  ChildType = avro_array:get_items_type(Array),
-  {NewChildType, Extracted} = flatten_type(ChildType),
-  {avro_array:type(NewChildType), Extracted};
-extract_children_types(Map) when ?AVRO_IS_MAP_TYPE(Map) ->
-  ChildType = Map#avro_map_type.type,
-  {NewChildType, Extracted} = flatten_type(ChildType),
-  {Map#avro_map_type{type = NewChildType}, Extracted};
-extract_children_types(Union) when ?AVRO_IS_UNION_TYPE(Union) ->
-  ChildrenTypes = avro_union:get_types(Union),
-  {NewChildren, ExtractedTypes} =
-    lists:foldr(
-      fun(ChildType, {FlattenAcc, ExtractedAcc}) ->
-          {ChildType1, Extracted} = flatten_type(ChildType),
-          {[ChildType1|FlattenAcc], Extracted ++ ExtractedAcc}
-      end,
-      {[], []},
-      ChildrenTypes),
-  {avro_union:type(NewChildren), ExtractedTypes}.
-
-%%%===================================================================
-%%% Low level store access
-%%%===================================================================
-
 %% @private
 -spec put_type_to_store(fullname(), avro_type(), store()) -> store().
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
-  Json = iolist_to_binary(avro_json_encoder:encode_type(Type)),
-  true = ets:insert(Store, {{json, Name}, Json}),
   Store.
 
 %% @private
+-spec get_type_from_store(fullname(), store()) -> false | {ok, avro_type()}.
 get_type_from_store(Name, Store) ->
   case ets:lookup(Store, Name) of
     []             -> false;
     [{Name, Type}] -> {ok, Type}
   end.
-
-%% @private
-get_type_json_from_store(Name, Store) ->
-  case ets:lookup(Store, {json, Name}) of
-    []                     -> false;
-    [{{json, Name}, Json}] -> {ok, Json}
-  end.
-
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

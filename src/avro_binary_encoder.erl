@@ -1,6 +1,7 @@
 %% coding: latin-1
-%%% ============================================================================
-%%% Copyright (c) 2016 Klarna AB
+%%%-----------------------------------------------------------------------------
+%%%
+%%% Copyright (c) 2016-2017 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -24,7 +25,8 @@
 %%% but keeps all information (attributes are kept even if they are
 %%% not relevant for parsing).
 %%% @end
-%%% ============================================================================
+%%%-----------------------------------------------------------------------------
+
 -module(avro_binary_encoder).
 
 %% APIs for typed data encoding
@@ -35,32 +37,37 @@
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
--export([string/1, int/1, long/1, zigzag/2]).
+-export([ int/1
+        , long/1
+        , string/1
+        , zigzag/2
+        ]).
 -endif.
+
+-type index() :: non_neg_integer(). %% zero based
 
 %%%_* APIs =====================================================================
 
 %% @doc Encode avro value in binary format.
-%% @end
--spec encode_value(avro_value() | avro_encoded_value()) -> iodata().
+-spec encode_value(avro_value()) -> iodata().
 encode_value(?AVRO_ENCODED_VALUE_BINARY(_Type, _Value = Encoded)) ->
   Encoded;
-encode_value(V) when ?AVRO_IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(V)) ->
+encode_value(V) when ?IS_PRIMITIVE_TYPE(?AVRO_VALUE_TYPE(V)) ->
   encode_prim(?AVRO_VALUE_TYPE(V), ?AVRO_VALUE_DATA(V));
-encode_value(Record) when ?AVRO_IS_RECORD_VALUE(Record) ->
+encode_value(Record) when ?IS_RECORD_VALUE(Record) ->
   [encode_value(X) || {_FieldName, X} <- avro_record:to_list(Record)];
-encode_value(Enum) when ?AVRO_IS_ENUM_VALUE(Enum) ->
+encode_value(Enum) when ?IS_ENUM_VALUE(Enum) ->
   int(avro_enum:get_index(Enum));
-encode_value(Array) when ?AVRO_IS_ARRAY_VALUE(Array) ->
+encode_value(Array) when ?IS_ARRAY_VALUE(Array) ->
   Count = length(?AVRO_VALUE_DATA(Array)),
   block(Count, [encode_value(I) || I <- ?AVRO_VALUE_DATA(Array)]);
-encode_value(Map) when ?AVRO_IS_MAP_VALUE(Map) ->
+encode_value(Map) when ?IS_MAP_VALUE(Map) ->
   KvList = avro_map:to_list(Map),
   Count  = length(KvList),
   block(Count, [[string(K), encode_value(V)] || {K, V} <- KvList]);
-encode_value(Fixed) when ?AVRO_IS_FIXED_VALUE(Fixed) ->
+encode_value(Fixed) when ?IS_FIXED_VALUE(Fixed) ->
   ?AVRO_VALUE_DATA(Fixed);
-encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
+encode_value(Union) when ?IS_UNION_VALUE(Union) ->
   TypedData = ?AVRO_VALUE_DATA(Union),
   Index = avro_union:get_child_type_index(Union),
   [long(Index), encode_value(TypedData)].
@@ -70,37 +77,46 @@ encode_value(Union) when ?AVRO_IS_UNION_VALUE(Union) ->
 %% i.e. data can be recursive, but recursive types are resolved by
 %% schema lookup
 %% @end
--spec encode(schema_store() | lkup_fun(), avro_type_or_name(), term()) ->
-        iodata().
+-spec encode(schema_store() | lkup_fun(), type_or_name(),
+             avro_value() | avro:in()) -> iodata().
 encode(Store, TypeName, Value) when not is_function(Store) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
   encode(Lkup, TypeName, Value);
-encode(_Lkup, Type, #avro_value{type = Type} = V) ->
-  encode_value(V);
-encode(Lkup, TypeName, Value) when ?IS_NAME(TypeName) ->
-  encode(Lkup, Lkup(TypeName), Value);
-encode(_Lkup, Type, Value) when ?AVRO_IS_PRIMITIVE_TYPE(Type) ->
+encode(Lkup, Type, #avro_value{type = T} = V) ->
+  case avro:is_same_type(Type, T) of
+    true  -> encode_value(V);
+    false -> enc(Lkup, Type, V) %% try deeper
+  end;
+encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
+  enc(Lkup, Lkup(?NAME(TypeName)), Value);
+encode(Lkup, Type, Value) ->
+  enc(Lkup, Type, Value).
+
+%% @private
+-spec enc(schema_store() | lkup_fun(), type_or_name(),
+          avro_value() | avro:in()) -> iodata().
+enc(_Lkup, Type, Value) when ?IS_PRIMITIVE_TYPE(Type) ->
   {ok, AvroValue} = avro:cast(Type, Value),
   encode_value(AvroValue);
-encode(Lkup, Type, Value) when ?AVRO_IS_RECORD_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?IS_RECORD_TYPE(Type) ->
   avro_record:encode(Type, Value,
     fun({_, FT, FV}) -> encode(Lkup, FT, FV) end);
-encode(_Lkup, Type, Value) when ?AVRO_IS_ENUM_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?IS_ENUM_TYPE(Type) ->
   int(avro_enum:get_index(Type, Value));
-encode(Lkup, Type, Value) when ?AVRO_IS_ARRAY_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?IS_ARRAY_TYPE(Type) ->
   Count = length(Value),
   Encoded = avro_array:encode(Type, Value,
     fun(IType, Item) -> encode(Lkup, IType, Item) end),
   block(Count, Encoded);
-encode(Lkup, Type, Value) when ?AVRO_IS_MAP_TYPE(Type) ->
+enc(Lkup, Type, Value) when ?IS_MAP_TYPE(Type) ->
   Encoded = avro_map:encode(Type, Value,
     fun(IType, K, V) -> [string(K), encode(Lkup, IType, V)] end),
   Count = length(Value),
   block(Count, Encoded);
-encode(_Lkup, Type, Value) when ?AVRO_IS_FIXED_TYPE(Type) ->
+enc(_Lkup, Type, Value) when ?IS_FIXED_TYPE(Type) ->
   %% force binary size check for the value
   encode_value(avro_fixed:new(Type, Value));
-encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
+enc(Lkup, Type, Union) when ?IS_UNION_TYPE(Type) ->
   avro_union:encode(Type, Union,
     fun(MemberT, Value, Index) ->
       [long(Index), encode(Lkup, MemberT, Value)]
@@ -109,14 +125,15 @@ encode(Lkup, Type, Union) when ?AVRO_IS_UNION_TYPE(Type) ->
 %%%_* Internal functions =======================================================
 
 %% @private
-encode_prim(T, _) when ?AVRO_IS_NULL_TYPE(T)    -> null();
-encode_prim(T, V) when ?AVRO_IS_BOOLEAN_TYPE(T) -> bool(V);
-encode_prim(T, V) when ?AVRO_IS_INT_TYPE(T)     -> int(V);
-encode_prim(T, V) when ?AVRO_IS_LONG_TYPE(T)    -> long(V);
-encode_prim(T, V) when ?AVRO_IS_FLOAT_TYPE(T)   -> float(V);
-encode_prim(T, V) when ?AVRO_IS_DOUBLE_TYPE(T)  -> double(V);
-encode_prim(T, V) when ?AVRO_IS_BYTES_TYPE(T)   -> bytes(V);
-encode_prim(T, V) when ?AVRO_IS_STRING_TYPE(T)  -> string(V).
+-spec encode_prim(avro_type(), avro:in()) -> iodata().
+encode_prim(T, _) when ?IS_NULL_TYPE(T)    -> null();
+encode_prim(T, V) when ?IS_BOOLEAN_TYPE(T) -> bool(V);
+encode_prim(T, V) when ?IS_INT_TYPE(T)     -> int(V);
+encode_prim(T, V) when ?IS_LONG_TYPE(T)    -> long(V);
+encode_prim(T, V) when ?IS_FLOAT_TYPE(T)   -> float(V);
+encode_prim(T, V) when ?IS_DOUBLE_TYPE(T)  -> double(V);
+encode_prim(T, V) when ?IS_BYTES_TYPE(T)   -> bytes(V);
+encode_prim(T, V) when ?IS_STRING_TYPE(T)  -> string(V).
 
 %% @private Encode blocks, for arrays and maps
 %% 1. Blocks start with a 'long' type count
@@ -140,6 +157,7 @@ encode_prim(T, V) when ?AVRO_IS_STRING_TYPE(T)  -> string(V).
 %% This is however benifical when concatinating large lists which have chunks
 %% encoded in different processes etc.
 %% @end
+-spec block(index(), iodata()) -> iodata().
 block(0, []) -> [0];
 block(Count, Payload) when is_binary(Payload) ->
   Header = iolist_to_binary([long(-Count), long(size(Payload))]),
@@ -148,50 +166,66 @@ block(Count, Payload) ->
   block(Count, iolist_to_binary(Payload)).
 
 %% @private
+-spec null() -> binary().
 null() -> <<>>.
 
 %% @private
+-spec bool(boolean()) -> <<_:8>>.
 bool(false) -> <<0>>;
 bool(true)  -> <<1>>.
 
 %% @private
+-spec int(integer()) -> iodata().
 int(Int) ->
-  Zz_int = zigzag(int, Int),
-  varint(Zz_int).
+  ZzInt = zigzag(int, Int),
+  varint(ZzInt).
 
 %% @private
+-spec long(integer()) -> iodata().
 long(Long) ->
-  Zz_long = zigzag(long, Long),
-  varint(Zz_long).
+  ZzLong = zigzag(long, Long),
+  varint(ZzLong).
 
 %% @private
--compile({no_auto_import,[float/1]}).
+-compile({no_auto_import, [float/1]}).
+-spec float(float()) -> binary().
 float(Float) when is_float(Float) ->
   <<Float:32/little-float>>.
 
 %% @private
+-spec double(float()) -> binary().
 double(Double) when is_float(Double) ->
   <<Double:64/little-float>>.
 
 %% @private
+-spec bytes(binary()) -> iodata().
 bytes(Data) when is_binary(Data) ->
   [long(byte_size(Data)), Data].
 
 %% @private
-string(Data) when is_binary(Data) ->
-  [long(size(Data)), Data];
-string(Data) when is_list(Data) ->
-  string(list_to_binary(Data)).
+-spec string(atom() | iodata()) -> iodata().
+string(Atom) when is_atom(Atom) ->
+  string(atom_to_binary(Atom, utf8));
+string(String) when is_list(String) ->
+  %% NOTE: not unicode:chardata_to_binary(String)
+  %% we do not want to deal with utf8 in erlavro
+  string(iolist_to_binary(String));
+string(String) when is_binary(String) ->
+  [long(size(String)), String].
 
 %% @private
 %% ZigZag encode/decode
 %% https://developers.google.com/protocol-buffers/docs/encoding?&csw=1#types
+%% @end
+-spec zigzag(int | long, integer()) -> integer().
 zigzag(int, Int)  -> (Int bsl 1) bxor (Int bsr 31);
 zigzag(long, Int) -> (Int bsl 1) bxor (Int bsr 63).
 
 %% @private
 %% Variable-length format
 %% http://lucene.apache.org/core/3_5_0/fileformats.html#VInt
+%% @end
+-spec varint(integer()) -> iodata().
 varint(I) ->
   H = I bsr 7,
   L = I band 127,
@@ -199,7 +233,6 @@ varint(I) ->
     true  -> [L];
     false -> [128 + L | varint(H)]
   end.
-
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

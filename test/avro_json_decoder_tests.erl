@@ -20,148 +20,169 @@
 -module(avro_json_decoder_tests).
 
 -import(avro_json_decoder, [ parse/5
-                           , parse_schema/3
+                           , parse_schema/2
                            , parse_value/3
                            ]).
 
--include("erlavro.hrl").
+-include_lib("erlavro/include/avro_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
+
+-define(JSON_OBJ(__FIELDS__), {__FIELDS__}).
 
 parse_primitive_type_name_test() ->
   %% Check that primitive types specified by their names are parsed correctly
   ?assertEqual(avro_primitive:int_type(),
-               parse_schema(<<"int">>, "foobar", none)).
+               parse_schema(<<"int">>, none)).
 
 parse_primitive_type_object_test() ->
   %% Check that primitive types specified by type objects are parsed correctly
-  Schema = {struct, [{<<"type">>, <<"int">>}]},
+  Type = ?JSON_OBJ([{<<"type">>, <<"int">>}]),
   ?assertEqual(avro_primitive:int_type(),
-               parse_schema(Schema, "foobar", none)).
+               parse_schema(Type, none)).
+
+parse_custom_prop_test() ->
+  Type = ?JSON_OBJ([ {<<"type">>, <<"int">>}
+                   , {<<"logicalType">>, <<"my-type">>}
+                   , {<<"foo">>, 42}
+                   , {<<"bar">>, 3.14}
+                   ]),
+  ?assertEqual(avro_primitive:type(int, [ {<<"logicalType">>, <<"my-type">>}
+                                        , {<<"foo">>, 42}
+                                        , {<<"bar">>, 3.14}
+                                        ]),
+               parse_schema(Type, none)).
 
 parse_record_type_test() ->
-  Schema = {struct,
-    [ {<<"type">>, <<"record">>}
-      , {<<"name">>, <<"TestRecord">>}
-      , {<<"namespace">>, <<"name.space">>}
-      , {<<"fields">>, []}
-    ]},
-  Record = parse_schema(Schema, "", none),
-  ?assertEqual(avro_record:type("TestRecord", [], [{namespace, "name.space"}]),
-               Record).
+  Schema = ?JSON_OBJ(
+    [ {<<"type">>,      <<"record">>}
+    , {<<"name">>,      <<"TestRecord">>}
+    , {<<"namespace">>, <<"name.space">>}
+    , {<<"fields">>,    []}
+    ]),
+  Record = parse_schema(Schema, none),
+  Expected = avro_record:type("TestRecord", [], [{namespace, "name.space"}]),
+  ?assertEqual(Expected, Record).
 
 parse_record_type_with_default_values_test() ->
-  Schema = {struct,
+  Schema = ?JSON_OBJ(
     [ {<<"type">>, <<"record">>}
-      , {<<"name">>, <<"TestRecord">>}
-      , {<<"namespace">>, <<"name.space">>}
-      , {<<"fields">>,
-      [ {struct, [ {<<"name">>, <<"string_field">>}
-        , {<<"type">>, <<"string">>}
-        , {<<"default">>, <<"FOOBAR">>}
-      ]}
-        , {struct, [ {<<"name">>, <<"union_field">>}
-        , {<<"type">>, [<<"boolean">>, <<"int">>]}
-        , {<<"default">>, true}
-      ]}
-      ]}
-    ]},
-  Record = parse_schema(Schema, "", none),
+    , {<<"name">>, <<"TestRecord">>}
+    , {<<"namespace">>, <<"name.space">>}
+    , {<<"fields">>, [ ?JSON_OBJ([ {<<"name">>, <<"string_field">>}
+                                 , {<<"type">>, <<"string">>}
+                                 , {<<"default">>, <<"FOOBAR">>}
+                                 , {<<"order">>, <<"descending">>}
+                                 ])
+                     , ?JSON_OBJ([ {<<"name">>, <<"union_field">>}
+                                 , {<<"type">>, [<<"boolean">>, <<"int">>]}
+                                 , {<<"default">>, true}
+                                 , {<<"order">>, <<"ignore">>}
+                                 ])
+                     ]}
+    ]),
+  Record = parse_schema(Schema, none),
   ExpectedUnion = avro_union:type([ avro_primitive:boolean_type()
-    , avro_primitive:int_type()]),
+                                  , avro_primitive:int_type()
+                                  ]),
   Expected = avro_record:type(
     "TestRecord",
     [ avro_record:define_field(
-      "string_field", avro_primitive:string_type(),
-      [{default, avro_primitive:string("FOOBAR")}])
-      , avro_record:define_field(
-      "union_field", ExpectedUnion,
-      [{default, avro_union:new(ExpectedUnion,
-        avro_primitive:boolean(true))}])
+        "string_field",
+        avro_primitive:string_type(),
+        [{default, avro_primitive:string("FOOBAR")},
+         {order, descending}
+        ])
+    , avro_record:define_field(
+        "union_field", ExpectedUnion,
+        [{default, avro_union:new(ExpectedUnion,
+                                  avro_primitive:boolean(true))},
+         {order, ignore}
+        ])
     ],
     [{namespace, "name.space"}]),
   ?assertEqual(Expected, Record).
 
-parse_record_type_with_enclosing_namespace_test() ->
-  Schema= {struct,
-    [ {<<"type">>, <<"record">>}
-      , {<<"name">>, <<"TestRecord">>}
-      , {<<"fields">>, []}
-    ]},
-  Record = parse_schema(Schema, "name.space", none),
-  ?assertEqual("name.space.TestRecord",  avro:get_type_fullname(Record)).
-
 parse_union_type_test() ->
   Schema = [ <<"int">>
-    , <<"string">>
-    , <<"typename">>
-  ],
-  Union = parse_schema(Schema, "name.space", none),
+           , <<"string">>
+           , <<"typename">>
+           ],
+  Union = parse_schema(Schema, none),
   ?assertEqual(avro_union:type([avro_primitive:int_type(),
-    avro_primitive:string_type(),
-    "name.space.typename"]),
-    Union).
+                                avro_primitive:string_type(),
+                                "typename"]), Union).
 
 parse_enum_type_full_test() ->
-  Schema = {struct,
+  Schema = ?JSON_OBJ(
     [ {<<"type">>,      <<"enum">>}
-      , {<<"name">>,      <<"TestEnum">>}
-      , {<<"namespace">>, <<"name.space">>}
-      , {<<"symbols">>,   [<<"A">>, <<"B">>, <<"C">>]}
-      , {<<"doc">>,       <<"descr">>}
-      , {<<"aliases">>,   [<<"EnumAlias">>, <<"EnumAlias2">>]}
-    ]},
-  Enum = parse_schema(Schema, "enc.losing", none),
+    , {<<"name">>,      <<"TestEnum">>}
+    , {<<"namespace">>, <<"name.space">>}
+    , {<<"symbols">>,   [<<"A">>, <<"B">>, <<"C">>]}
+    , {<<"doc">>,       <<"descr">>}
+    , {<<"aliases">>,   [<<"EnumAlias">>, <<"EnumAlias2">>]}
+    ]),
+  Enum = parse_schema(Schema, none),
   ExpectedType = avro_enum:type(
     "TestEnum",
     ["A", "B", "C"],
     [ {namespace,    "name.space"}
-      , {doc,          "descr"}
-      , {aliases,      ["EnumAlias", "EnumAlias2"]}
-      , {enclosing_ns, "enc.losing"}
+    , {doc,          "descr"}
+    , {aliases,      ["EnumAlias", "EnumAlias2"]}
     ]),
   ?assertEqual(ExpectedType, Enum).
 
 parse_enum_type_short_test() ->
   %% Only required fields are present
-  Schema = {struct,
-    [ {<<"type">>,      <<"enum">>}
-      , {<<"name">>,      <<"TestEnum">>}
-      , {<<"symbols">>,   [<<"A">>, <<"B">>, <<"C">>]}
-    ]},
-  Enum = parse_schema(Schema, "enc.losing", none),
+  Schema = ?JSON_OBJ(
+    [ {<<"type">>,    <<"enum">>}
+    , {<<"name">>,    <<"TestEnum">>}
+    , {<<"symbols">>, [<<"A">>, <<"B">>, <<"C">>]}
+    ]),
+  Enum = parse_schema(Schema, none),
   ExpectedType = avro_enum:type(
     "TestEnum",
     ["A", "B", "C"],
-    [ {namespace,    ""}
-      , {doc,          ""}
-      , {aliases,      []}
-      , {enclosing_ns, "enc.losing"}
+    [ {namespace,    ?NS_GLOBAL}
+    , {doc,          ""}
+    , {aliases,      []}
     ]),
   ?assertEqual(ExpectedType, Enum).
 
+parse_enum_unwrapped_test() ->
+  Type = avro_enum:type(
+    "TestEnum",
+    ["A", "B", "C"],
+    [ {namespace,    ""}
+    , {doc,          ""}
+    , {aliases,      []}
+    ]),
+  LkupFun = fun(_) -> Type end,
+  ?assertEqual(<<"A">>,
+               avro_json_decoder:parse(<<"A">>, "TestEnum", LkupFun, false,
+                                       ?DEFAULT_DECODER_HOOK)).
+
 parse_map_type_test() ->
-  Schema = {struct,
+  Schema = ?JSON_OBJ(
     [ {<<"type">>,   <<"map">>}
-      , {<<"values">>, <<"int">>}
-    ]},
-  Map = parse_schema(Schema, "enc.losing", none),
+    , {<<"values">>, <<"int">>}
+    ]),
+  Map = parse_schema(Schema, none),
   ExpectedType = avro_map:type(avro_primitive:int_type()),
   ?assertEqual(ExpectedType, Map).
 
 parse_fixed_type_test() ->
-  Schema = {struct,
+  Schema = ?JSON_OBJ(
     [ {<<"type">>,      <<"fixed">>}
-      , {<<"size">>,      2}
-      , {<<"name">>,      <<"FooBar">>}
-      , {<<"aliases">>,   [<<"Alias1">>, <<"Alias2">>]}
-      , {<<"namespace">>, <<"name.space">>}
-    ]},
-  Fixed = parse_schema(Schema, "enc.losing", none),
-  ExpectedType = avro_fixed:type("FooBar", 2,
-    [ {namespace, "name.space"}
-      , {aliases, ["Alias1", "Alias2"]}
-      , {enclosing_ns, "enc.losing"}
+    , {<<"size">>,      2}
+    , {<<"name">>,      <<"FooBar">>}
+    , {<<"aliases">>,   [<<"Alias1">>, <<"Alias2">>]}
+    , {<<"namespace">>, <<"name.space">>}
     ]),
+  Fixed = parse_schema(Schema, none),
+  ExpectedType = avro_fixed:type("FooBar", 2,
+                                 [ {namespace, "name.space"}
+                                 , {aliases, ["Alias1", "Alias2"]}
+                                 ]),
   ?assertEqual(ExpectedType, Fixed).
 
 parse_bytes_value_test() ->
@@ -172,63 +193,75 @@ parse_bytes_value_test() ->
 parse_record_value_test() ->
   %% This test also tests parsing other types inside the record
   TestRecord = get_test_record(),
-  Json = {struct,
+  Json = ?JSON_OBJ(
     [ {<<"invno">>, 100}
-      , {<<"array">>, [<<"ACTIVE">>, <<"CLOSED">>]}
-      , {<<"union">>, {struct, [{<<"boolean">>, true}]}}
-    ]},
+    , {<<"array">>, [<<"ACTIVE">>, <<"CLOSED">>]}
+    , {<<"union">>, ?JSON_OBJ([{<<"boolean">>, true}])}
+    ]),
   Value = parse_value(Json, TestRecord, none),
   ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Value)),
   ?assertEqual(avro_array:new(avro_record:get_field_type("array", TestRecord),
-    [avro_primitive:string("ACTIVE"),
-      avro_primitive:string("CLOSED")]),
-    avro_record:get_value("array", Value)),
+                              [ avro_primitive:string("ACTIVE")
+                              , avro_primitive:string("CLOSED")]),
+               avro_record:get_value("array", Value)),
   ?assertEqual(avro_primitive:boolean(true),
-    avro_union:get_value(avro_record:get_value("union", Value))).
+               avro_union:get_value(avro_record:get_value("union", Value))).
 
 parse_record_value_missing_field_test() ->
   %% This test also tests parsing other types inside the record
   TestRecord = get_test_record(),
-  Json = {struct,
-    [ {<<"invno">>, 100}
-      , {<<"union">>, {struct, [{<<"boolean">>, true}]}}
-    ]},
+  Json = ?JSON_OBJ([ {<<"invno">>, 100}
+                   , {<<"union">>, ?JSON_OBJ([{<<"boolean">>, true}])}
+                   ]),
   %% parse_value(Json, TestRecord, none),
   %% ok.
-  ?assertError({required_field_missed, "array"},
+  ?assertError({required_field_missed, <<"array">>},
                parse_value(Json, TestRecord, none)).
 
 parse_record_value_unknown_field_test() ->
   %% This test also tests parsing other types inside the record
   TestRecord = get_test_record(),
-  Json = {struct,
-    [ {<<"invno">>, 100}
-      , {<<"array">>, [<<"ACTIVE">>, <<"CLOSED">>]}
-      , {<<"union">>, {struct, [{<<"boolean">>, true}]}}
-      , {<<"unknown_field">>, 1}
-    ]},
-  ?assertError({unknown_field, "unknown_field"},
+  Json = ?JSON_OBJ([ {<<"invno">>, 100}
+                   , {<<"array">>, [<<"ACTIVE">>, <<"CLOSED">>]}
+                   , {<<"union">>, ?JSON_OBJ([{<<"boolean">>, true}])}
+                   , {<<"unknown_field">>, 1}
+                   ]),
+  ?assertError({unknown_field, <<"unknown_field">>},
                parse_value(Json, TestRecord, none)).
 
 parse_union_value_primitive_test() ->
   Type = avro_union:type([ avro_primitive:null_type()
-    , avro_primitive:string_type()]),
-  Json = {struct, [{<<"string">>, <<"str">>}]},
-  Value = parse_value(Json, Type, none),
-  ?assertEqual(avro_primitive:string("str"), avro_union:get_value(Value)).
+                         , avro_primitive:string_type()
+                         , avro_primitive:float_type()
+                         , avro_primitive:double_type()
+                         ]),
+  Json1 = ?JSON_OBJ([{<<"string">>, <<"str">>}]),
+  Value1 = parse_value(Json1, Type, none),
+  ?assertEqual(avro_primitive:string("str"),
+               avro_union:get_value(Value1)),
+  Json2 = ?JSON_OBJ([{<<"double">>, 5.6}]),
+  Value2 = parse_value(Json2, Type, none),
+  ?assertEqual(avro_primitive:double(5.6),
+               avro_union:get_value(Value2)),
+  Json3 = ?JSON_OBJ([{<<"float">>, 4.2}]),
+  Value3 = parse_value(Json3, Type, none),
+  ?assertEqual(avro_primitive:float(4.2),
+               avro_union:get_value(Value3)).
+
 
 parse_union_value_null_test() ->
   Type = avro_union:type([ avro_primitive:null_type()
-    , avro_primitive:string_type()]),
+                         , avro_primitive:string_type()]),
   Json = null,
   Value = parse_value(Json, Type, none),
   ?assertEqual(avro_primitive:null(), avro_union:get_value(Value)).
 
 parse_union_value_fail_test() ->
   Type = avro_union:type([ avro_primitive:null_type()
-    , avro_primitive:string_type()]),
-  Json = {struct, [{<<"boolean">>, true}]},
-  ?assertError(unknown_type_of_union_value, parse_value(Json, Type, none)).
+                         , avro_primitive:string_type()]),
+  Json = ?JSON_OBJ([{<<"boolean">>, true}]),
+  ?assertError({unknown_union_member, _},
+               parse_value(Json, Type, none)).
 
 parse_enum_value_test() ->
   Type = avro_enum:type("MyEnum", ["A", "B", "C"]),
@@ -238,48 +271,52 @@ parse_enum_value_test() ->
 
 parse_map_value_test() ->
   Type = avro_map:type(avro_primitive:int_type()),
-  Json = {struct,
-    [ {<<"v1">>, 1}
-      , {<<"v2">>, 2}
-    ]},
+  Json = ?JSON_OBJ([ {<<"v1">>, 1}, {<<"v2">>, 2} ]),
   Expected = avro_map:new(Type, [{"v1", 1}, {"v2", 2}]),
   ?assertEqual(Expected, parse_value(Json, Type, none)).
 
 parse_fixed_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Json = <<"\\u0001\\u007f">>,
-  Expected = avro_fixed:new(Type, <<1,127>>),
-  ?assertEqual(Expected, parse_value(Json, Type, none)).
+  ExpectedValue = avro_fixed:new(Type, <<1,127>>),
+  ?assertEqual(ExpectedValue, parse_value(Json, Type, none)),
+  ?assertEqual(<<1,127>>,
+               parse(Json, Type, none, false, ?DEFAULT_DECODER_HOOK)).
 
 parse_value_with_extract_type_fun_test() ->
   Hook = avro_decoder_hooks:pretty_print_hist(),
-  ExtractTypeFun = fun("name.space.Test") -> get_test_record() end,
-  Schema = {struct, [ {<<"type">>, <<"array">>}
-    , {<<"items">>, <<"Test">>}
-  ]},
-  ValueJson = [{struct,
-    [ {<<"invno">>, 100}
-      , {<<"array">>, [<<"ACTIVE">>, <<"CLOSED">>]}
-      , {<<"union">>, {struct, [{<<"boolean">>, true}]}}
-    ]}],
-  Type = parse_schema(Schema, "name.space", ExtractTypeFun),
+  ExtractTypeFun = fun(<<"name.space.Test">>) -> get_test_record() end,
+  Schema = ?JSON_OBJ([ {<<"type">>, <<"array">>}
+                     , {<<"items">>, <<"name.space.Test">>}
+                     ]),
+  ValueJson = [?JSON_OBJ([ {<<"invno">>, 100}
+                         , {<<"array">>, [<<"ACTIVE">>, <<"CLOSED">>]}
+                         , {<<"union">>, ?JSON_OBJ([{<<"boolean">>, true}])}
+                         ])],
+  Type = parse_schema(Schema, ExtractTypeFun),
   ExpectedType = avro_array:type("name.space.Test"),
   ?assertEqual(ExpectedType, Type),
   Value = parse(ValueJson, Type, ExtractTypeFun, true, Hook),
-  [Rec] = avro_array:get(Value),
-  ?assertEqual("name.space.Test",
-    avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
+  [Rec] = avro_array:get_items(Value),
+  ?assertEqual(<<"name.space.Test">>,
+               avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
   ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).
+
+decode_schema_test() ->
+  avro_json_decoder:decode_schema(<<"{\"type\":\"int\"}">>, store).
+
+decode_wrapped_value_test() ->
+  Type = avro_primitive:int_type(),
+  Lkup = fun(<<"name">>) -> Type end,
+  Value = avro_json_decoder:decode_value(<<"1">>, name, Lkup),
+  ?assertEqual(?AVRO_VALUE(Type, 1), Value).
 
 %% @private
 get_test_record() ->
   F = fun(Name, Type) -> avro_record:define_field(Name, Type) end,
-  Fields = [ F("invno", avro_primitive:long_type())
-           , F("array", avro_array:type(avro_primitive:string_type()))
-           , F("union", avro_union:type([ avro_primitive:null_type()
-                                        , avro_primitive:int_type()
-                                        , avro_primitive:boolean_type()
-                                        ]))
+  Fields = [ F("invno", long)
+           , F("array", avro_array:type(string))
+           , F("union", avro_union:type([null, int, boolean]))
            ],
   avro_record:type("Test", Fields, [{namespace, "name.space"}]).
 

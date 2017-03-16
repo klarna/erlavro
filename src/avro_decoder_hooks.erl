@@ -1,5 +1,6 @@
-%%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%%-----------------------------------------------------------------------------
+%%%
+%%% Copyright (c) 2016-2017 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -14,9 +15,10 @@
 %%% KIND, either express or implied.  See the License for the
 %%% specific language governing permissions and limitations
 %%% under the License.
-%%%-------------------------------------------------------------------
 %%%
-%%% @doc This module is a collection of `eravro' supported decoder hooks
+%%%-----------------------------------------------------------------------------
+
+%% @doc This module is a collection of `eravro' supported decoder hooks
 %%
 %% Decoder hook is an anonymous function to be evaluated by
 %% the JSON or binary decoder to amend either schmea or data (input or output).
@@ -56,8 +58,8 @@
 %% </pre>
 %%
 %% A hook can also be used as a monkey patch to fix some corrupted data.
-%%% @end
-%%%-------------------------------------------------------------------
+%% @end
+
 -module(avro_decoder_hooks).
 
 -export([ tag_unions/0
@@ -65,7 +67,7 @@
         , print_debug_trace/2
         ]).
 
--include("avro_internal.hrl").
+-include("erlavro.hrl").
 
 -define(PD_PP_INDENTATION, '$avro_decoder_pp_indentation').
 -define(PD_DECODER_HIST, '$avro_decoder_hist').
@@ -78,7 +80,7 @@
 %% This hook function is to tag union values with union type names
 %% NOTE: null values are not tagged
 %% @end
--spec tag_unions() -> decoder_hook_fun().
+-spec tag_unions() -> avro:decoder_hook_fun().
 tag_unions() -> fun tag_unions/4.
 
 %% @doc This hook is useful when a decoder has failed on decoding,
@@ -87,7 +89,8 @@ tag_unions() -> fun tag_unions/4.
 %% NOTE: Always call this API to retrieve the hook, never save the hook
 %%       and re-use for different decode attempts
 %% @end.
--spec print_debug_trace(fun((iodata()) -> ok), count()) -> decoder_hook_fun().
+-spec print_debug_trace(fun((iodata()) -> ok), count()) ->
+        avro:decoder_hook_fun().
 print_debug_trace(PrintFun, MaxHistoryLength) ->
   ok = erase_hist(),
   fun(T, Sub, Data, DecodeFun) ->
@@ -97,7 +100,7 @@ print_debug_trace(PrintFun, MaxHistoryLength) ->
 %% @doc This hook prints the type tree with indentation, and the leaf values
 %% to the current group leader.
 %% @end
--spec pretty_print_hist() -> decoder_hook_fun().
+-spec pretty_print_hist() -> avro:decoder_hook_fun().
 pretty_print_hist() ->
   _ = erase(?PD_PP_INDENTATION),
   fun(T, SubInfo, Data, DecodeFun) ->
@@ -114,12 +117,11 @@ pretty_print_hist() ->
       , case SubInfo of
           ""                   -> ": ";
           I when is_integer(I) -> [$., integer_to_list(I), "\n"];
-          S when is_list(S)    -> [$., S, "\n"];
           B when is_binary(B)  -> [$., B, "\n"];
           _                    -> "\n"
         end
       ],
-    io:format("~s", [ToPrint]),
+    io:put_chars(user, ToPrint),
     _ = put(?PD_PP_INDENTATION, Indentation + 1),
     DecodeResult = DecodeFun(Data),
     ResultToPrint = get_pretty_print_result(DecodeResult),
@@ -131,16 +133,9 @@ pretty_print_hist() ->
 %%%_* Internal functions =======================================================
 
 %% @private
-tag_unions(T, SubInfo, DecodeIn, DecodeFun) when ?AVRO_IS_UNION_TYPE(T) ->
+tag_unions(#avro_union_type{} = T, SubInfo, DecodeIn, DecodeFun) ->
   Result = DecodeFun(DecodeIn),
-  Name =
-    case SubInfo of
-      Id when is_integer(Id) ->
-        {ok, ST} = avro_union:lookup_child_type(T, Id),
-        avro:get_type_fullname(ST);
-      Name_ when ?IS_NAME(Name_) ->
-        Name_
-    end,
+  Name = get_union_member_name(T, SubInfo),
   case Result of
     {Value, Tail} when is_binary(Tail) ->
       %% used as binary decoder hook
@@ -153,8 +148,20 @@ tag_unions(_T, _SubInfo, DecodeIn, DecodeFun) ->
   %% Not a union, pass through
   DecodeFun(DecodeIn).
 
+%% @private
+get_union_member_name(Type, Id) when is_integer(Id) ->
+  %% when decoding avro binary, lookup member name by union member index.
+  {ok, ChildType} = avro_union:lookup_type(Id, Type),
+  case is_binary(ChildType) of
+    true  -> ChildType;
+    false -> avro:get_type_fullname(ChildType)
+  end;
+get_union_member_name(_Type, Name) when is_binary(Name) ->
+  %% when decoding JSON, the value is already tagged with union member name
+  Name.
+
 %% @private Never tag primitives and unnamed complex types.
-maybe_tag(N, Value) when ?IS_PRIMITIVE_NAME(N) -> Value;
+maybe_tag(N, Value) when ?IS_AVRO_PRIMITIVE_NAME(N) -> Value;
 maybe_tag(?AVRO_ARRAY, Value) -> Value;
 maybe_tag(?AVRO_MAP, Value) -> Value;
 maybe_tag(Name, Value) -> {Name, Value}.
@@ -198,7 +205,7 @@ erase_hist() ->
   ok.
 
 %% @private
--spec get_hist() -> ok.
+-spec get_hist() -> [trace_hist_entry()].
 get_hist() ->
   case erlang:get(?PD_DECODER_HIST) of
     undefined -> [];
@@ -222,7 +229,7 @@ print_trace(PrintFun, HistCount) ->
 %% Return the type stack and last N decode history entries as iodata().
 %% @end
 -spec format_trace(TraceHist :: [trace_hist_entry()],
-                   TypeStack :: [{name(), atom() | string() | integer()}],
+                   TypeStack :: [{avro:name(), atom() | string() | integer()}],
                    FormattedTrace :: iodata(),
                    MaxHistEntryCount :: count()) -> {iodata(), iodata()}.
 format_trace([], Stack, Hist, _HistCount) ->
@@ -234,7 +241,7 @@ format_trace([{push, Name, Sub} | Rest], Stack, Hist, HistCount) ->
                 []                   -> "";
                 none                 -> "";
                 I when is_integer(I) -> [".", integer_to_list(I)];
-                S when is_list(S)    -> [".", S]
+                S when is_binary(S)  -> [".", S]
               end, "\n"]),
   NewHist = lists:sublist([Line | Hist], HistCount),
   format_trace(Rest, [{Name, Sub} | Stack], NewHist, HistCount);
@@ -251,22 +258,16 @@ bin(IoData) -> iolist_to_binary(IoData).
 
 %% @private
 get_pretty_print_result(JsonResult) when ?IS_AVRO_VALUE(JsonResult) ->
-  %% Wrapped JSON result
- ?AVRO_VALUE_DATA(JsonResult);
+  %% JSON value passed to hooks is always wrapped
+  ?AVRO_VALUE_DATA(JsonResult);
 get_pretty_print_result({Result, Tail}) when is_binary(Tail) ->
   %% binary decode result
-  Result;
-get_pretty_print_result(JsonResult) ->
-  %% Unwarpped JSON result
-  JsonResult.
+  Result.
 
 %% @private
-pretty_print_result(_Sub = [], _Result = [], IndentationStr) ->
-  %% print empty array and empty map
-  io:format("~s  []\n", [IndentationStr]);
 pretty_print_result(_Sub = [], Result, _IndentationStr) ->
   %% print the value if it's a leaf in the type tree
-  io:format("~1000000p\n", [Result]);
+  io:put_chars(user, [io_lib:print(Result)]);
 pretty_print_result(_Sub, _Result, _IndentationStr) ->
   ok.
 

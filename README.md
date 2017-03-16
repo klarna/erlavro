@@ -1,6 +1,6 @@
-Avro support for Erlang (http://avro.apache.org/).
+Avro support for Erlang/Elixir (http://avro.apache.org/).
 
-Current version implements Apache Avro 1.7.5 specification.
+Current version implements Apache Avro 1.8.1 specification.
 
 License: Apache License 2.0
 
@@ -8,36 +8,41 @@ License: Apache License 2.0
 
 # Avro Type and Erlang Spec Mapping
 
-| Avro | Encoder Input | Decoder Output | Notes |
-| --- | --- | --- | --- |
-| null | `null` | `null` | `undefined` is not accepted by encoder, and `null` is not converted to `undefined` by decoder |
-| boolean | `boolean() | 0 | 1` | `boolean()` | |
-| int | `integer()` | `integer()` | `-2147483648..2147483647` |
-| long | `integer()` | `integer()` | `-9223372036854775808..9223372036854775807` |
-| float | `integer() | float()` | `float()` | |
-| double | `integer() | float()` | `float()` | |
-| bytes | `binary()` | `binary()` | |
-| string | `[byte()] | binary()` | `[byte()]` | NOT `iolist()` for encoder. Will change decoder output to `binary()` in 2.0 |
-| enum | `string()` | `string()` | `atom()` or `binary()` is not supported so far |
-| fixed | `binary()` | `binary()` | |
-| array | `list()` | `list()` | |
-| map | `[{Key::string(), Value::in()}]` | `[{Key::string(), Value::out()}]` | Will support `atom() | binary()` as Key for encoder in 2.0 |
-| record | `[{FieldName::string(), FieldValue::in()}]` | `[{FieldName::string(), FiledValue::out()}]` | Will support `atom()` as `FiledName` for encoder in 2.0 |
-| union | `in() | {Tag::string(), in()}`  | `out() | {Tag::string(), out()}` | Tag is the type name, See notes about unions below |
+```
+name_raw() :: atom() | string() | binary().
+name() :: binary().
+key_raw() :: atom() | sting() | binary()
+key() :: binary().
+tag() :: binary().
+```
 
-Where `in()` and `out()` refer to the input and output type specs recursively
+| Avro    | Encoder Input          | Decoder Output           | Notes                                       |
+| ------- | ---------------------- | ------------------------ | ------------------------------------------- |
+| null    | `null`                 | `null`                   | No implicit `undefined` transformation      |
+| boolean | `boolean()`            | `boolean()`              |                                             |
+| int     | `integer()`            | `integer()`              | `-2147483648..2147483647`                   |
+| long    | `integer()`            | `integer()`              | `-9223372036854775808..9223372036854775807` |
+| float   | `integer() | float()`  | `float()`                |                                             |
+| double  | `integer() | float()`  | `float()`                |                                             |
+| bytes   | `binary()`             | `binary()`               |                                             |
+| string  | `iolist()`             | `binary()`               |                                             |
+| enum    | `name_raw()`           | `name()`                 |                                             |
+| fixed   | `binary()`             | `binary()`               |                                             |
+| array   | `[in()]`               | `[out()]`                |                                             |
+| map     | `[{key_raw(), in()}]`  | `[{key(), out()}]`       |                                             |
+| record  | `[{name_raw(), in()}]` | `[{name(), out()}]`      |                                             |
+| union   | `in() | {tag(), in()}` | `out() | {tag(), out()}` | See notes about unions below                |
+
+Where `in()` and `out()` refer to the input and output type specs recursively.
 
 ## Important Notes about Unicode Strings
 
-The binary encoder/decoder will respect whatever is given in the input (bytes). 
+The binary and JSON encoder/decoder will respect whatever is given in the input (bytes). 
 i.e. The encoder will NOT try to be smart and encode the input `string()` to utf8 (or whatsoever), 
 and the decoder will not try to validate or decode the input `binary()` as unicode character list. 
 
 The encoder caller should make sure the input is of spec `[byte()] | binary()`, 
 NOT a unicode character list which may possibly contain some code points greater than 255.
-
-For historical reason, the JSON encoder will try to encode strings in utf8. 
-And the JSON decoder will try to validate the input strings as utf8 -- as it's how mochijson3 implemented
 
 # Examples
 
@@ -80,16 +85,17 @@ true
 ```erlang
   MyRecordType =
     avro_record:type(
-      "MyRecord",
-      [avro_record:define_field("f1", avro_primitive:int_type()),
-       avro_record:define_field("f2", avro_primitive:string_type())],
-      [{namespace, "com.example"}]),
+      <<"MyRecord">>,
+      [avro_record:define_field(f1, int),
+       avro_record:define_field(f2, string)],
+      [{namespace, 'com.example'}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, []),
   Decoder = avro:make_decoder(Store, []),
-  Term = [{"f1", 1}, {"f2", "my string"}],
+  Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   Bin = Encoder("com.example.MyRecord", Term),
-  Term = Decoder("com.example.MyRecord", Bin),
+  [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
+    Decoder("com.example.MyRecord", Bin),
   ok.
 ```
 
@@ -99,13 +105,13 @@ true
   MyRecordType =
     avro_record:type(
       "MyRecord",
-      [avro_record:define_field("f1", avro_primitive:int_type()),
-       avro_record:define_field("f2", avro_primitive:string_type())],
+      [avro_record:define_field("f1", int),
+       avro_record:define_field("f2", string)],
       [{namespace, "com.example"}]),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
   Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
-  Term = [{"f1", 1}, {"f2", "my string"}],
+  Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),
   io:put_chars(user, JSON),
@@ -122,18 +128,17 @@ JSON to expect:
 
 ```erlang
   CodecOptions = [], %% [{encoding, avro_json}] for JSON encode/decode
-  NullableInt = avro_union:type([avro_primitive:null_type(),
-                                 avro_primitive:int_type()]),
+  NullableInt = avro_union:type([null, int]),
   MyRecordType1 =
     avro_record:type(
       "MyRecord1",
       [avro_record:define_field("f1", NullableInt),
-       avro_record:define_field("f2", avro_primitive:string_type())],
+       avro_record:define_field("f2", string)],
       [{namespace, "com.example"}]),
   MyRecordType2 =
     avro_record:type(
       "MyRecord2",
-      [avro_record:define_field("f1", avro_primitive:string_type()),
+      [avro_record:define_field("f1", string),
        avro_record:define_field("f2", NullableInt)],
       [{namespace, "com.example"}]),
   MyUnion = avro_union:type([MyRecordType1, MyRecordType2]),
@@ -144,8 +149,8 @@ JSON to expect:
   %% Encode Records with type info wrapped
   %% so they can be used as a drop-in part of wrapper object
   WrappedEncoder = avro:make_encoder(Lkup, [wrapped | CodecOptions]),
-  T1 = [{"f1", null}, {"f2", "str1"}],
-  T2 = [{"f1", "str2"}, {"f2", 2}],
+  T1 = [{"f1", null}, {"f2", <<"str1">>}],
+  T2 = [{"f1", <<"str2">>}, {"f2", 2}],
   %% Encode the records with type info wrapped
   R1 = WrappedEncoder(MyRecordType1, T1),
   R2 = WrappedEncoder(MyRecordType2, T2),
@@ -159,8 +164,8 @@ JSON to expect:
   %% Tag the decoded values
   Hook = avro_decoder_hooks:tag_unions(),
   Decoder = avro:make_decoder(Lkup, [{hook, Hook} | CodecOptions]),
-  [ {"com.example.MyRecord1", [{"f1", null}, {"f2", "str1"}]}
-  , {"com.example.MyRecord2", [{"f1", "str2"}, {"f2", 2}]}
+  [ {<<"com.example.MyRecord1">>, [{<<"f1">>, null}, {<<"f2">>, <<"str1">>}]}
+  , {<<"com.example.MyRecord2">>, [{<<"f1">>, <<"str2">>}, {<<"f2">>, 2}]}
   ] = Decoder(MyArray, Bin),
   ok.
 ```
@@ -220,6 +225,12 @@ For a big union like below
 ]
 ```
 
+### Caution when unioning string type and int/long arrays.
+
+As `[integer()]` list is `string()` in Erlang, this will confuse the encoder.
+Please make sure to use `binary()` as avro string encoding input or tag it, 
+and always tag int/long array value like `{array, [1, 2, 3]}`.
+
 There are two ways to encode such unions
 
 * Untagged: `Encoder(UnionType, MyRecord)` where `MyRecord` is of spec `[{field_name(), field_value()}]`
@@ -240,9 +251,18 @@ NOTE: only named complex types are tagged by this hook, you can of course write 
 
 See `avro_ocf.erl` for details
 
-# TODOs
+# Logical types and custom type properties.
 
-1. Full support for avro 1.8
-2. Support `atom() | binary()` as type names
-3. Decoded string should be binary() not [byte()] -- for 2.0 as it brakes backward compatibility
+NOTE: There is no logical type or custom type properties based on avro 'union' type.
+
+`erlavro` encodes/decodes logical types as well as custom type properties but (so far) 
+does not validate or transform the encoder/encoder input/output.
+
+e.g. The underlying data type of 'Date' logical type is 'int', in a perfect word, 
+the encoder should accept `{Y, M, D}` as input and the decoder should transform the integer 
+back to `{Y, M, D}` --- but this is not supported so far.
+
+Call `avro:get_custom_props/2` to access logical type info (as well as any extra customized type properties) 
+for extra data validation/transformation at application level.
+
 

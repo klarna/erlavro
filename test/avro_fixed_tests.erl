@@ -23,41 +23,27 @@
 -include_lib("eunit/include/eunit.hrl").
 
 neg_size_test() ->
-  ?assertError(invalid_size, avro_fixed:type("FooBar", -1)).
+  ?assertError({invalid_size, -1}, avro_fixed:type("FooBar", -1)).
 
 short_create_test() ->
   Type = avro_fixed:type("FooBar", 16),
-  ?assertEqual("FooBar", avro:get_type_fullname(Type)),
+  ?assertEqual(<<"FooBar">>, avro:get_type_fullname(Type)),
   ?assertEqual(16, avro_fixed:get_size(Type)).
 
 full_create_test() ->
   Type = avro_fixed:type("FooBar", 16,
-    [ {namespace, "name.space"}
-      , {aliases, ["Zoo", "Bee"]}
-      , {enclosing_ns, "enc.losing"}
-    ]),
-  ?assertEqual("name.space.FooBar", avro:get_type_fullname(Type)),
+                         [ {namespace, "name.space"}
+                         , {aliases, ["Zoo", "Bee"]}
+                         ]),
+  ?assertEqual(<<"name.space.FooBar">>, avro:get_type_fullname(Type)),
   ?assertEqual(16, avro_fixed:get_size(Type)).
 
-incorrect_cast_from_fixed_test() ->
-  SourceType = avro_fixed:type("FooBar", 2),
-  SourceValue = avro_fixed:new(SourceType, <<1,2>>),
-  TargetType = avro_fixed:type("BarFoo", 2),
-  ?assertEqual({error, type_name_mismatch},
-               avro_fixed:cast(TargetType, SourceValue)).
-
-correct_cast_from_fixed_test() ->
-  SourceType = avro_fixed:type("FooBar", 2),
-  SourceValue = avro_fixed:new(SourceType, <<1,2>>),
-  TargetType = avro_fixed:type("FooBar", 2),
-  ?assertEqual({ok, SourceValue}, avro_fixed:cast(TargetType, SourceValue)).
-
-incorrect_cast_from_binary_test() ->
+bad_cast_from_binary_test() ->
   Type = avro_fixed:type("FooBar", 2),
-  ?assertEqual({error, wrong_binary_size}, avro_fixed:cast(Type, <<1,2,3>>)),
-  ?assertEqual({error, wrong_binary_size}, avro_fixed:cast(Type, <<1>>)).
+  ?assertEqual({error, bad_size}, avro_fixed:cast(Type, <<1,2,3>>)),
+  ?assertEqual({error, bad_size}, avro_fixed:cast(Type, <<1>>)).
 
-correct_cast_from_binary_test() ->
+cast_from_binary_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Bin = <<1,2>>,
   ?assertEqual({ok, ?AVRO_VALUE(Type, Bin)}, avro_fixed:cast(Type, Bin)).
@@ -66,13 +52,31 @@ integer_cast_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value1 = avro_fixed:new(Type, 67),   %% 1 byte
   Value2 = avro_fixed:new(Type, 1017), %% 2 bytes
-  ?assertEqual(67, avro_fixed:to_integer(Value1)),
-  ?assertEqual(1017, avro_fixed:to_integer(Value2)).
+  Data1 = avro_fixed:get_value(Value1),
+  Data2 = avro_fixed:get_value(Value2),
+  ?assertEqual(67, binary:decode_unsigned(Data1)),
+  ?assertEqual(1017, binary:decode_unsigned(Data2)).
 
 get_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
   Value = avro_fixed:new(Type, <<1,2>>),
-  ?assertEqual(<<1,2>>, avro_fixed:get_value(Value)).
+  ?assertEqual(<<1,2>>, avro_fixed:get_value(Value)),
+  ?assertEqual(<<1,2>>, avro:to_term(Value)).
+
+new_error_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  ?assertException(error, bad_size,
+                   avro_fixed:new(Type, <<"abc">>)).
+
+integer_out_of_range_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  ?assertException(error, integer_out_of_range,
+                   avro_fixed:new(Type, 65536)).
+
+cast_error_test() ->
+  Type = avro_fixed:type("FooBar", 2),
+  ?assertEqual({error, {cast_error, Type, "a"}},
+               avro_fixed:cast(Type, "a")).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

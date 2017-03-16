@@ -19,13 +19,25 @@
 %%%-------------------------------------------------------------------
 -module(avro_util_tests).
 
--import(avro_util, [ canonicalize_aliases/4
+-import(avro_util, [ canonicalize_aliases/2
                    , verify_type/1
                    , tokens_ex/2
-                   , is_correct_name/1
-                   , is_correct_dotted_name/1
+                   , is_valid_name/1
+                   , is_valid_dotted_name/1
                    ]).
 -include_lib("eunit/include/eunit.hrl").
+
+flatten_primitive_type_test() ->
+  Type = avro_primitive:int_type(),
+  ?assertEqual({Type, []}, avro:flatten_type(Type)).
+
+flatten_nested_primitive_type_test() ->
+  Type = avro_array:type(int),
+  ?assertEqual({Type, []}, avro:flatten_type(Type)).
+
+flatten_named_type_test() ->
+  Type = avro_array:type("com.klarna.test.bix.SomeType"),
+  ?assertEqual({Type, []}, avro:flatten_type(Type)).
 
 tokens_ex_test() ->
   ?assertEqual([""], tokens_ex("", $.)),
@@ -34,18 +46,18 @@ tokens_ex_test() ->
   ?assertEqual(["", "a", "b", "c", ""], tokens_ex(".a.b.c.", $.)),
   ?assertEqual(["ab", "cd"], tokens_ex("ab.cd", $.)).
 
-is_correct_name_test() ->
-  CorrectNames = ["_", "a", "Aa1", "a_A"],
-  IncorrectNames = ["", "1", " a", "a ", " a ", ".", "a.b.c"],
-  [?assert(is_correct_name(Name)) || Name <- CorrectNames],
-  [?assertNot(is_correct_name(Name)) || Name <- IncorrectNames].
+is_valid_name_test() ->
+  ValidNames = ["_", "a", "Aa1", "a_A"],
+  InvalidNames = ["", "1", " a", "a ", " a ", ".", "a.b.c"],
+  [?assert(is_valid_name(Name)) || Name <- ValidNames],
+  [?assertNot(is_valid_name(Name)) || Name <- InvalidNames].
 
-is_correct_dotted_name_test_() ->
-  CorrectNames = ["_", "a", "A._1", "a1.b2.c3"],
-  IncorrectNames = ["", "1", " a.b.c", "a.b.c ", " a.b.c ", "a..b", ".a.b",
+is_valid_dotted_name_test_() ->
+  ValidNames = ["_", "a", "A._1", <<"a1.b2.c3">>],
+  InvalidNames = ["", "1", " a.b.c", "a.b.c ", " a.b.c ", "a..b", ".a.b",
     "a.1.b", "!", "-", "a. b.c"],
-  [?_assert(is_correct_dotted_name(Name)) || Name <- CorrectNames] ++
-  [?_assertNot(is_correct_dotted_name(Name)) || Name <- IncorrectNames].
+  [?_assert(is_valid_dotted_name(Name)) || Name <- ValidNames] ++
+  [?_assertNot(is_valid_dotted_name(Name)) || Name <- InvalidNames].
 
 verify_type_test() ->
   ?assertEqual(ok, verify_type(get_test_type("tname", "name.space"))),
@@ -55,30 +67,15 @@ verify_type_test() ->
 
 canonizalize_aliases_test() ->
   %% Namespaces for aliases are taken from the original type namespace
-  ?assertEqual(["name.space.Foo", "name.space.Bar"],
-    canonicalize_aliases(["Foo", "Bar"],
-      "Bee",
-      "name.space",
-      "enc.losing")),
-  %% Aliases have their own namespaces
-  ?assertEqual(["other.ns.Foo", "another.ns2.Bar"],
-    canonicalize_aliases(["other.ns.Foo", "another.ns2.Bar"],
-      "Bee",
-      "name.space",
-      "enc.losing")),
-  %% Namespaces for aliases are taken from enclosing namespace
-  ?assertEqual(["enc.losing.Foo", "enc.losing.Bar"],
-    canonicalize_aliases(["Foo", "Bar"],
-      "Bee",
-      "",
-      "enc.losing")),
-  %% Namespaces for aliases are taken from the full type name
-  ?assertEqual(["name.space.Foo", "name.space.Bar"],
-    canonicalize_aliases(["Foo", "Bar"],
-      "name.space.Bee",
-      "bla.bla",
-      "enc.losing")).
+  ?assertEqual([<<"name.space.Foo">>, <<"name.space.Bar">>],
+    canonicalize_aliases(["Foo", "Bar"], "name.space")),
+  ?assertEqual([<<"Foo">>, <<"Bar">>],
+    canonicalize_aliases(["Foo", "Bar"], "")).
 
+get_opt_test() ->
+  ?assertEqual(value, avro_util:get_opt(key, [{key, value}])),
+  ?assertException(error, {not_found, "key"},
+                   avro_util:get_opt("key", [{key, value}])).
 
 %% @private
 get_test_type(Name, Namespace) ->

@@ -1,5 +1,6 @@
-%%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%%-----------------------------------------------------------------------------
+%%%
+%%% Copyright (c) 2013-2017 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -18,56 +19,91 @@
 %%% @doc General Avro handling code.
 %%%
 %%% @end
-%%%-------------------------------------------------------------------
+%%%-----------------------------------------------------------------------------
+
 -module(avro).
 
 -export([ expand_type/2
         , flatten_type/1
+        , get_aliases/1
+        , get_custom_props/2
+        , get_custom_props/1
         , get_type_name/1
         , get_type_namespace/1
         , get_type_fullname/1
-        , get_aliases/1
         , is_named_type/1
+        , is_same_type/2
         , make_decoder/2
         , make_encoder/2
+        , resolve_fullname/2
         ]).
 
--export([ split_type_name/2
-        , split_type_name/3
-        , build_type_fullname/2
-        , build_type_fullname/3
+-export([ build_type_fullname/2
+        , name2type/1
+        , split_type_name/2
         ]).
 
--export([ read_schema/1
+-export([ cast/2
+        , to_term/1
         ]).
-
--export([cast/2]).
-
--export([to_term/1]).
 
 -export([ decode/5
         , encode/4
         , encode_wrapped/4
         ]).
 
--export_type([ codec_options/0
+-export_type([ avro_type/0
+             , avro_value/0
+             , canonicalized_value/0
+             , codec_options/0
+             , custom_prop/0
+             , custom_prop_name/0
+             , custom_prop_value/0
              , decode_fun/0
+             , decoder_hook_fun/0
              , encode_fun/0
              , enum_symbol/0
+             , enum_symbol_raw/0
+             , enum_index/0
              , fullname/0
+             , in/0
              , name/0
+             , name_raw/0
              , namespace/0
+             , namespace_raw/0
+             , ordering/0
+             , out/0
+             , record_field/0
+             , schema_store/0
              , typedoc/0
+             , type_prop_name/0
+             , type_prop_value/0
+             , type_props/0
+             , type_or_name/0
              , union_index/0
              ]).
 
 -include("avro_internal.hrl").
 
+-type in() :: null
+            | boolean()
+            | integer()
+            | float()
+            | iolist()
+            | [avro:in()]
+            | [{name_raw(), avro:in()}].
+
+-type out() :: null
+             | boolean()
+             | integer()
+             | float()
+             | binary()
+             | [avro:out()]
+             | [{name(), avro:out()}].
+
 -type codec_options() :: [proplists:property()].
--type encode_fun() ::
-        fun((avro_type_or_name(), term()) -> iodata() | avro_value()).
--type decode_fun() ::
-        fun((avro_type_or_name(), binary()) -> term()).
+-type encode_fun() :: fun((type_or_name(), term()) -> iodata() | avro_value()).
+-type decode_fun() :: fun((type_or_name(), binary()) -> term()).
 
 %% @doc Make a encoder function.
 %% Supported codec options:
@@ -111,7 +147,7 @@ make_decoder(StoreOrLkupFun, Options) ->
   end.
 
 %% @doc Encode value to json or binary format.
--spec encode(schema_store() | lkup_fun(), avro_type_or_name(),
+-spec encode(schema_store() | lkup_fun(), type_or_name(),
              term(), avro_encoding()) -> iodata().
 encode(StoreOrLkup, Type, Value, avro_json) ->
   avro_json_encoder:encode(StoreOrLkup, Type, Value);
@@ -123,16 +159,19 @@ encode(StoreOrLkup, Type, Value, avro_binary) ->
 %% wrapper structure. e.g. encode a big array of some complex type
 %% and use the result as a field value of a parent record
 %% @end
--spec encode_wrapped(schema_store() | lkup_fun(), avro_type_or_name(),
+-spec encode_wrapped(schema_store() | lkup_fun(), type_or_name(),
                      term(), avro_encoding()) -> avro_value().
 encode_wrapped(S, TypeOrName, Value, Encoding) when not is_function(S) ->
   Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(S),
   encode_wrapped(Lkup, TypeOrName, Value, Encoding);
-encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME(Name) ->
-  Type = Lkup(Name),
-  encode_wrapped(Lkup, Type, Value, Encoding);
-encode_wrapped(Lkup, Type, Value, Encoding) ->
-  Encoded = iolist_to_binary(encode(Lkup, Type, Value, Encoding)),
+encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME_RAW(Name) ->
+  encode_wrapped(Lkup, Lkup(?NAME(Name)), Value, Encoding);
+encode_wrapped(Lkup, Type0, Value, Encoding) when ?IS_TYPE_RECORD(Type0) ->
+  Encoded = iolist_to_binary(encode(Lkup, Type0, Value, Encoding)),
+  Type = case is_named_type(Type0) of
+           true  -> get_type_fullname(Type0);
+           false -> Type0
+         end,
   case Encoding of
     avro_json   -> ?AVRO_ENCODED_VALUE_JSON(Type, Encoded);
     avro_binary -> ?AVRO_ENCODED_VALUE_BINARY(Type, Encoded)
@@ -141,201 +180,272 @@ encode_wrapped(Lkup, Type, Value, Encoding) ->
 %% @doc Decode value return unwarpped values.
 -spec decode(avro_encoding(),
              Data :: binary(),
-             avro_type_or_name(),
+             type_or_name(),
              schema_store() | lkup_fun(),
              decoder_hook_fun()) -> term().
 decode(avro_json, JSON, TypeOrName, StoreOrLkup, Hook) ->
   avro_json_decoder:decode_value(JSON, TypeOrName, StoreOrLkup,
-                                 [{is_wrapped, false},
-                                  {json_decoder, mochijson3}], Hook);
+                                 [{is_wrapped, false}], Hook);
 decode(avro_binary, Bin, TypeOrName, StoreOrLkup, Hook) ->
   avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Hook).
+
+%% @doc Recursively resolve children type's fullname with enclosing
+%% namespace passed down from ancestor types.
+%% @end
+-spec resolve_fullname(name() | avro_type(), namespace()) ->
+        fullname() | avro_type().
+resolve_fullname(Type, ?NS_GLOBAL) ->
+  %% Do nothing if no enclosing namespace
+  Type;
+resolve_fullname(Name, Ns) when ?IS_NAME(Name) ->
+  %% If it's a short name reference to another type
+  %% make it a full name
+  build_type_fullname(Name, Ns);
+resolve_fullname(#avro_primitive_type{} = Type, _Ns) ->
+  %% Primitive types has no full name
+  Type;
+resolve_fullname(#avro_array_type{} = Type, Ns) ->
+  avro_array:resolve_fullname(Type, Ns);
+resolve_fullname(#avro_enum_type{} = Type, Ns) ->
+  avro_enum:resolve_fullname(Type, Ns);
+resolve_fullname(#avro_fixed_type{} = Type, Ns) ->
+  avro_fixed:resolve_fullname(Type, Ns);
+resolve_fullname(#avro_map_type{} = Type, Ns) ->
+  avro_map:resolve_fullname(Type, Ns);
+resolve_fullname(#avro_record_type{} = Type, Ns) ->
+  avro_record:resolve_fullname(Type, Ns);
+resolve_fullname(#avro_union_type{} = Type, Ns) ->
+  avro_union:resolve_fullname(Type, Ns).
+
+%% @doc Create primitive type definiton from name.
+%% In case the give name is not a primitive type name,
+%% its canonicalized format is returned.
+%% @end
+-spec name2type(name_raw()) -> primitive_type() | name().
+name2type(Name) ->
+  try
+    avro_primitive:type(Name, [])
+  catch
+    error : {unknown_name, _} ->
+      ?NAME(Name)
+  end.
 
 %%%===================================================================
 %%% API: Accessing types properties
 %%%===================================================================
 
-%% Returns true if the type can have its own name defined in schema.
--spec is_named_type(avro_value() | avro_type()) -> boolean().
-is_named_type(#avro_value{type = T}) -> is_named_type(T);
-is_named_type(#avro_record_type{})   -> true;
+%% @doc Returns true if the type can have its own name defined in schema.
+-spec is_named_type(avro_type()) -> boolean().
 is_named_type(#avro_enum_type{})     -> true;
 is_named_type(#avro_fixed_type{})    -> true;
+is_named_type(#avro_record_type{})   -> true;
 is_named_type(_)                     -> false.
 
-%% Returns the type's name. If the type is named then content of
+%% @doc Returns the type's name. If the type is named then content of
 %% its name field is returned which can be short name or full name,
 %% depending on how the type was specified. If the type is unnamed
 %% then Avro name of the type is returned.
--spec get_type_name(avro_value() | avro_type()) -> string().
-get_type_name(#avro_value{type = T})             -> get_type_name(T);
+%% @end
+-spec get_type_name(avro_type()) -> name().
+get_type_name(#avro_array_type{})                -> ?AVRO_ARRAY;
+get_type_name(#avro_enum_type{name = Name})      -> Name;
+get_type_name(#avro_fixed_type{name = Name})     -> Name;
+get_type_name(#avro_map_type{})                  -> ?AVRO_MAP;
 get_type_name(#avro_primitive_type{name = Name}) -> Name;
 get_type_name(#avro_record_type{name = Name})    -> Name;
-get_type_name(#avro_enum_type{name = Name})      -> Name;
-get_type_name(#avro_array_type{})                -> ?AVRO_ARRAY;
-get_type_name(#avro_map_type{})                  -> ?AVRO_MAP;
-get_type_name(#avro_union_type{})                -> ?AVRO_UNION;
-get_type_name(#avro_fixed_type{name = Name})     -> Name.
+get_type_name(#avro_union_type{})                -> ?AVRO_UNION.
 
-%% Returns the type's namespace exactly as it is set in the type.
+%% @doc Returns the type's namespace exactly as it is set in the type.
 %% Depending on how the type was specified it could the namespace
-%% or just an empty string if the name contains namespace in it.
-%% If the type can't have namespace then empty string is returned.
--spec get_type_namespace(avro_value() | avro_type()) -> string().
-get_type_namespace(#avro_value{type = T})             -> get_type_namespace(T);
-get_type_namespace(#avro_primitive_type{})            -> "";
-get_type_namespace(#avro_record_type{namespace = Ns}) -> Ns;
+%% or just an empty binary if the name contains namespace in it.
+%% If the type can't have namespace then empty binary is returned.
+%% @end
+-spec get_type_namespace(avro_value() | avro_type()) -> namespace().
+get_type_namespace(#avro_array_type{})                -> ?NS_GLOBAL;
 get_type_namespace(#avro_enum_type{namespace = Ns})   -> Ns;
-get_type_namespace(#avro_array_type{})                -> "";
-get_type_namespace(#avro_map_type{})                  -> "";
-get_type_namespace(#avro_union_type{})                -> "";
-get_type_namespace(#avro_fixed_type{namespace = Ns})  -> Ns.
+get_type_namespace(#avro_fixed_type{namespace = Ns})  -> Ns;
+get_type_namespace(#avro_map_type{})                  -> ?NS_GLOBAL;
+get_type_namespace(#avro_primitive_type{})            -> ?NS_GLOBAL;
+get_type_namespace(#avro_record_type{namespace = Ns}) -> Ns;
+get_type_namespace(#avro_union_type{})                -> ?NS_GLOBAL.
 
-%% Returns fullname stored inside the type. For unnamed types
-%% their Avro name is returned.
--spec get_type_fullname(avro_value() | avro_type()) -> string().
-get_type_fullname(#avro_value{type = T})              -> get_type_fullname(T);
+%% @doc Returns fullname stored inside the type.
+%% For unnamed types their Avro name is returned.
+%% @end
+-spec get_type_fullname(type_or_name()) -> name() | fullname().
+get_type_fullname(#avro_array_type{})                 -> ?AVRO_ARRAY;
+get_type_fullname(#avro_enum_type{fullname = Name})   -> Name;
+get_type_fullname(#avro_fixed_type{fullname = Name})  -> Name;
+get_type_fullname(#avro_map_type{})                   -> ?AVRO_MAP;
 get_type_fullname(#avro_primitive_type{name = Name})  -> Name;
 get_type_fullname(#avro_record_type{fullname = Name}) -> Name;
-get_type_fullname(#avro_enum_type{fullname = Name})   -> Name;
-get_type_fullname(#avro_array_type{})                 -> ?AVRO_ARRAY;
-get_type_fullname(#avro_map_type{})                   -> ?AVRO_MAP;
 get_type_fullname(#avro_union_type{})                 -> ?AVRO_UNION;
-get_type_fullname(#avro_fixed_type{fullname = Name})  -> Name.
+get_type_fullname(Name) when ?IS_NAME_RAW(Name)       -> ?NAME(Name).
 
-%% Returns aliases for the type (types without aliases are considered to
-%% have empty alias list).
--spec get_aliases(avro_type()) -> [string()].
+%% @doc Returns aliases for the type.
+%% Types without aliases defined are considered to have empty alias list.
+%% All aliases have been canonicalized (as fullname).
+%% @end
+-spec get_aliases(avro_type()) -> [fullname()].
+get_aliases(#avro_array_type{})                   -> [];
+get_aliases(#avro_enum_type{aliases = Aliases})   -> Aliases;
+get_aliases(#avro_fixed_type{aliases = Aliases})  -> Aliases;
+get_aliases(#avro_map_type{})                     -> [];
 get_aliases(#avro_primitive_type{})               -> [];
 get_aliases(#avro_record_type{aliases = Aliases}) -> Aliases;
-get_aliases(#avro_enum_type{aliases = Aliases})   -> Aliases;
-get_aliases(#avro_array_type{})                   -> [];
-get_aliases(#avro_map_type{})                     -> [];
-get_aliases(#avro_union_type{})                   -> [];
-get_aliases(#avro_fixed_type{aliases = Aliases})  -> Aliases.
+get_aliases(#avro_union_type{})                   -> [].
+
+%% @doc Get custom type properties such as logical type info. Lookup fun
+%% is called to retrieve the type definition from schema store in case it is
+%% type name provided.
+%% @end
+-spec get_custom_props(type_or_name(), lkup_fun() | schema_store()) ->
+        [custom_prop()].
+get_custom_props(NameOrType, Store) when not is_function(Store) ->
+  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  get_custom_props(NameOrType, Lkup);
+get_custom_props(TypeName, Lkup) when ?IS_NAME_RAW(TypeName) ->
+  get_custom_props(Lkup(?NAME(TypeName)), Lkup);
+get_custom_props(Type, _Lkup) when ?IS_TYPE_RECORD(Type) ->
+  get_custom_props(Type).
+
+%% @doc Get custom type properties such as logical type info.
+-spec get_custom_props(avro_type()) -> [custom_prop()].
+get_custom_props(#avro_array_type{custom = C})     -> C;
+get_custom_props(#avro_enum_type{custom = C})      -> C;
+get_custom_props(#avro_fixed_type{custom = C})     -> C;
+get_custom_props(#avro_map_type{custom = C})       -> C;
+get_custom_props(#avro_primitive_type{custom = C}) -> C;
+get_custom_props(#avro_record_type{custom = C})    -> C;
+get_custom_props(#avro_union_type{})               -> [].
 
 %% @see avro_schema_store:flatten_type/1
 -spec flatten_type(avro_type()) ->
         {avro_type() | fullname(), [avro_type()]} | none().
-flatten_type(Type) ->
-  avro_schema_store:flatten_type(Type).
+flatten_type(Type) -> avro_util:flatten_type(Type).
 
 %% @see avro_schema_store:expand_type/2
 -spec expand_type(fullname() | avro_type(), schema_store()) ->
         avro_type() | none().
-expand_type(Type, Store) ->
-  avro_schema_store:expand_type(Type, Store).
-
-%%%===================================================================
-%%% API: Reading schema from json file
-%%%===================================================================
-
--spec read_schema(file:filename()) -> {ok, avro_type()} | {error, any()}.
-read_schema(File) ->
-  case file:read_file(File) of
-    {ok, Data} ->
-      {ok, avro_json_decoder:decode_schema(Data)};
-    Error ->
-      Error
-  end.
+expand_type(Type, Store) -> avro_util:expand_type(Type, Store).
 
 %%%===================================================================
 %%% API: Calculating of canonical short and full names of types
 %%%===================================================================
 
-%% Splits type's name parts to its canonical short name and namespace.
--spec split_type_name(name() | fullname(), namespace(), namespace()) ->
-        {name(), namespace()}.
-split_type_name(TypeName, Namespace, EnclosingNamespace) ->
+%% @doc Splits type's name parts to its canonical short name and namespace.
+-spec split_type_name(type_or_name(), name_raw()) -> {name(), namespace()}.
+split_type_name(TypeName0, Namespace0) when ?IS_NAME_RAW(TypeName0) ->
+  TypeName = ?NAME(TypeName0),
+  Namespace = ?NAME(Namespace0),
   case split_fullname(TypeName) of
     {_, _} = N ->
-      %% TypeName contains name and namespace
+      %% Not a short name
       N;
     false ->
-      %% TypeName is a name without namespace, choose proper namespace
-      ProperNs =
-        case Namespace =:= ?NAMESPACE_NONE of
-          true  -> EnclosingNamespace;
-          false -> Namespace
-        end,
-      {TypeName, ProperNs}
-  end.
-
-%% Same thing as before, but uses name and namespace from the specified type.
--spec split_type_name(avro_type(), string()) -> {string(), string()}.
-split_type_name(Name, EnclosingNamespace) when ?IS_NAME(Name) ->
-  split_type_name(Name, ?NAMESPACE_NONE, EnclosingNamespace);
-split_type_name(Type, EnclosingNamespace) ->
-  split_type_name(get_type_name(Type),
-                  get_type_namespace(Type),
-                  EnclosingNamespace).
-
-%% Constructs the type's full name from provided name and namespace
--spec build_type_fullname(string(), string(), string()) -> string().
-
-build_type_fullname(TypeName, Namespace, EnclosingNamespace) ->
-  {ShortName, ProperNs} =
-    split_type_name(TypeName, Namespace, EnclosingNamespace),
-  make_fullname(ShortName, ProperNs).
-
-%% Same thing as before but uses name and namespace from the specified type.
--spec build_type_fullname(avro_type(), string()) -> string().
-
-build_type_fullname(Type, EnclosingNamespace) ->
-  build_type_fullname(get_type_name(Type),
-                      get_type_namespace(Type),
-                      EnclosingNamespace).
-
-%%%===================================================================
-%%% API: Checking correctness of names and types specifications
-%%%===================================================================
-
-%% Tries to cast a value (which can be another Avro value or some erlang term)
-%% to the specified Avro type performing conversion if required.
--spec cast(avro_type_or_name(), term()) -> {ok, avro_value()} | {error, term()}.
-
-cast(TypeName, Value) when ?IS_NAME(TypeName) ->
-  case type_from_name(TypeName) of
-    undefined ->
-      %% If the type specified by its name then in most cases
-      %% we don't know which module should handle it. The only
-      %% thing which we can do here is to compare full name of
-      %% Type and typeof(Value) and return Value if they are equal.
-      %% This assumes also that plain erlang values can't be casted
-      %% to types specified only by their names.
-      case ?IS_AVRO_VALUE(Value) of
-        true ->
-          ValueType = ?AVRO_VALUE_TYPE(Value),
-          case has_fullname(ValueType, TypeName) of
-            true  -> {ok, Value};
-            false -> {error, type_name_mismatch}
-          end;
-        false ->
-          %% Erlang terms can't be casted to names
-          {error, cast_erlang_term_to_name}
-      end;
-    Type ->
-      %% The only exception are primitive types names because we know
-      %% corresponding types and can cast to them.
-      cast(Type, Value)
+      %% TypeName is a name without namespace
+      {TypeName, Namespace}
   end;
-%% When casting to same type just return the original value
-cast(T, ?AVRO_VALUE(T, _) = V)      -> {ok, V};
-%% For all other combinations call corresponding cast functions
-%% in type modules
-cast(#avro_primitive_type{} = T, V) -> avro_primitive:cast(T, V);
-cast(#avro_record_type{} = T,    V) -> avro_record:cast(T, V);
-cast(#avro_enum_type{} = T,      V) -> avro_enum:cast(T, V);
-cast(#avro_array_type{} = T,     V) -> avro_array:cast(T, V);
-cast(#avro_map_type{} = T,       V) -> avro_map:cast(T, V);
-cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
-cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V);
-cast(Type, _)                       -> {error, {unknown_type, Type}}.
+split_type_name(Type, Namespace) ->
+  split_type_name(get_type_fullname(Type), Namespace).
 
+%% @doc Constructs the type's full name from provided name and namespace.
+-spec build_type_fullname(name_raw(), namespace()) -> fullname().
+build_type_fullname(TypeName, Namespace) when ?IS_NAME_RAW(TypeName) ->
+  {ShortName, Ns} = split_type_name(TypeName, Namespace),
+  make_fullname(ShortName, Ns).
+
+%% @private Compare two types to check if they are the same.
+%% The types can either be type records or type names.
+%% @end
+-spec is_same_type(type_or_name(), type_or_name()) -> boolean().
+is_same_type(T1, T2) when ?IS_ARRAY_TYPE(T1) andalso
+                          ?IS_ARRAY_TYPE(T2) ->
+  %% For array, compare items type
+  is_same_type(avro_array:get_items_type(T1),
+               avro_array:get_items_type(T2));
+is_same_type(T1, T2) when ?IS_MAP_TYPE(T1) andalso
+                          ?IS_MAP_TYPE(T2) ->
+  %% For map, compare items type
+  is_same_type(avro_map:get_items_type(T1),
+               avro_map:get_items_type(T2));
+is_same_type(T1, T2) when ?IS_UNION_TYPE(T1) andalso
+                          ?IS_UNION_TYPE(T2) ->
+  %% For unions, compare the number of members and
+  %% the order of the members
+  Members1 = avro_union:get_types(T1),
+  Members2 = avro_union:get_types(T2),
+  length(Members1) =:= length(Members2) andalso
+    lists:all(fun({Tt1, Tt2}) ->
+                  is_same_type(Tt1, Tt2)
+              end, lists:zip(Members1, Members2));
+is_same_type(T1, T2) ->
+  %% Named types and primitive types fall into this clause
+  %% Should be enough to just compare their names
+  get_type_fullname(T1) =:= get_type_fullname(T2).
+
+%%%=============================================================================
+%%% API: Checking correctness of names and types specifications
+%%%=============================================================================
+
+%% @doc Tries to cast a value (which can be another Avro value or some erlang
+%% term) to the specified Avro type performing conversion if required.
+%% @end
+-spec cast(type_or_name(), avro:in()) ->
+        {ok, avro_value()} | {error, term()}.
+cast(T1, ?AVRO_VALUE(_, _) = V) -> cast_value(T1, V);
+cast(Type, Value) when ?IS_TYPE_RECORD(Type) -> do_cast(Type, Value);
+cast(Type, Value) when ?IS_NAME_RAW(Type) -> do_cast(name2type(Type), Value).
 
 %% @doc Convert avro values to erlang term.
 -spec to_term(avro_value()) -> term().
 to_term(#avro_value{type = T} = V) -> to_term(T, V).
+
+%%%_* Internal functions =======================================================
+
+%% @private A specical case to cast wrapped value to union.
+%% Other types, compare use is_same_type
+%% @end
+-spec cast_value(type_or_name(), avro_value()) ->
+        {ok, avro_value()} | {error, any()}.
+cast_value(T1, ?AVRO_VALUE(T2, _) = V) when ?IS_UNION_TYPE(T1) andalso
+                                            not ?IS_UNION_TYPE(T2) ->
+  %% Union, the value can be a member
+  MemberTypeName = get_type_fullname(T2),
+  %% Tag the value, delegate to avro_union
+  avro_union:cast(T1, {MemberTypeName, V});
+cast_value(T1, ?AVRO_VALUE(T2, _) = V) ->
+  case is_same_type(T1, T2) of
+    true  -> {ok, V};
+    false -> {error, {type_mismatch, T1, T2}}
+  end.
+
+%% @private
+-spec do_cast(avro_type(), avro:in()) -> {ok, avro_value()} | {error, any()}.
+do_cast(#avro_primitive_type{} = T, V) -> avro_primitive:cast(T, V);
+do_cast(#avro_record_type{} = T,    V) -> avro_record:cast(T, V);
+do_cast(#avro_enum_type{} = T,      V) -> avro_enum:cast(T, V);
+do_cast(#avro_array_type{} = T,     V) -> avro_array:cast(T, V);
+do_cast(#avro_map_type{} = T,       V) -> avro_map:cast(T, V);
+do_cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
+do_cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V).
+
+%% @private Splits FullName to {Name, Namespace} or returns false
+%% if the given name is a short name (no dots).
+%% @end
+-spec split_fullname(fullname()) -> false | {name(), namespace()}.
+split_fullname(FullNameBin) when is_binary(FullNameBin) ->
+  %% Avro names are always ascii chars, no need for utf8 caring.
+  FullName = binary_to_list(FullNameBin),
+  case string:rchr(FullName, $.) of
+    0 ->
+      %% Dot not found
+      false;
+    DotPos ->
+      { ?NAME(string:substr(FullName, DotPos + 1))
+      , ?NAME(string:substr(FullName, 1, DotPos-1))
+      }
+  end.
 
 %% @private
 to_term(#avro_primitive_type{}, V) -> avro_primitive:get_value(V);
@@ -344,55 +454,15 @@ to_term(#avro_enum_type{}, V)      -> avro_enum:get_value(V);
 to_term(#avro_array_type{}, V)     -> avro_array:to_term(V);
 to_term(#avro_map_type{}, V)       -> avro_map:to_term(V);
 to_term(#avro_union_type{}, V)     -> avro_union:to_term(V);
-to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V);
-to_term(T, _)                      -> erlang:error({unknown_type, T}).
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-
-%% @private Splits FullName to {Name, Namespace} or returns false
-%% if FullName is not a full name.
-%% @end
--spec split_fullname(string()) -> {name(), namespace()} | false.
-split_fullname(FullName) ->
-    case string:rchr(FullName, $.) of
-        0 ->
-            %% Dot not found
-            false;
-        DotPos ->
-            { string:substr(FullName, DotPos + 1)
-            , string:substr(FullName, 1, DotPos-1)
-            }
-    end.
+to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V).
 
 %% @private
-make_fullname(Name, "") ->
-  Name;
+-spec make_fullname(name_raw(), namespace_raw()) -> name().
+make_fullname(Name, ?NS_GLOBAL) -> Name;
 make_fullname(Name, Namespace) ->
-  Namespace ++ "." ++ Name.
+  iolist_to_binary([?NAME(Namespace), ".", ?NAME(Name)]).
 
-%%%===================================================================
-%%% Internal functions: casting
-%%%===================================================================
-
-%% @private Checks if the type has specified full name.
-has_fullname(FullName, FullName) ->
-  true;
-has_fullname(Type, FullName) ->
-  is_named_type(Type) andalso get_type_fullname(Type) =:= FullName.
-
-%% @private
-type_from_name(?AVRO_NULL)   -> avro_primitive:null_type();
-type_from_name(?AVRO_INT)    -> avro_primitive:int_type();
-type_from_name(?AVRO_LONG)   -> avro_primitive:long_type();
-type_from_name(?AVRO_FLOAT)  -> avro_primitive:float_type();
-type_from_name(?AVRO_DOUBLE) -> avro_primitive:double_type();
-type_from_name(?AVRO_BYTES)  -> avro_primitive:bytes_type();
-type_from_name(?AVRO_STRING) -> avro_primitive:string_type();
-type_from_name(_)            -> undefined.
-
-%%%_* Emacs ============================================================
+%%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
 %%% erlang-indent-level: 2

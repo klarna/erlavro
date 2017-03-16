@@ -1,13 +1,13 @@
 {application, erlavro,
   [
     {description, "Apache Avro support for Erlang"},
-    {vsn, "1.9.4"},
+    {vsn, "2.0.0"},
     {registered, []},
     {applications, [
       kernel,
       stdlib,
-      mochijson3,
-      jsonx
+      jsone
     ]},
     {env, []}
   ]}.
+
