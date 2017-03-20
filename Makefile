@@ -32,5 +32,7 @@ clean:
 xref: compile
 	$(REBAR) xref
 
+hex-publish: clean
+	rebar3 hex publish
 
 # eof
