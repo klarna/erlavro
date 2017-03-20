@@ -59,6 +59,22 @@ write_file_test() ->
   {_Header, Type, Objs} = avro_ocf:decode_file(OcfFile),
   ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}]], Objs).
 
+root_level_union_test() ->
+  OcfFile = filename:join([priv_dir(), "union.ocf.test"]),
+  Store = undefined, %% should not require lookup
+  Fields = [ avro_record:define_field("f1", int, [])
+           , avro_record:define_field("f2", string, [])
+           ],
+  Type1 = avro_record:type("rec", Fields, [{namespace, "my.ocf.test"}]),
+  Type2 = avro_primitive:type(int, []),
+  Type  = avro_union:type([Type1, Type2]),
+  Obj1 = [{"f1", 1}, {"f2", "foo"}],
+  Obj2 = 42,
+  ok = avro_ocf:write_file(OcfFile, Store, Type, [Obj1, Obj2]),
+  {_Header, TypeDecoded, Objs} = avro_ocf:decode_file(OcfFile),
+  ?assertEqual(Type, TypeDecoded),
+  ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}], 42], Objs).
+
 %% @private
 priv_dir() ->
   case code:priv_dir(erlavro) of
