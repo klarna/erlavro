@@ -52,7 +52,8 @@
         , encode_wrapped/4
         ]).
 
--export_type([ avro_type/0
+-export_type([ array_type/0
+             , avro_type/0
              , avro_value/0
              , canonicalized_value/0
              , codec_options/0
@@ -62,18 +63,24 @@
              , decode_fun/0
              , decoder_hook_fun/0
              , encode_fun/0
+             , encoding/0
+             , enum_index/0
              , enum_symbol/0
              , enum_symbol_raw/0
-             , enum_index/0
+             , enum_type/0
+             , fixed_type/0
              , fullname/0
              , in/0
+             , lkup_fun/0
              , name/0
              , name_raw/0
              , namespace/0
              , namespace_raw/0
              , ordering/0
              , out/0
+             , primitive_type/0
              , record_field/0
+             , record_type/0
              , schema_store/0
              , typedoc/0
              , type_prop_name/0
@@ -81,6 +88,7 @@
              , type_props/0
              , type_or_name/0
              , union_index/0
+             , union_type/0
              ]).
 
 -include("avro_internal.hrl").
@@ -104,6 +112,7 @@
 -type codec_options() :: [proplists:property()].
 -type encode_fun() :: fun((type_or_name(), term()) -> iodata() | avro_value()).
 -type decode_fun() :: fun((type_or_name(), binary()) -> term()).
+-type encoding() :: avro_encoding().
 
 %% @doc Make a encoder function.
 %% Supported codec options:

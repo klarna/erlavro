@@ -186,7 +186,7 @@ ocf_schema() ->
 -spec init_schema_store(avro_type()) -> schema_store().
 init_schema_store(Schema) ->
   Store = avro_schema_store:new([]),
-  avro_schema_store:add_type(Schema, Store).
+  avro_schema_store:add_type(erlavro_ocf_root, Schema, Store).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

@@ -1,0 +1,15 @@
+IsRebar3 = erlang:function_exported(rebar3, main, 1),
+
+case IsRebar3 of
+    true ->
+        CONFIG;
+    false ->
+        Rebar3Deps = proplists:get_value(deps, CONFIG),
+        Rebar2Deps = [
+            {jsone, ".*",
+                {git, "https://github.com/sile/jsone",
+                    {tag, proplists:get_value(jsone, Rebar3Deps)}}}
+        ],
+        lists:keyreplace(deps, 1, CONFIG, {deps, Rebar2Deps})
+end.
+
