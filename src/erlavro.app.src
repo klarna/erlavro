@@ -1,6 +1,6 @@
 {application, erlavro,
   [
-    {description, "Apache Avro support for Erlang"},
+    {description, "Apache Avro support for Erlang/Elixir"},
     {vsn, "2.0.1"},
     {registered, []},
     {applications, [
