@@ -37,11 +37,11 @@ Where `in()` and `out()` refer to the input and output type specs recursively.
 
 ## Important Notes about Unicode Strings
 
-The binary encoder/decoder will respect whatever is given in the input (bytes). 
-i.e. The encoder will NOT try to be smart and encode the input `string()` to utf8 (or whatsoever), 
-and the decoder will not try to validate or decode the input `binary()` as unicode character list. 
+The binary encoder/decoder will respect whatever is given in the input (bytes).
+i.e. The encoder will NOT try to be smart and encode the input `string()` to utf8 (or whatsoever),
+and the decoder will not try to validate or decode the input `binary()` as unicode character list.
 
-The encode caller should make sure the input is of spec `[byte()] | binary()`, 
+The encode caller should make sure the input is of spec `[byte()] | binary()`,
 NOT a unicode character list which may possibly contain some code points greater than 255.
 
 # Examples
@@ -172,7 +172,7 @@ JSON to expect:
 
 # Decoder Hooks
 
-Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend data before and/or after decoding. 
+Decoder hook is an anonymous function to be evaluated by the JSON or binary decoder to amend data before and/or after decoding.
 Some hook use cases for example:
 
 * Tag union value with type name. e.g. `avro_decoder_hooks:tag_unions/0`.
@@ -224,27 +224,26 @@ For a big union like below
   ... and many more ...
 ]
 ```
-
-### Caution when unioning string type and int/long arrays.
-
-As `[integer()]` list is `string()` in Erlang, this will confuse the encoder.
-Please make sure to use `binary()` as avro string encoding input or tag it, 
-and always tag int/long array value like `{array, [1, 2, 3]}`.
-
 There are two ways to encode such unions
 
 * Untagged: `Encoder(UnionType, MyRecord)` where `MyRecord` is of spec `[{field_name(), field_value()}]`
 * Tagged: `Encoder(UnionType, MyRecord)` where `MyRecord` is of spec `{"com.example.MyRecordX", [{field_name(), field_value()}]}`
 
-For `Untagged`, the encoder will have to TRY to encode using the union member types one after another until success. 
-This is completely fine for small unions (e.g. a union of `null` and `long`), however quite expensive (and sometimes can be problematic) for records. 
+For `Untagged`, the encoder will have to TRY to encode using the union member types one after another until success.
+This is completely fine for small unions (e.g. a union of `null` and `long`), however quite expensive (and sometimes can be problematic) for records.
 Therefore we are recommending the `Tagged` way, because it'll help the encoder to find the member quickly.
+
+### Caution when unioning string type and int/long arrays.
+
+As `[integer()]` list is `string()` in Erlang, this will confuse the encoder.
+Please make sure to use `binary()` as avro string encoding input or tag it,
+and always tag int/long array value like `{array, [1, 2, 3]}`.
 
 ### Union Values Are Decoded Without Tags by Default
 
-A bit contradicting to the recommended union encoding, the decoded values are NOT tagged by DEFAULT. 
-Because we believe the use case of tagged unions in decoder output is not as common. 
-You may use the decoder hook `avro_decoer_hooks:tag_unions/0` to have the decoded values tagged. 
+A bit contradicting to the recommended union encoding, the decoded values are NOT tagged by DEFAULT.
+Because we believe the use case of tagged unions in decoder output is not as common.
+You may use the decoder hook `avro_decoer_hooks:tag_unions/0` to have the decoded values tagged.
 NOTE: only named complex types are tagged by this hook, you can of course write your own hook for a different tagging behaviour.
 
 # Object container file encoding/decoding
@@ -255,14 +254,13 @@ See `avro_ocf.erl` for details
 
 NOTE: There is no logical type or custom type properties based on avro 'union' type.
 
-`erlavro` encodes/decodes logical types as well as custom type properties but (so far) 
+`erlavro` encodes/decodes logical types as well as custom type properties but (so far)
 does not validate or transform the encoder/encoder input/output.
 
-e.g. The underlying data type of 'Date' logical type is 'int', in a perfect word, 
-the encoder should accept `{Y, M, D}` as input and the decoder should transform the integer 
+e.g. The underlying data type of 'Date' logical type is 'int', in a perfect word,
+the encoder should accept `{Y, M, D}` as input and the decoder should transform the integer
 back to `{Y, M, D}` --- but this is not supported so far.
 
-Call `avro:get_custom_props/2` to access logical type info (as well as any extra customized type properties) 
+Call `avro:get_custom_props/2` to access logical type info (as well as any extra customized type properties)
 for extra data validation/transformation at application level.
-
 
