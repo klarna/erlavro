@@ -24,6 +24,7 @@
 -module(avro_ocf).
 
 -export([ append_file/5
+        , decode_binary/1
         , decode_file/1
         , make_header/1
         , write_header/2
@@ -54,6 +55,11 @@
 -spec decode_file(filename()) -> {header(), avro_type(), [avro:out()]}.
 decode_file(Filename) ->
   {ok, Bin} = file:read_file(Filename),
+  decode_binary(Bin).
+
+%% @doc Decode ocf binary into unwrapped values.
+-spec decode_binary(binary()) -> {header(), avro_type(), [avro:out()]}.
+decode_binary(Bin) ->
   {[ {<<"magic">>, Magic}
    , {<<"meta">>, Meta}
    , {<<"sync">>, Sync}
