@@ -25,10 +25,13 @@
 
 -export([ append_file/5
         , decode_binary/1
+        , decode_blocks/5
         , decode_file/1
+        , decode_stream/2
         , make_header/1
         , write_header/2
         , write_file/4
+        , ocf_schema/0
         ]).
 
 -export_type([ header/0
