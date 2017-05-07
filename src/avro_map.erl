@@ -105,7 +105,11 @@ cast(Type, Value) when ?IS_MAP_TYPE(Type) ->
 encode(Type, Value, EncodeFun) ->
   ItemsType = avro_map:get_items_type(Type),
   lists:map(fun({K, V}) ->
-                EncodeFun(ItemsType, K, V)
+                try
+                  EncodeFun(ItemsType, K, V)
+                catch
+                  C : E -> ?RAISE_ENC_ERR(C, E, [Type, K])
+                end
             end, Value).
 
 %%%_* Internal Functions =======================================================

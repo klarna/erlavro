@@ -234,7 +234,6 @@ to_term(Record) when ?IS_RECORD_VALUE(Record) ->
   lists:map(fun({N, V}) -> {N, avro:to_term(V)} end, to_list(Record)).
 
 %% @hidden Help function for JSON/binary encoder.
-%% TODO: better spec for Value and EncodeFun
 -spec encode(record_type(), [{field_name_raw(), avro:in()}],
              fun(({field_name(), avro_type(), avro:in()}) -> avro:out())) ->
         [avro:out()].
@@ -243,7 +242,13 @@ encode(Type, Fields, EncodeFun) ->
   TypeFullName = avro:get_type_fullname(Type),
   TypeAndValueList = zip_record_field_types_with_key_value(
                        TypeFullName, FieldTypes, Fields),
-  lists:map(EncodeFun, TypeAndValueList).
+  lists:map(fun({FieldName, _FieldType, _FieldValue} = X) ->
+                try
+                  EncodeFun(X)
+                catch
+                  C : E -> ?RAISE_ENC_ERR(C, E, [TypeFullName, FieldName])
+                end
+            end, TypeAndValueList).
 
 %%%_* Internal functions =======================================================
 
