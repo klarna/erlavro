@@ -27,7 +27,7 @@
                              , zigzag/2
                              ]).
 
--include("erlavro.hrl").
+-include("avro_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -define(TO_STRING(S), iolist_to_binary(S)).
@@ -123,6 +123,21 @@ encode_record_test() ->
     ],
   ?assertBinEq(Expected, BinRecord).
 
+encode_record_error_test() ->
+  SubType =
+    avro_record:type("sub_rec",
+                     [ define_field("bool_field", boolean, [])
+                     , define_field("int_field", int, [])
+                     ]),
+  RootType =
+    avro_record:type("root_rec",
+                     [ define_field("sub", SubType, [])
+                     ]),
+  In = [{sub, [{<<"bool_field">>, true}, {<<"int_field">>, "not int"}]}],
+  ?assertError(?ENC_ERR(_, [<<"root_rec">>, <<"sub">>,
+                            <<"sub_rec">>, <<"int_field">>]),
+               encode(fun(_) -> error(unexpected) end, RootType, In)).
+
 encode_enum_test() ->
   EnumType = avro_enum:type("TestEnum",
                             ["SYMBOL_0", "SYMBOL_1", "SYMBOL_2",
@@ -152,6 +167,12 @@ encode_map_test() ->
   TypedValue = avro_map:new(Type, [{a, 3}, {"b", 27}]),
   Body = iolist_to_binary([string(a), int(3), string(<<"b">>), int(27)]),
   ?assertBinEq([long(-2), long(size(Body)), Body, 0], encode_value(TypedValue)).
+
+encode_map_error_test() ->
+  Type = avro_map:type(int),
+  Value = [{a, 3}, {"b", "not int"}],
+  ?assertError(?ENC_ERR(_, [Type, "b"]),
+               encode(fun(_) -> error(unexpected) end, Type, Value)).
 
 encode_union_test() ->
   Type = avro_union:type([null, string]),
