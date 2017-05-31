@@ -254,10 +254,10 @@ See `avro_ocf.erl` for details
 
 NOTE: There is no logical type or custom type properties based on avro 'union' type.
 
-`erlavro` encodes/decodes logical types as well as custom type properties but (so far)
-does not validate or transform the encoder/encoder input/output.
+`erlavro` encodes/decodes logical types as well as custom type properties,
+but (so far) does not validate or transform the encoder/encoder input/output.
 
-e.g. The underlying data type of 'Date' logical type is 'int', in a perfect word,
+e.g. The underlying data type of 'Date' logical type is 'int', in a perfect world,
 the encoder should accept `{Y, M, D}` as input and the decoder should transform the integer
 back to `{Y, M, D}` --- but this is not supported so far.
 
