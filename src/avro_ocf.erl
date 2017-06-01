@@ -23,7 +23,8 @@
 
 -module(avro_ocf).
 
--export([ append_file/5
+-export([ append_file/3
+        , append_file/5
         , decode_binary/1
         , decode_file/1
         , make_header/1
@@ -114,19 +115,27 @@ write_header(Fd, Header) ->
   HeaderBytes = avro_binary_encoder:encode_value(HeaderRecord),
   ok = file:write(Fd, HeaderBytes).
 
-%% @doc Append a block ocf block to the opened IO device.
+%% @doc Append encoded objects to the file as one data block.
+-spec append_file(file:io_device(), header(), [binary()]) -> ok.
+append_file(Fd, Header, Objects) ->
+  Count = length(Objects),
+  Data = iolist_to_binary(Objects),
+  Size = size(Data),
+  ToWrite =
+    [ avro_binary_encoder:encode_value(avro_primitive:long(Count))
+    , avro_binary_encoder:encode_value(avro_primitive:long(Size))
+    , Data
+    , Header#header.sync
+    ],
+  ok = file:write(Fd, ToWrite).
+
+%% @doc Encode the given objects and append to the file as one data block.
 -spec append_file(file:io_device(), header(), schema_store(),
                   type_or_name(), [avro:in()]) -> ok.
 append_file(Fd, Header, SchemaStore, Schema, Objects) ->
-  Count = length(Objects),
-  Bytes = iolist_to_binary([avro_binary_encoder:encode(SchemaStore, Schema, O)
-                            || O <- Objects]),
-  IoData = [ avro_binary_encoder:encode_value(avro_primitive:long(Count))
-           , avro_binary_encoder:encode_value(avro_primitive:long(size(Bytes)))
-           , Bytes
-           , Header#header.sync
-           ],
-  ok = file:write(Fd, IoData).
+  EncodedObjects =
+    [ avro:encode(SchemaStore, Schema, O, avro_binary) || O <- Objects ],
+  append_file(Fd, Header, EncodedObjects).
 
 %% @doc Make ocf header.
 -spec make_header(avro_type()) -> header().
@@ -159,7 +168,7 @@ validate_extra_meta([{K0, V} | Rest]) ->
   is_binary(V) orelse erlang:error({bad_meta_value, V}),
   [{K, V} | validate_extra_meta(Rest)].
 
-%% @private Meta keys starts with 'avro.' are reserved.
+%% @private Meta keys which start with 'avro.' are reserved.
 -spec is_reserved_meta_key(binary()) -> boolean().
 is_reserved_meta_key(<<"avro.", _/binary>>) -> true;
 is_reserved_meta_key(_)                     -> false.
