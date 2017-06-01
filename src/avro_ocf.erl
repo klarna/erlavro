@@ -27,11 +27,14 @@
         , decode_binary/1
         , decode_file/1
         , make_header/1
+        , make_header/2
         , write_header/2
         , write_file/4
+        , write_file/5
         ]).
 
 -export_type([ header/0
+             , extra_meta/0
              ]).
 
 -include("avro_internal.hrl").
@@ -41,6 +44,7 @@
 -endif.
 
 -type filename() :: file:filename_all().
+-type extra_meta() :: [{string() | binary(), binary()}].
 
 -record(header, { magic
                 , meta
@@ -83,7 +87,13 @@ decode_binary(Bin) ->
 -spec write_file(filename(), schema_store(),
                  type_or_name(), [avro:in()]) -> ok.
 write_file(Filename, SchemaStore, Schema, Objects) ->
-  Header = make_header(Schema),
+  write_file(Filename, SchemaStore, Schema, Objects, []).
+
+%% @doc Write objects in a single block to the given file name.
+-spec write_file(filename(), schema_store(),
+                 type_or_name(), [avro:in()], extra_meta()) -> ok.
+write_file(Filename, SchemaStore, Schema, Objects, ExtraMeta) ->
+  Header = make_header(Schema, ExtraMeta),
   {ok, Fd} = file:open(Filename, [write]),
   try
     ok = write_header(Fd, Header),
@@ -121,15 +131,38 @@ append_file(Fd, Header, SchemaStore, Schema, Objects) ->
 %% @doc Make ocf header.
 -spec make_header(avro_type()) -> header().
 make_header(Type) ->
+  make_header(Type, _ExtraMeta = []).
+
+%% @doc Make ocf header, and append the given extra metadata fields.
+-spec make_header(avro_type(), extra_meta()) -> header().
+make_header(Type, ExtraMeta0) ->
+  ExtraMeta = validate_extra_meta(ExtraMeta0),
   TypeJson = avro_json_encoder:encode_type(Type),
   #header{ magic = <<"Obj", 1>>
          , meta  = [ {<<"avro.schema">>, iolist_to_binary(TypeJson)}
                    , {<<"avro.codec">>, <<"null">>}
+                   | ExtraMeta
                    ]
          , sync  = generate_sync_bytes()
          }.
 
 %%%_* Internal functions =======================================================
+
+%% @private Raise an exception if extra meta has a bad format.
+%% Otherwise return the formatted metadata entries
+%% @end
+-spec validate_extra_meta(extra_meta()) -> extra_meta() | no_return().
+validate_extra_meta([]) -> [];
+validate_extra_meta([{K0, V} | Rest]) ->
+  K = iolist_to_binary(K0),
+  is_reserved_meta_key(K) andalso erlang:error({reserved_meta_key, K0}),
+  is_binary(V) orelse erlang:error({bad_meta_value, V}),
+  [{K, V} | validate_extra_meta(Rest)].
+
+%% @private Meta keys starts with 'avro.' are reserved.
+-spec is_reserved_meta_key(binary()) -> boolean().
+is_reserved_meta_key(<<"avro.", _/binary>>) -> true;
+is_reserved_meta_key(_)                     -> false.
 
 %% @private
 -spec generate_sync_bytes() -> binary().

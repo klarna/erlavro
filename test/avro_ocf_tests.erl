@@ -70,10 +70,20 @@ root_level_union_test() ->
   Type  = avro_union:type([Type1, Type2]),
   Obj1 = [{"f1", 1}, {"f2", "foo"}],
   Obj2 = 42,
-  ok = avro_ocf:write_file(OcfFile, Store, Type, [Obj1, Obj2]),
+  ok = avro_ocf:write_file(OcfFile, Store, Type, [Obj1, Obj2],
+                           [{"my-meta", <<0>>}]),
   {_Header, TypeDecoded, Objs} = avro_ocf:decode_file(OcfFile),
   ?assertEqual(Type, TypeDecoded),
   ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}], 42], Objs).
+
+extra_meta_test() ->
+  ?assertError({reserved_meta_key, "avro.x"},
+               avro_ocf:make_header(ignore, [{"avro.x", ignore}])),
+  ?assertError({bad_meta_value, atom},
+               avro_ocf:make_header(ignore, [{"x", atom}])),
+  _ = avro_ocf:make_header(<<"long">>),
+  _ = avro_ocf:make_header(<<"int">>, [{"a", <<"b">>}]),
+  ok.
 
 %% @private
 priv_dir() ->
