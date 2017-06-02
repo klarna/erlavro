@@ -16,22 +16,22 @@ key() :: binary().
 tag() :: binary().
 ```
 
-| Avro    | Encoder Input          | Decoder Output           | Notes                                       |
-| ------- | ---------------------- | ------------------------ | ------------------------------------------- |
-| null    | `null`                 | `null`                   | No implicit `undefined` transformation      |
-| boolean | `boolean()`            | `boolean()`              |                                             |
-| int     | `integer()`            | `integer()`              | `-2147483648..2147483647`                   |
-| long    | `integer()`            | `integer()`              | `-9223372036854775808..9223372036854775807` |
-| float   | `integer() | float()`  | `float()`                |                                             |
-| double  | `integer() | float()`  | `float()`                |                                             |
-| bytes   | `binary()`             | `binary()`               |                                             |
-| string  | `iolist()`             | `binary()`               |                                             |
-| enum    | `name_raw()`           | `name()`                 |                                             |
-| fixed   | `binary()`             | `binary()`               |                                             |
-| array   | `[in()]`               | `[out()]`                |                                             |
-| map     | `[{key_raw(), in()}]`  | `[{key(), out()}]`       |                                             |
-| record  | `[{name_raw(), in()}]` | `[{name(), out()}]`      |                                             |
-| union   | `in() | {tag(), in()}` | `out() | {tag(), out()}` | See notes about unions below                |
+| Avro    | Encoder Input           | Decoder Output            | Notes                                       |
+| ------- | ----------------------- | ------------------------- | ------------------------------------------- |
+| null    | `null`                  | `null`                    | No implicit `undefined` transformation      |
+| boolean | `boolean()`             | `boolean()`               |                                             |
+| int     | `integer()`             | `integer()`               | `-2147483648..2147483647`                   |
+| long    | `integer()`             | `integer()`               | `-9223372036854775808..9223372036854775807` |
+| float   | `integer() \| float()`  | `float()`                 |                                             |
+| double  | `integer() \| float()`  | `float()`                 |                                             |
+| bytes   | `binary()`              | `binary()`                |                                             |
+| string  | `iolist()`              | `binary()`                |                                             |
+| enum    | `name_raw()`            | `name()`                  |                                             |
+| fixed   | `binary()`              | `binary()`                |                                             |
+| array   | `[in()]`                | `[out()]`                 |                                             |
+| map     | `[{key_raw(), in()}]`   | `[{key(), out()}]`        |                                             |
+| record  | `[{name_raw(), in()}]`  | `[{name(), out()}]`       |                                             |
+| union   | `in() \| {tag(), in()}` | `out() \| {tag(), out()}` | See notes about unions below                |
 
 Where `in()` and `out()` refer to the input and output type specs recursively.
 
