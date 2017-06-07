@@ -65,8 +65,6 @@
 
 -export_type([store/0]).
 
--define(IS_STORE(S), (is_integer(S) orelse is_atom(S))).
-
 %%%_* APIs =====================================================================
 
 %% @equiv new([])
@@ -105,7 +103,7 @@ to_lookup_fun(Store) ->
 
 %% @doc Import avro JSON files into schema store.
 -spec import_files([filename()], store()) -> store().
-import_files(Files, Store) when ?IS_STORE(Store) ->
+import_files(Files, Store) ->
   lists:foldl(fun(File, S) -> import_file(File, S) end, Store, Files).
 
 %% @doc Import avro JSON file into schema store.
@@ -119,7 +117,7 @@ import_files(Files, Store) when ?IS_STORE(Store) ->
 %%  "/path/to/com.klarna.test.x"      to 'com.klarna.etst.x"
 %% @end
 -spec import_file(filename(), store()) -> store().
-import_file(File, Store) when ?IS_STORE(Store) ->
+import_file(File, Store) ->
   case file:read_file(File) of
     {ok, Json} ->
       Name = parse_basename(File),
@@ -132,7 +130,7 @@ import_file(File, Store) when ?IS_STORE(Store) ->
 %% NOTE: Exception if the type is unnamed.
 %% @end
 -spec import_schema_json(binary(), store()) -> store().
-import_schema_json(Json, Store) when ?IS_STORE(Store) ->
+import_schema_json(Json, Store) ->
   import_schema_json(undefined, Json, Store).
 
 %% @doc Delete the ets table.
@@ -146,7 +144,7 @@ close(Store) ->
 %% i.e. named types nested in the given type are lifted up to root level.
 %% @end
 -spec add_type(avro_type(), store()) -> store().
-add_type(Type, Store) when ?IS_STORE(Store) ->
+add_type(Type, Store) ->
   add_type(undefined, Type, Store).
 
 %% @doc Add (maybe unnamed) type to schema store.
@@ -154,7 +152,7 @@ add_type(Type, Store) when ?IS_STORE(Store) ->
 %% For named types, the assigned name works like an alias.
 %% @end
 -spec add_type(undefined | name_raw(), avro_type(), store()) -> store().
-add_type(AssignedName, Type0, Store) when ?IS_STORE(Store) ->
+add_type(AssignedName, Type0, Store) ->
   {Type, FlattenTypes} = avro:flatten_type(Type0),
   %% Exception when the root type is not named but assigned name is not given.
   case ?IS_TYPE_RECORD(Type) andalso AssignedName =:= undefined of
@@ -168,7 +166,7 @@ add_type(AssignedName, Type0, Store) when ?IS_STORE(Store) ->
 
 %% @doc Lookup a type using its full name.
 -spec lookup_type(name_raw(), store()) -> {ok, avro_type()} | false.
-lookup_type(FullName, Store) when ?IS_STORE(Store) ->
+lookup_type(FullName, Store) ->
   get_type_from_store(?NAME(FullName), Store).
 
 %%%_* Internal Functions =======================================================
