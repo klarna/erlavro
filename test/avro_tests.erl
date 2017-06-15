@@ -158,7 +158,7 @@ primitive_cast_error_test() ->
 get_custom_props_test() ->
   Date = avro_primitive:type(int, [{logicalType, "Date"}, {"p", "v"}]),
   Union = avro_union:type([null, int]),
-  Array = avro_array:type(int, [{"p", "v"}]),
+  Array = avro_array:type(int, [{"p", "v"}, {tag, true}]),
   Enum = avro_enum:type("abc", ["a", "b", "c"], [{"p", "v"}]),
   Fixed  = avro_fixed:type("twobytes", 2, [{key, value}]),
   Map = avro_map:type(int, [{key, value}]),
@@ -188,7 +188,7 @@ get_custom_props_test() ->
   ?assertEqual([{<<"logicalType">>, <<"Date">>},
                 {<<"p">>, <<"v">>}],
                FieldTypeProps(date)),
-  ?assertEqual([{<<"p">>, <<"v">>}], FieldTypeProps(array)),
+  ?assertEqual([{<<"p">>, <<"v">>}, {<<"tag">>, true}], FieldTypeProps(array)),
   ?assertEqual([{<<"p">>, <<"v">>}], FieldTypeProps(enum)),
   ?assertEqual([{<<"key">>, <<"value">>}], FieldTypeProps(fixed)),
   ?assertEqual([{<<"key">>, <<"value">>}], FieldTypeProps(map)),

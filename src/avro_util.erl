@@ -89,8 +89,9 @@ delete_opts(KvList, Keys) ->
 canonicalize_custom_props(Props0) ->
   %% Filter out all type_prop_name() keys first
   Props = delete_opts(Props0, [namespace, doc, aliases]),
-  CanonicalizeValue = fun(V) when is_number(V) -> V;
-                         (V)                   -> ensure_binary(V)
+  CanonicalizeValue = fun(V) when is_number(V)  -> V;
+                         (V) when is_boolean(V) -> V;
+                         (V)                    -> ensure_binary(V)
                       end,
   F = fun({K, V}) ->
           Key = ensure_binary(K),
