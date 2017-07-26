@@ -96,6 +96,8 @@
 -type avro_json() :: jsone:json_object().
 -type avro_binary() :: iolist().
 
+-type avro_codec() :: null | deflate.
+
 %% Type checks
 
 -define(IS_PRIMITIVE_TYPE(Type), is_record(Type, avro_primitive_type)).

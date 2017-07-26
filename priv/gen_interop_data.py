@@ -15,6 +15,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import getopt
 import sys
 from avro import schema
 from avro import io
@@ -37,12 +38,19 @@ DATUM = {
   'recordField': {'label': 'blah', 'children': [{'label': 'inner', 'children': []}]},
 }
 
-if __name__ == "__main__":
-  interop_schema = schema.parse(open(sys.argv[1], 'r').read())
-  writer = open(sys.argv[2], 'wb')
+def write(interop_schema, writer, codec):
   datum_writer = io.DatumWriter()
-  # NB: not using compression
-  dfw = datafile.DataFileWriter(writer, datum_writer, interop_schema)
+  dfw = datafile.DataFileWriter(writer, datum_writer, interop_schema, codec=codec)
   dfw.append(DATUM)
   dfw.close()
 
+if __name__ == "__main__":
+  codec = 'null'
+  opts, args = getopt.getopt(sys.argv[1:], 'c:', ['codec='])
+  for o, a in opts:
+    if o == '--codec' or o == '-c':
+      codec = a
+      
+  interop_schema = schema.parse(open(args[0], 'r').read())
+  writer = open(args[1], 'wb')
+  write(interop_schema, writer, codec)

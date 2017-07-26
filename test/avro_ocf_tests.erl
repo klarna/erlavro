@@ -47,6 +47,15 @@ interop_test() ->
   ?assertEqual(Schema, Schema1),
   ?assertEqual(Objects, Objects1).
 
+decode_deflate_file_test() ->
+  PrivDir = priv_dir(),
+  InteropOcfFile = filename:join([PrivDir, "interop_deflate.ocf"]),
+  {Header, _Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
+  ?assertEqual(<<"deflate">>,
+               proplists:get_value(<<"avro.codec">>, Header#header.meta)),
+  ?assertEqual(<<"hey">>, 
+               proplists:get_value(<<"stringField">>, hd(Objects))).
+
 write_file_test() ->
   OcfFile = filename:join([priv_dir(), "my.ocf.test"]),
   Store = undefined, %% should not require lookup
@@ -56,6 +65,19 @@ write_file_test() ->
   Type = avro_record:type("rec", Fields, [{namespace, "my.ocf.test"}]),
   Obj = [{"f1", 1}, {"f2", "foo"}],
   ok = avro_ocf:write_file(OcfFile, Store, Type, [Obj]),
+  {_Header, Type, Objs} = avro_ocf:decode_file(OcfFile),
+  ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}]], Objs).
+
+write_deflate_file_test() ->
+  OcfFile = filename:join([priv_dir(), "deflate.ocf.test"]),
+  Store = undefined, %% should not require lookup
+  Fields = [ avro_record:define_field("f1", int, [])
+           , avro_record:define_field("f2", string, [])
+           ],
+  Type = avro_record:type("rec", Fields, [{namespace, "defalate.ocf.test"}]),
+  Obj = [{"f1", 1}, {"f2", "foo"}],
+  Meta = [{<<"avro.codec">>, <<"deflate">>}],
+  ok = avro_ocf:write_file(OcfFile, Store, Type, [Obj], Meta),
   {_Header, Type, Objs} = avro_ocf:decode_file(OcfFile),
   ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}]], Objs).
 

@@ -70,8 +70,7 @@ decode_binary(Bin) ->
    , {<<"sync">>, Sync}
    ], Tail} = decode_stream(ocf_schema(), Bin),
   {_, SchemaBytes} = lists:keyfind(<<"avro.schema">>, 1, Meta),
-  {_, Codec} = lists:keyfind(<<"avro.codec">>, 1, Meta),
-  <<"null">> = Codec, %% assert, no support for deflate so far
+  Codec = get_codec(Meta),
   Schema = avro_json_decoder:decode_schema(SchemaBytes),
   Store = init_schema_store(Schema),
   Header = #header{ magic = Magic
@@ -79,7 +78,7 @@ decode_binary(Bin) ->
                   , sync  = Sync
                   },
   try
-    {Header, Schema, decode_blocks(Store, Schema, Sync, Tail, [])}
+    {Header, Schema, decode_blocks(Store, Schema, Codec, Sync, Tail, [])}
   after
     avro_schema_store:close(Store)
   end.
@@ -119,8 +118,10 @@ write_header(Fd, Header) ->
 -spec append_file(file:io_device(), header(), [binary()]) -> ok.
 append_file(Fd, Header, Objects) ->
   Count = length(Objects),
-  Data = iolist_to_binary(Objects),
+  Data = encode_block(Header#header.meta, Objects),
   Size = size(Data),
+  io:format("Appended to file ~p~n", [Objects]),
+  io:format("Data: ~p~n", [Data]),
   ToWrite =
     [ avro_binary_encoder:encode_value(avro_primitive:long(Count))
     , avro_binary_encoder:encode_value(avro_primitive:long(Size))
@@ -146,12 +147,15 @@ make_header(Type) ->
 -spec make_header(avro_type(), extra_meta()) -> header().
 make_header(Type, ExtraMeta0) ->
   ExtraMeta = validate_extra_meta(ExtraMeta0),
+  Meta = case lists:keyfind(<<"avro.codec">>, 1, ExtraMeta) of
+           false -> 
+             [{<<"avro.codec">>, <<"null">>} | ExtraMeta];
+           _ ->
+             ExtraMeta
+         end,
   TypeJson = avro_json_encoder:encode_type(Type),
   #header{ magic = <<"Obj", 1>>
-         , meta  = [ {<<"avro.schema">>, iolist_to_binary(TypeJson)}
-                   , {<<"avro.codec">>, <<"null">>}
-                   | ExtraMeta
-                   ]
+         , meta  = [{<<"avro.schema">>, iolist_to_binary(TypeJson)} | Meta]
          , sync  = generate_sync_bytes()
          }.
 
@@ -165,13 +169,22 @@ validate_extra_meta([]) -> [];
 validate_extra_meta([{K0, V} | Rest]) ->
   K = iolist_to_binary(K0),
   is_reserved_meta_key(K) andalso erlang:error({reserved_meta_key, K0}),
+  is_invalid_codec_meta(K, V) andalso erlang:error({bad_codec, V}),
   is_binary(V) orelse erlang:error({bad_meta_value, V}),
   [{K, V} | validate_extra_meta(Rest)].
 
 %% @private Meta keys which start with 'avro.' are reserved.
 -spec is_reserved_meta_key(binary()) -> boolean().
+is_reserved_meta_key(<<"avro.codec">>) -> false;
 is_reserved_meta_key(<<"avro.", _/binary>>) -> true;
 is_reserved_meta_key(_)                     -> false.
+
+%% @private If avro.codec meta is provided, it must be one of supported values.
+-spec is_invalid_codec_meta(binary(), binary()) -> boolean().
+is_invalid_codec_meta(<<"avro.codec">>, <<"null">>) -> false;
+is_invalid_codec_meta(<<"avro.codec">>, <<"deflate">>) -> false;
+is_invalid_codec_meta(<<"avro.codec">>, _) -> true;
+is_invalid_codec_meta(_, _) -> false.
 
 %% @private
 -spec generate_sync_bytes() -> binary().
@@ -190,25 +203,29 @@ decode_stream(SchemaStore, Type, Bin) when is_binary(Bin) ->
   avro_binary_decoder:decode_stream(Bin, Type, SchemaStore).
 
 %% @private
--spec decode_blocks(schema_store(), avro_type(),
+-spec decode_blocks(schema_store(), avro_type(), avro_codec(),
                     binary(), binary(), [avro:out()]) -> [avro:out()].
-decode_blocks(_Store, _Type, _Sync, <<>>, Acc) ->
+decode_blocks(_Store, _Type, _Codec, _Sync, <<>>, Acc) ->
   lists:reverse(Acc);
-decode_blocks(Store, Type, Sync, Bin0, Acc) ->
+decode_blocks(Store, Type, Codec, Sync, Bin0, Acc) ->
   LongType = avro_primitive:long_type(),
   {Count, Bin1} = decode_stream(Store, LongType, Bin0),
   {Size, Bin} = decode_stream(Store, LongType, Bin1),
   <<Block:Size/binary, Sync:16/binary, Tail/binary>> = Bin,
-  NewAcc = decode_block(Store, Type, Block, Count, Acc),
-  decode_blocks(Store, Type, Sync, Tail, NewAcc).
+  NewAcc = decode_block(Store, Type, Codec, Block, Count, Acc),
+  decode_blocks(Store, Type, Codec, Sync, Tail, NewAcc).
 
 %% @private
--spec decode_block(schema_store(), avro_type(),
+-spec decode_block(schema_store(), avro_type(), avro_codec(),
                    binary(), integer(), [avro:out()]) -> [avro:out()].
-decode_block(_Store, _Type, <<>>, 0, Acc) -> Acc;
-decode_block(Store, Type, Bin, Count, Acc) ->
+decode_block(_Store, _Type, _Codec, <<>>, 0, Acc) -> Acc;
+decode_block(Store, Type, deflate, Bin, Count, Acc) ->
+  Decompressed = zlib:unzip(Bin),
+  io:format("==> Decompressed: ~p~n", [Decompressed]),
+  decode_block(Store, Type, null, Decompressed, Count, Acc);
+decode_block(Store, Type, null, Bin, Count, Acc) ->
   {Obj, Tail} = decode_stream(Store, Type, Bin),
-  decode_block(Store, Type, Tail, Count - 1, [Obj | Acc]).
+  decode_block(Store, Type, null, Tail, Count - 1, [Obj | Acc]).
 
 %% @private Hande coded schema.
 %% {"type": "record", "name": "org.apache.avro.file.Header",
@@ -235,6 +252,27 @@ ocf_schema() ->
 init_schema_store(Schema) ->
   Store = avro_schema_store:new([]),
   avro_schema_store:add_type(erlavro_ocf_root, Schema, Store).
+
+%% @private Get codec from meta fields
+-spec get_codec([{binary(), binary()}]) -> avro_codec().
+get_codec(Meta) ->
+  case lists:keyfind(<<"avro.codec">>, 1, Meta) of
+    {_, <<"null">>} ->
+      null;
+    {_, <<"deflate">>} ->
+      deflate
+  end.
+
+%% @private Encode block according to selected codec
+-spec encode_block([{binary(), binary()}], iolist()) -> binary().
+encode_block(Meta, Data) ->
+  io:format("Using codec: ~p~n",  [get_codec(Meta)]),
+  case get_codec(Meta) of
+    null ->
+      iolist_to_binary(Data);
+    deflate ->
+      zlib:zip(Data)
+  end.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
