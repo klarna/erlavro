@@ -120,8 +120,6 @@ append_file(Fd, Header, Objects) ->
   Count = length(Objects),
   Data = encode_block(Header#header.meta, Objects),
   Size = size(Data),
-  io:format("Appended to file ~p~n", [Objects]),
-  io:format("Data: ~p~n", [Data]),
   ToWrite =
     [ avro_binary_encoder:encode_value(avro_primitive:long(Count))
     , avro_binary_encoder:encode_value(avro_primitive:long(Size))
@@ -221,7 +219,6 @@ decode_blocks(Store, Type, Codec, Sync, Bin0, Acc) ->
 decode_block(_Store, _Type, _Codec, <<>>, 0, Acc) -> Acc;
 decode_block(Store, Type, deflate, Bin, Count, Acc) ->
   Decompressed = zlib:unzip(Bin),
-  io:format("==> Decompressed: ~p~n", [Decompressed]),
   decode_block(Store, Type, null, Decompressed, Count, Acc);
 decode_block(Store, Type, null, Bin, Count, Acc) ->
   {Obj, Tail} = decode_stream(Store, Type, Bin),
@@ -266,7 +263,6 @@ get_codec(Meta) ->
 %% @private Encode block according to selected codec
 -spec encode_block([{binary(), binary()}], iolist()) -> binary().
 encode_block(Meta, Data) ->
-  io:format("Using codec: ~p~n",  [get_codec(Meta)]),
   case get_codec(Meta) of
     null ->
       iolist_to_binary(Data);
