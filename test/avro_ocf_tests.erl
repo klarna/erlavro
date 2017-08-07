@@ -98,13 +98,16 @@ root_level_union_test() ->
   ?assertEqual(Type, TypeDecoded),
   ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}], 42], Objs).
 
-extra_meta_test() ->
+meta_test() ->
   ?assertError({reserved_meta_key, "avro.x"},
                avro_ocf:make_header(ignore, [{"avro.x", ignore}])),
   ?assertError({bad_meta_value, atom},
                avro_ocf:make_header(ignore, [{"x", atom}])),
+  ?assertError({bad_codec, <<"lzw">>},
+               avro_ocf:make_header(ignore, [{"avro.codec", <<"lzw">>}])),
   _ = avro_ocf:make_header(<<"long">>),
   _ = avro_ocf:make_header(<<"int">>, [{"a", <<"b">>}]),
+  _ = avro_ocf:make_header(<<"int">>, [{<<"avro.codec">>, <<"null">>}]),
   ok.
 
 %% @private
