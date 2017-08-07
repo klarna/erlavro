@@ -35,7 +35,7 @@
         ]).
 
 -export_type([ header/0
-             , extra_meta/0
+             , meta/0
              ]).
 
 -include("avro_internal.hrl").
@@ -45,7 +45,7 @@
 -endif.
 
 -type filename() :: file:filename_all().
--type extra_meta() :: [{string() | binary(), binary()}].
+-type meta() :: [{string() | binary(), binary()}].
 
 -record(header, { magic
                 , meta
@@ -89,11 +89,12 @@ decode_binary(Bin) ->
 write_file(Filename, SchemaStore, Schema, Objects) ->
   write_file(Filename, SchemaStore, Schema, Objects, []).
 
-%% @doc Write objects in a single block to the given file name.
+%% @doc Write objects in a single block to the given file name with custom
+%% metadata. @see make_header/2 for details about use of meta data.
 -spec write_file(filename(), schema_store(),
-                 type_or_name(), [avro:in()], extra_meta()) -> ok.
-write_file(Filename, SchemaStore, Schema, Objects, ExtraMeta) ->
-  Header = make_header(Schema, ExtraMeta),
+                 type_or_name(), [avro:in()], meta()) -> ok.
+write_file(Filename, SchemaStore, Schema, Objects, Meta) ->
+  Header = make_header(Schema, Meta),
   {ok, Fd} = file:open(Filename, [write]),
   try
     ok = write_header(Fd, Header),
@@ -141,15 +142,20 @@ append_file(Fd, Header, SchemaStore, Schema, Objects) ->
 make_header(Type) ->
   make_header(Type, _ExtraMeta = []).
 
-%% @doc Make ocf header, and append the given extra metadata fields.
--spec make_header(avro_type(), extra_meta()) -> header().
-make_header(Type, ExtraMeta0) ->
-  ExtraMeta = validate_extra_meta(ExtraMeta0),
-  Meta = case lists:keyfind(<<"avro.codec">>, 1, ExtraMeta) of
-           false -> 
-             [{<<"avro.codec">>, <<"null">>} | ExtraMeta];
+%% @doc Make ocf header, and append the given metadata fields.
+%% You can use <<"avro.codec">> metadata field to choose what data block coding
+%% shoudl be used. Supported values are `<<"null">>' (default) and
+%% `<<"deflate">>' (compressed). Other values in `avro' namespace are reserved
+%% for internal use and can't be set. Other than that you are free to provide any
+%% custom metadata.
+-spec make_header(avro_type(), meta()) -> header().
+make_header(Type, Meta0) ->
+  ValidatedMeta = validate_meta(Meta0),
+  Meta = case lists:keyfind(<<"avro.codec">>, 1, ValidatedMeta) of
+           false ->
+             [{<<"avro.codec">>, <<"null">>} | ValidatedMeta];
            _ ->
-             ExtraMeta
+             ValidatedMeta
          end,
   TypeJson = avro_json_encoder:encode_type(Type),
   #header{ magic = <<"Obj", 1>>
@@ -159,17 +165,17 @@ make_header(Type, ExtraMeta0) ->
 
 %%%_* Internal functions =======================================================
 
-%% @private Raise an exception if extra meta has a bad format.
+%% @private Raise an exception if meta has a bad format.
 %% Otherwise return the formatted metadata entries
 %% @end
--spec validate_extra_meta(extra_meta()) -> extra_meta() | no_return().
-validate_extra_meta([]) -> [];
-validate_extra_meta([{K0, V} | Rest]) ->
+-spec validate_meta(meta()) -> meta() | no_return().
+validate_meta([]) -> [];
+validate_meta([{K0, V} | Rest]) ->
   K = iolist_to_binary(K0),
   is_reserved_meta_key(K) andalso erlang:error({reserved_meta_key, K0}),
   is_invalid_codec_meta(K, V) andalso erlang:error({bad_codec, V}),
   is_binary(V) orelse erlang:error({bad_meta_value, V}),
-  [{K, V} | validate_extra_meta(Rest)].
+  [{K, V} | validate_meta(Rest)].
 
 %% @private Meta keys which start with 'avro.' are reserved.
 -spec is_reserved_meta_key(binary()) -> boolean().
