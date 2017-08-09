@@ -91,6 +91,7 @@ write_file(Filename, SchemaStore, Schema, Objects) ->
 
 %% @doc Write objects in a single block to the given file name with custom
 %% metadata. @see make_header/2 for details about use of meta data.
+%% @end
 -spec write_file(filename(), schema_store(),
                  type_or_name(), [avro:in()], meta()) -> ok.
 write_file(Filename, SchemaStore, Schema, Objects, Meta) ->
@@ -143,11 +144,12 @@ make_header(Type) ->
   make_header(Type, _ExtraMeta = []).
 
 %% @doc Make ocf header, and append the given metadata fields.
-%% You can use &gt;&gt;"avro.codec"&lt;&lt; metadata field to choose what data
+%% You can use `&gt;&gt;"avro.codec"&lt;&lt;' metadata field to choose what data
 %% block coding should be used. Supported values are `&gt;&gt;"null"&lt;&lt;'
 %% (default) and `&gt;&gt;"deflate"&lt;&lt;' (compressed). Other values in
 %% `avro' namespace are reserved for internal use and can't be set.
 %% Other than that you are free to provide any custom metadata.
+%% @end
 -spec make_header(avro_type(), meta()) -> header().
 make_header(Type, Meta0) ->
   ValidatedMeta = validate_meta(Meta0),
