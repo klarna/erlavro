@@ -44,7 +44,8 @@
 %% @doc Encode avro schema in JSON format.
 %% @end
 -spec encode_schema(avro_type()) -> iodata().
-encode_schema(Type) ->
+encode_schema(Type0) ->
+  Type = avro_util:resolve_duplicated_refs(Type0),
   encode_json(do_encode_type(Type, _Namespace = ?NS_GLOBAL)).
 
 %% @doc Encode avro schema in JSON format.

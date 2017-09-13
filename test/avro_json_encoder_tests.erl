@@ -377,6 +377,23 @@ encode_field_order_test_() ->
     end || Order <- [ascending, descending, ignore]
   ].
 
+encode_dup_ref_test() ->
+  Enum = avro_enum:type("Enum", ["a", "b"]),
+  Field = avro_record:define_field("f", int, []),
+  SubRec = avro_record:type("sub", [Field], []),
+  Field1 = avro_record:define_field("a", SubRec, []),
+  Field2 = avro_record:define_field("b", SubRec, []),
+  Field3 = avro_record:define_field("c", Enum, []),
+  Field4 = avro_record:define_field("d", Enum, []),
+  Type = avro_record:type("root", [Field1, Field2, Field3, Field4], []),
+  JSON = avro_json_encoder:encode_type(Type),
+  DecodedType = avro_json_decoder:decode_schema(JSON),
+  Store = avro_schema_store:new(),
+  Store = avro_schema_store:add_type(DecodedType, Store),
+  ExpandedType = avro:expand_type_bloated("root", Store),
+  ?assertEqual(ExpandedType, Type),
+  avro_schema_store:close(Store).
+
 %% @private
 sample_record_type() ->
   avro_record:type(

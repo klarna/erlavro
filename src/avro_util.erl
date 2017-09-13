@@ -32,9 +32,11 @@
         , delete_opts/2
         , ensure_binary/1
         , expand_type/2
+        , expand_type/3
         , flatten_type/1
         , get_opt/2
         , get_opt/3
+        , resolve_duplicated_refs/1
         , verify_names/1
         , verify_dotted_name/1
         , verify_aliases/1
@@ -183,28 +185,93 @@ flatten_type(Type) when ?IS_TYPE_RECORD(Type) ->
 %% instead of scattering all named types to their own avsc files.
 %% @end
 -spec expand_type(type_or_name(), store()) -> avro_type() | no_return().
-expand_type(Type0, Store) ->
+expand_type(Type, Store) ->
+  expand_type(Type, Store, compact).
+
+%% @doc Expand type in 2 different styles.
+%% compact: use type name reference if it is a type seen
+%%          before while traversing the type tree.
+%% bloated: use type name reference only if a type is seen
+%%          before in the current traversing stack. (to avoid stack overflow)
+%% @end
+-spec expand_type(type_or_name(), store(), compact | bloated) ->
+        avro_type() | no_return().
+expand_type(Type0, Store, Style) ->
   Type = avro_util:canonicalize_type_or_name(Type0),
   try
     %% Use process dictionary to keep the history of seen type names
     %% to simplify (comparing to a lists:foldr version) the loop functions.
     %%
-    %% The ?SEEN names are 'previously' already resolved full names of types
+    %% ?SEEN names are 'previously' already resolved full names of types
     %% when traversing the type tree, so there is no need to resolve
     %% the 'current' type reference again.
     %%
-    %% Otherwise the encoded JSON schema would be bloated with repeated
-    %% type definitions.
+    %% Stack keeps only the depth first traversing path, to be used when
+    %% expanding to bloated style
     _ = erlang:put(?SEEN, []),
     case ?IS_NAME(Type) of
-      true  -> do_expand_type(Type, Store);
-      false -> expand(Type, Store)
+      true  -> do_expand_type(Type, Store, Style, _Stack = []);
+      false -> expand(Type, Store, Style, _Stack = [])
     end
   after
     erlang:erase(?SEEN)
   end.
 
+%% @doc Resolve duplicated references to internal context. e.g. when two
+%% or more record fields share the same type and all are expanded, we should
+%% make reference for the later ones and only expand the first.
+%% @end
+-spec resolve_duplicated_refs(avro:type_or_name()) -> avro:type_or_name().
+resolve_duplicated_refs(Type0) ->
+  {Type, _Refs} = resolve_duplicated_refs(Type0, []),
+  Type.
+
 %%%_* Internal functions =======================================================
+
+%% @private
+-spec resolve_duplicated_refs(avro:type_or_name(), [avro:fullname()]) ->
+        {avro:type_or_name(), [avro:fullname()]}.
+resolve_duplicated_refs(N, SeenRefs) when ?IS_NAME(N) ->
+  {N, SeenRefs};
+resolve_duplicated_refs(T, SeenRefs) when ?IS_PRIMITIVE_TYPE(T) ->
+  {T, SeenRefs};
+resolve_duplicated_refs(T, SeenRefs0) when ?IS_FIXED_TYPE(T) orelse
+                                           ?IS_ENUM_TYPE(T) ->
+  Name = avro:get_type_fullname(T),
+  case lists:member(Name, SeenRefs0) of
+    true -> {Name, SeenRefs0};
+    false -> {T, [Name | SeenRefs0]}
+  end;
+resolve_duplicated_refs(#avro_array_type{type = T0} = Array, SeenRefs0) ->
+  {T, SeenRefs} = resolve_duplicated_refs(T0, SeenRefs0),
+  {Array#avro_array_type{type = T}, SeenRefs};
+resolve_duplicated_refs(#avro_map_type{type = T0} = Map, SeenRefs0) ->
+  {T, SeenRefs} = resolve_duplicated_refs(T0, SeenRefs0),
+  {Map#avro_map_type{type = T}, SeenRefs};
+resolve_duplicated_refs(Union, SeenRefs0) when ?IS_UNION_TYPE(Union) ->
+  Members0 = avro_union:get_types(Union),
+  {Members, SeenRefs} =
+    lists:mapfoldl(
+      fun(T, SeenRefsAcc) ->
+          resolve_duplicated_refs(T, SeenRefsAcc)
+      end, SeenRefs0, Members0),
+  {avro_union:type(Members), SeenRefs};
+resolve_duplicated_refs(#avro_record_type{fields = Fields0} = R, SeenRefs0) ->
+  Name = avro:get_type_fullname(R),
+  case lists:member(Name, SeenRefs0) of
+    true ->
+      {Name, SeenRefs0};
+    false ->
+      SeenRefs1 = [Name | SeenRefs0],
+      {Fields, SeenRefs} =
+        lists:mapfoldl(
+          fun(#avro_record_field{type = FT} = Field, SeenRefsAcc) ->
+              {NewFT, NewSeenRefsAcc} =
+                resolve_duplicated_refs(FT, SeenRefsAcc),
+              {Field#avro_record_field{type = NewFT}, NewSeenRefsAcc}
+          end, SeenRefs1, Fields0),
+      {R#avro_record_type{fields = Fields}, SeenRefs}
+  end.
 
 %% @private
 -spec flatten(avro_type()) -> {avro_type(), [avro_type()]}.
@@ -245,47 +312,56 @@ flatten(#avro_union_type{} = Union) ->
   {avro_union:type(NewChildren), ExtractedTypes}.
 
 %% @private
--spec do_expand_type(fullname(), store()) ->
+-spec do_expand_type(fullname(), store(), compact | bloated, [fullname()]) ->
         fullname() | avro_type() | no_return().
-do_expand_type(Fullname, Store) when ?IS_NAME(Fullname) ->
+do_expand_type(Fullname, Store, Style, Stack) when ?IS_NAME(Fullname) ->
   Hist = erlang:get(?SEEN),
-  case lists:member(Fullname, Hist) of
+  IsSeenBefore =
+    case Style of
+      compact -> lists:member(Fullname, Hist);
+      bloated -> lists:member(Fullname, Stack)
+    end,
+  case IsSeenBefore of
     true ->
       %% This type name has been resolved earlier
       %% do not go deeper for 2 reasons:
-      %% 1. There is no need to duplicate the type definitions
-      %% 2. To avoid stack overflow in case of recursive reference
+      %% 1. To avoid stack overflow in case of recursive reference
+      %% 2. Should not duplicate the type definitions for 'compact' style
       Fullname;
     false ->
       {ok, T} = avro_schema_store:lookup_type(Fullname, Store),
       erlang:put(?SEEN, [Fullname | Hist]),
-      expand(T, Store)
+      expand(T, Store, Style, [Fullname | Stack])
   end.
 
 %% @private
--spec expand(avro_type(), store()) -> avro_type() | no_return().
-expand(#avro_record_type{fields = Fields} = T, Store) ->
+-spec expand(avro_type(), store(), compact | bloated, [fullname()]) ->
+        avro_type() | no_return().
+expand(#avro_record_type{fields = Fields} = T, Store, Style, Stack) ->
   ResolvedFields =
     lists:map(
       fun(#avro_record_field{type = Type} = F) ->
-        ResolvedType = expand(Type, Store),
+        ResolvedType = expand(Type, Store, Style, Stack),
         F#avro_record_field{type = ResolvedType}
       end, Fields),
   T#avro_record_type{fields = ResolvedFields};
-expand(#avro_array_type{type = SubType} = T, Store) ->
-  ResolvedSubType = expand(SubType, Store),
+expand(#avro_array_type{type = SubType} = T, Store, Style, Stack) ->
+  ResolvedSubType = expand(SubType, Store, Style, Stack),
   T#avro_array_type{type = ResolvedSubType};
-expand(#avro_map_type{type = SubType} = T, Store) ->
-  ResolvedSubType = expand(SubType, Store),
+expand(#avro_map_type{type = SubType} = T, Store, Style, Stack) ->
+  ResolvedSubType = expand(SubType, Store, Style, Stack),
   T#avro_map_type{type = ResolvedSubType};
-expand(#avro_union_type{} = T, Store) ->
+expand(#avro_union_type{} = T, Store, Style, Stack) ->
   SubTypes = avro_union:get_types(T),
   ResolvedSubTypes =
-    lists:map(fun(SubType) -> expand(SubType, Store) end, SubTypes),
+    lists:map(
+      fun(SubType) ->
+          expand(SubType, Store, Style, Stack)
+      end, SubTypes),
   avro_union:type(ResolvedSubTypes);
-expand(Fullname, Store) when ?IS_NAME(Fullname) ->
-  do_expand_type(Fullname, Store);
-expand(T, _Store) when ?IS_TYPE_RECORD(T) ->
+expand(Fullname, Store, Style, Stack) when ?IS_NAME(Fullname) ->
+  do_expand_type(Fullname, Store, Style, Stack);
+expand(T, _Store, _Style, _Stack) when ?IS_TYPE_RECORD(T) ->
   T.
 
 %% @private Ensure string() format name for validation.

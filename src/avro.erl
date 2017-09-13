@@ -24,6 +24,7 @@
 -module(avro).
 
 -export([ expand_type/2
+        , expand_type_bloated/2
         , flatten_type/1
         , get_aliases/1
         , get_custom_props/2
@@ -328,15 +329,22 @@ get_custom_props(#avro_primitive_type{custom = C}) -> C;
 get_custom_props(#avro_record_type{custom = C})    -> C;
 get_custom_props(#avro_union_type{})               -> [].
 
-%% @see avro_schema_store:flatten_type/1
+%% @equiv avro_util:flatten_type(Type)
 -spec flatten_type(avro_type()) ->
         {avro_type() | fullname(), [avro_type()]} | none().
 flatten_type(Type) -> avro_util:flatten_type(Type).
 
-%% @see avro_schema_store:expand_type/2
--spec expand_type(fullname() | avro_type(), schema_store()) ->
+%% @equiv avro_util:expand_type(Type, Store, compact)
+-spec expand_type(type_or_name(), schema_store()) ->
         avro_type() | none().
-expand_type(Type, Store) -> avro_util:expand_type(Type, Store).
+expand_type(Type, Store) ->
+  avro_util:expand_type(Type, Store).
+
+%% @equiv avro_util:expand_type(Type, Store, bloated)
+-spec expand_type_bloated(type_or_name(), schema_store()) ->
+        avro_type() | none().
+expand_type_bloated(Type, Store) ->
+  avro_util:expand_type(Type, Store, bloated).
 
 %%%===================================================================
 %%% API: Calculating of canonical short and full names of types
