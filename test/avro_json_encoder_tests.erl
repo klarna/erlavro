@@ -186,12 +186,22 @@ encode_enum_type_test() ->
   "\"symbols\":[\"A\",\"B\",\"C\"]"
   "}">>, EnumTypeJson).
 
-encode_enum_test() ->
+encode_enum_test_() ->
   EnumType = avro_enum:type("Enum", ["A", "B", "C"],
                             [{namespace, "com.klarna.test.bix"}]),
-  EnumValue = ?AVRO_VALUE(EnumType, "B"),
-  EnumValueJson = encode_value(EnumValue),
-  ?assertEqual(<<"\"B\"">>, EnumValueJson).
+  [{"wrapped value encoding",
+    fun() ->
+        EnumValue = ?AVRO_VALUE(EnumType, "B"),
+        JSON = encode_value(EnumValue),
+        ?assertEqual(<<"\"B\"">>, JSON)
+    end},
+   {"schema value side by side encoding",
+    fun() ->
+        Input = 'A',
+        JSON = encode(ignore, EnumType, Input),
+        ?assertEqual(<<"\"A\"">>, JSON)
+    end
+   }].
 
 encode_union_type_test() ->
   UnionType = avro_union:type([string, int]),

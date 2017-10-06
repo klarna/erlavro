@@ -100,7 +100,8 @@ enc(Lkup, Type, Value) when ?IS_RECORD_TYPE(Type) ->
   avro_record:encode(Type, Value,
     fun({FN, FT, FV}) -> {encode_string(FN), do_encode(Lkup, FT, FV)} end);
 enc(_Lkup, Type, Value) when ?IS_ENUM_TYPE(Type) ->
-  encode_string(Value);
+  {ok, ?AVRO_VALUE(_, Str)} = avro_enum:cast(Type, Value),
+  encode_string(Str);
 enc(Lkup, Type, Value) when ?IS_ARRAY_TYPE(Type) ->
   avro_array:encode(Type, Value,
     fun(IType, Item) -> do_encode(Lkup, IType, Item) end);
