@@ -55,6 +55,7 @@
         , add_type/3
         , lookup_type/2
         , to_lookup_fun/1
+        , foldl_schema/3
         ]).
 
 -include("avro_internal.hrl").
@@ -168,6 +169,11 @@ add_type(AssignedName, Type0, Store) ->
 -spec lookup_type(name_raw(), store()) -> {ok, avro_type()} | false.
 lookup_type(FullName, Store) ->
   get_type_from_store(?NAME(FullName), Store).
+
+%% @doc Fold schema
+-spec foldl_schema(fun((name(), any()) -> any()), any(), store()) -> any().
+foldl_schema(FoldFun, Acc, Store) ->
+  ets:foldl(FoldFun, Acc, Store).
 
 %%%_* Internal Functions =======================================================
 
