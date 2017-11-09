@@ -56,6 +56,7 @@
         , lookup_type/2
         , to_lookup_fun/1
         , get_all_types/1
+        , ensure_store/1
         ]).
 
 -include("avro_internal.hrl").
@@ -139,6 +140,12 @@ import_schema_json(Json, Store) ->
 close(Store) ->
   ets:delete(Store),
   ok.
+
+%% @doc To make dialyzer happy.
+-spec ensure_store(atom()) -> store().
+ensure_store(A) ->
+  true = is_atom(A),
+  A.
 
 %% @doc Add named type into the schema store.
 %% NOTE: the type is flattened before inserting into the schema store.
