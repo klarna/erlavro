@@ -55,6 +55,8 @@
         , add_type/3
         , lookup_type/2
         , to_lookup_fun/1
+        , get_all_types/1
+        , ensure_store/1
         ]).
 
 -include("avro_internal.hrl").
@@ -139,6 +141,12 @@ close(Store) ->
   ets:delete(Store),
   ok.
 
+%% @doc To make dialyzer happy.
+-spec ensure_store(atom()) -> store().
+ensure_store(A) ->
+  true = is_atom(A),
+  A.
+
 %% @doc Add named type into the schema store.
 %% NOTE: the type is flattened before inserting into the schema store.
 %% i.e. named types nested in the given type are lifted up to root level.
@@ -168,6 +176,12 @@ add_type(AssignedName, Type0, Store) ->
 -spec lookup_type(name_raw(), store()) -> {ok, avro_type()} | false.
 lookup_type(FullName, Store) ->
   get_type_from_store(?NAME(FullName), Store).
+
+%% @doc Get all schema types
+-spec get_all_types(store()) -> [avro_type()].
+get_all_types(Store) ->
+  All = [Type || {_Name, Type} <- ets:tab2list(Store), ?IS_TYPE_RECORD(Type)],
+  sets:to_list(sets:from_list(All)).
 
 %%%_* Internal Functions =======================================================
 

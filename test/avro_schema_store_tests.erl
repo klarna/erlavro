@@ -21,6 +21,27 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+get_all_types_test() ->
+  Store = avro_schema_store:new(),
+  Store1 = avro_schema_store:add_type(test_record(), Store),
+  ?assertEqual(
+    [ avro_fixed:type("MyFixed", 16, [{namespace, "com.klarna.test.bix"}])
+    , avro_enum:type("MyEnum", ["A"], [{namespace, "another.name"}])
+    , flat_sub_record()
+    , flat_test_record()
+    ],
+    avro_schema_store:get_all_types(Store1)).
+
+ensure_store_test() ->
+  Pass = try
+          avro_schema_store:ensure_store("not a store")
+        catch
+            _:_  -> throw
+        end,
+  ?assertEqual(throw, Pass),
+  Store = 'looks like a store',
+  ?assertEqual(Store, avro_schema_store:ensure_store(Store)).
+
 flatten_type_test() ->
   Type = avro_array:type(test_record()),
   Expected =
