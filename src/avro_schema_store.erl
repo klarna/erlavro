@@ -177,10 +177,11 @@ add_type(AssignedName, Type0, Store) ->
 lookup_type(FullName, Store) ->
   get_type_from_store(?NAME(FullName), Store).
 
-%% @doc Fold schema
+%% @doc Get all schema types
 -spec get_all_types(store()) -> [avro_type()].
 get_all_types(Store) ->
-  [Type || {_Name, Type} <- ets:tab2list(Store), ?IS_TYPE_RECORD(Type)].
+  All = [Type || {_Name, Type} <- ets:tab2list(Store), ?IS_TYPE_RECORD(Type)],
+  sets:to_list(sets:from_list(All)).
 
 %%%_* Internal Functions =======================================================
 
