@@ -214,10 +214,12 @@ parse_record_field(Attrs, Lkup) ->
   }.
 
 %% @private
--spec parse_default_value(undefined | json_value(), avro_type(), lkup_fun()) ->
-        undefined | avro_value().
+-spec parse_default_value(null | undefined | json_value(), avro_type(), lkup_fun()) ->
+        null | undefined | avro_value().
 parse_default_value(undefined, _FieldType, _Lkup) ->
   undefined;
+parse_default_value(null, _FieldType, _Lkup) ->
+  null;
 parse_default_value(Value, FieldType, Lkup) when ?IS_UNION_TYPE(FieldType) ->
   %% Strange agreement about unions: default value for an union field
   %% corresponds to the first type in this union.
