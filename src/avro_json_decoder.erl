@@ -219,6 +219,8 @@ parse_record_field(Attrs, Lkup) ->
 parse_default_value(undefined, _FieldType, _Lkup) ->
   undefined;
 parse_default_value(null, _FieldType, _Lkup) ->
+  %% skip type check on default null value definition
+  %% https://github.com/klarna/erlavro/issues/50
   null;
 parse_default_value(Value, FieldType, Lkup) when ?IS_UNION_TYPE(FieldType) ->
   %% Strange agreement about unions: default value for an union field
