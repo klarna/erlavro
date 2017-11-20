@@ -78,6 +78,11 @@ parse_record_type_with_default_values_test() ->
                                  , {<<"default">>, true}
                                  , {<<"order">>, <<"ignore">>}
                                  ])
+                     , ?JSON_OBJ([ {<<"name">>, <<"long_field">>}
+                                 , {<<"type">>, <<"long">>}
+                                 , {<<"default">>, null}
+                                 , {<<"order">>, <<"ignore">>}
+                                 ])
                      ]}
     ]),
   Record = parse_schema(Schema, none),
@@ -96,6 +101,12 @@ parse_record_type_with_default_values_test() ->
         "union_field", ExpectedUnion,
         [{default, avro_union:new(ExpectedUnion,
                                   avro_primitive:boolean(true))},
+         {order, ignore}
+        ])
+    , avro_record:define_field(
+        "long_field",
+        avro_primitive:long_type(),
+        [{default, null},
          {order, ignore}
         ])
     ],
