@@ -1,7 +1,7 @@
 {application, erlavro,
   [
     {description, "Apache Avro support for Erlang/Elixir"},
-    {vsn, "2.3.0"},
+    {vsn, "2.3.1"},
     {registered, []},
     {applications, [
       kernel,
@@ -16,4 +16,3 @@
     {files, ["src", "include", "rebar.config", "rebar.config.script",
              "README.md", "LICENSE", "Makefile", "elvis.config"]}
   ]}.
-
