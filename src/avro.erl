@@ -99,6 +99,7 @@
             | integer()
             | float()
             | iolist()
+            | binary()
             | [avro:in()]
             | [{name_raw(), avro:in()}].
 
