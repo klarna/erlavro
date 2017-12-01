@@ -23,7 +23,8 @@
 
 -module(avro).
 
--export([ expand_type/2
+-export([ decode_schema/1
+        , expand_type/2
         , expand_type_bloated/2
         , flatten_type/1
         , get_aliases/1
@@ -114,6 +115,9 @@
 -type encode_fun() :: fun((type_or_name(), term()) -> iodata() | avro_value()).
 -type decode_fun() :: fun((type_or_name(), binary()) -> term()).
 -type encoding() :: avro_encoding().
+
+%% @doc Decode JSON format avro schema into erlavro internals.
+decode_schema(JSON) -> avro_json_decoder:decode_schema(JSON).
 
 %% @doc Make a encoder function.
 %% Supported codec options:
