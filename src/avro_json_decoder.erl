@@ -30,11 +30,12 @@
         , decode_value/5
         ]).
 
+-deprecated({decode_schema, 2}).
+
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
--export([ parse_value/3
-        , parse_schema/2
+-export([ parse_schema/1
         , parse/5
         ]).
 -endif.
@@ -49,21 +50,15 @@
 
 %%%_* APIs =====================================================================
 
-%% @doc Decode JSON schema.
--spec decode_schema(iodata()) -> avro_type().
-decode_schema(Json) ->
-  decode_schema(Json, fun(_) -> erlang:error(no_function) end).
+%% @doc Decode JSON format avro schema into erlavro internals.
+-spec decode_schema(binary()) -> avro_type().
+decode_schema(JSON) ->
+  parse_schema(decode_json(JSON)).
 
-%% @doc Decode Avro schema specified as Json string.
-%% Schema store or lookup function is needed to parse default values.
-%% @end
--spec decode_schema(iodata(), schema_store() | lkup_fun()) -> avro_type().
-decode_schema(JsonSchema, Store) when not is_function(Store) ->
-  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  decode_schema(JsonSchema, Lkup);
-decode_schema(JsonSchema, Lkup) ->
-  Decoded = decode_json(JsonSchema),
-  parse_schema(Decoded, Lkup).
+%% @doc Deprecated.
+-spec decode_schema(binary(), schema_store() | lkup_fun()) -> avro_type().
+decode_schema(JSON, _StoreOrLkup) ->
+  parse_schema(decode_json(JSON)).
 
 %% @doc Decode JSON encoded payload to wrapped (boxed) #avro_value{} record,
 %% or unwrapped (unboxed) Erlang term.
@@ -120,14 +115,14 @@ decode_value(JsonValue, Schema, StoreOrLkupFun, Options) ->
 %%%_* Internal functions =======================================================
 
 %% @private
--spec parse_schema(json_value(), lkup_fun()) -> avro_type() | no_return().
-parse_schema(?JSON_OBJ(Attrs), Lkup) ->
+-spec parse_schema(json_value()) -> avro_type() | no_return().
+parse_schema(?JSON_OBJ(Attrs)) ->
   %% Json object: this is a complex type definition (except for unions)
-  parse_type(Attrs, Lkup);
-parse_schema(Array, Lkup) when is_list(Array) ->
+  parse_type(Attrs);
+parse_schema(Array) when is_list(Array) ->
   %% Json array: this is an union definition
-  parse_union_type(Array, Lkup);
-parse_schema(Name, _Lkup) when ?IS_NAME(Name) ->
+  parse_union_type(Array);
+parse_schema(Name) when ?IS_NAME(Name) ->
   %% Json string: this is a type name.
   %% Return #avro_primitive_type{} for primitive types
   %% otherwise make full name.
@@ -139,18 +134,18 @@ parse_schema(Name, _Lkup) when ?IS_NAME(Name) ->
   end.
 
 %% @private Parse JSON object to avro type definition.
--spec parse_type([{binary(), json_value()}], lkup_fun()) ->
+-spec parse_type([{binary(), json_value()}]) ->
         avro_type() | no_return().
-parse_type(Attrs, Lkup) ->
+parse_type(Attrs) ->
   case avro_util:get_opt(<<"type">>, Attrs) of
     ?AVRO_RECORD ->
-      parse_record_type(Attrs, Lkup);
+      parse_record_type(Attrs);
     ?AVRO_ENUM ->
       parse_enum_type(Attrs);
     ?AVRO_ARRAY ->
-      parse_array_type(Attrs, Lkup);
+      parse_array_type(Attrs);
     ?AVRO_MAP ->
-      parse_map_type(Attrs, Lkup);
+      parse_map_type(Attrs);
     ?AVRO_FIXED ->
       parse_fixed_type(Attrs);
     Name ->
@@ -167,15 +162,15 @@ primitive_type(Name, _CustomProps) ->
   erlang:error({unknown_type, Name}).
 
 %% @private
--spec parse_record_type([{binary(), json_value()}],
-                        lkup_fun()) -> record_type() | no_return().
-parse_record_type(Attrs, Lkup) ->
+-spec parse_record_type([{binary(), json_value()}]) ->
+        record_type() | no_return().
+parse_record_type(Attrs) ->
   Name    = avro_util:get_opt(<<"name">>,      Attrs),
   Ns      = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
   Doc     = avro_util:get_opt(<<"doc">>,       Attrs, <<"">>),
   Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
   Fields0 = avro_util:get_opt(<<"fields">>,    Attrs),
-  Fields  = parse_record_fields(Fields0, Lkup),
+  Fields  = parse_record_fields(Fields0),
   Custom  = filter_custom_props(Attrs, [<<"fields">>]),
   avro_record:type(Name, Fields,
                    [ {namespace,    Ns}
@@ -185,51 +180,50 @@ parse_record_type(Attrs, Lkup) ->
                    ]).
 
 %% @private
--spec parse_record_fields([{name(), json_value()}], lkup_fun()) ->
+-spec parse_record_fields([{name(), json_value()}]) ->
         [record_field()] | no_return().
-parse_record_fields(Fields, Lkup) ->
+parse_record_fields(Fields) ->
   lists:map(fun(?JSON_OBJ(FieldAttrs)) ->
-                parse_record_field(FieldAttrs, Lkup)
+                parse_record_field(FieldAttrs)
             end,
             Fields).
 
 %% @private
--spec parse_record_field([{binary(), json_value()}], lkup_fun()) ->
+-spec parse_record_field([{binary(), json_value()}]) ->
         record_field() | no_return().
-parse_record_field(Attrs, Lkup) ->
+parse_record_field(Attrs) ->
   Name      = avro_util:get_opt(<<"name">>,    Attrs),
   Doc       = avro_util:get_opt(<<"doc">>,     Attrs, <<"">>),
   Type      = avro_util:get_opt(<<"type">>,    Attrs),
   Default   = avro_util:get_opt(<<"default">>, Attrs, undefined),
   Order     = avro_util:get_opt(<<"order">>,   Attrs, <<"ascending">>),
   Aliases   = avro_util:get_opt(<<"aliases">>, Attrs, []),
-  FieldType = parse_schema(Type, Lkup),
+  FieldType = parse_schema(Type),
   #avro_record_field
   { name    = Name
   , doc     = Doc
   , type    = FieldType
-  , default = parse_default_value(Default, FieldType, Lkup)
+  , default = parse_default_value(Default)
   , order   = parse_order(Order)
   , aliases = parse_aliases(Aliases)
   }.
 
-%% @private
--spec parse_default_value(null | undefined | json_value(), avro_type(), lkup_fun()) ->
-        null | undefined | avro_value().
-parse_default_value(undefined, _FieldType, _Lkup) ->
-  undefined;
-parse_default_value(null, _FieldType, _Lkup) ->
-  %% skip type check on default null value definition
-  %% https://github.com/klarna/erlavro/issues/50
-  null;
-parse_default_value(Value, FieldType, Lkup) when ?IS_UNION_TYPE(FieldType) ->
-  %% Strange agreement about unions: default value for an union field
-  %% corresponds to the first type in this union.
-  %% Why not to use normal union values format?
-  [FirstType|_] = avro_union:get_types(FieldType),
-  avro_union:new(FieldType, parse_value(Value, FirstType, Lkup));
-parse_default_value(Value, FieldType, Lkup) ->
-  parse_value(Value, FieldType, Lkup).
+%% @private We do not care what default is provided in JSON schema.
+%% Valid or invalid, matters not.
+%%
+%% Two cases for future usage:
+%% 1. Use default value to encode missing fields in avro:in()
+%%    when encoding avro JSON or binary stream.
+%% 2. Use default value to up-vert or down-vert decoded avro:out()
+%%
+%% For case #1, the encoder will crash if invalid value is found
+%% in schema, user will have to fix schema anyway.
+%%
+%% For case #2, invalid value will be exposed to higher level, then
+%% it's up to the user to decide either fix caller code or schema.
+%% @end
+-spec parse_default_value(term()) -> term().
+parse_default_value(Value) -> Value.
 
 %% @private
 -spec parse_order(binary()) -> ascending | descending | ignore.
@@ -260,18 +254,18 @@ parse_enum_symbols([_|_] = SymbolsArray) ->
   SymbolsArray.
 
 %% @private
--spec parse_array_type([{binary(), json_value()}], lkup_fun()) -> array_type().
-parse_array_type(Attrs, Lkup) ->
+-spec parse_array_type([{binary(), json_value()}]) -> array_type().
+parse_array_type(Attrs) ->
   Items  = avro_util:get_opt(<<"items">>, Attrs),
   Custom = filter_custom_props(Attrs, [<<"items">>]),
-  avro_array:type(parse_schema(Items, Lkup), Custom).
+  avro_array:type(parse_schema(Items), Custom).
 
 %% @private
--spec parse_map_type([{binary(), json_value()}], lkup_fun()) -> map_type().
-parse_map_type(Attrs, Lkup) ->
+-spec parse_map_type([{binary(), json_value()}]) -> map_type().
+parse_map_type(Attrs) ->
   Values = avro_util:get_opt(<<"values">>, Attrs),
   Custom = filter_custom_props(Attrs, [<<"values">>]),
-  avro_map:type(parse_schema(Values, Lkup), Custom).
+  avro_map:type(parse_schema(Values), Custom).
 
 %% @private
 -spec parse_fixed_type([{binary(), json_value()}]) -> fixed_type().
@@ -295,11 +289,11 @@ parse_fixed_type(Attrs) ->
 parse_fixed_size(N) when is_integer(N) andalso N > 0 -> N.
 
 %% @private
--spec parse_union_type(json_value(), lkup_fun()) -> union_type().
-parse_union_type(Attrs, Lkup) ->
+-spec parse_union_type(json_value()) -> union_type().
+parse_union_type(Attrs) ->
   Types = lists:map(
             fun(Schema) ->
-                parse_schema(Schema, Lkup)
+                parse_schema(Schema)
             end,
             Attrs),
   avro_union:type(Types).
@@ -313,12 +307,6 @@ parse_aliases(AliasesArray) when is_list(AliasesArray) ->
         AliasBin
     end,
     AliasesArray).
-
-%% @private
--spec parse_value(json_value(), avro_type(), lkup_fun()) ->
-        avro_value() | no_return().
-parse_value(Value, Type, Lkup) ->
-  parse(Value, Type, Lkup, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
 
 %% @private
 -spec parse(json_value(), type_or_name(), lkup_fun(), boolean(), hook()) ->
