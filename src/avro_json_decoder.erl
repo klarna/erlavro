@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -28,15 +28,16 @@
         , decode_value/3
         , decode_value/4
         , decode_value/5
+        , parse/5
         ]).
 
--deprecated({decode_schema, 2}).
+-export_type([ default_parse_fun/0
+             ]).
 
 -include("avro_internal.hrl").
 
 -ifdef(TEST).
 -export([ parse_schema/1
-        , parse/5
         ]).
 -endif.
 
@@ -45,6 +46,8 @@
 -type options() :: [{option_name(), term()}].
 -type hook() :: decoder_hook_fun().
 -type json_value() :: jsone:json_value().
+-type sc_opts() :: avro:schema_opts().
+-type default_parse_fun() :: fun((type_or_name(), json_value()) -> avro:out()).
 
 -define(JSON_OBJ(FIELDS), {FIELDS}).
 
@@ -53,12 +56,36 @@
 %% @doc Decode JSON format avro schema into erlavro internals.
 -spec decode_schema(binary()) -> avro_type().
 decode_schema(JSON) ->
-  parse_schema(decode_json(JSON)).
+  decode_schema(JSON, _Opts = []).
 
-%% @doc Deprecated.
--spec decode_schema(binary(), schema_store() | lkup_fun()) -> avro_type().
-decode_schema(JSON, _StoreOrLkup) ->
-  parse_schema(decode_json(JSON)).
+%% @doc Decode JSON format avro schema into erlavro internals.
+%% Supported options:
+%%   * ignore_bad_default_values: boolean()
+%% @end
+-spec decode_schema(binary(), sc_opts()) -> avro_type().
+decode_schema(JSON, Opts) when is_list(Opts) ->
+  %% Parse JSON first
+  Type = parse_schema(decode_json(JSON)),
+  %% Validate default after parsing because the record fields
+  %% having default value can have a type name as type reference
+  Lkup = avro:make_lkup_fun("__erlavro_assigned", Type),
+  ParseFun =
+    case proplists:get_bool(ignore_bad_default_values, Opts) of
+      true ->
+        fun(T, V) ->
+            try
+              parse(V, T, Lkup, false, ?DEFAULT_DECODER_HOOK)
+            catch
+              error : _ ->
+                %% ignore parse faulure
+                %% keep whatever obtained from JSON decoder
+                V
+            end
+        end;
+      false ->
+        fun(T, V) -> parse(V, T, Lkup, false, ?DEFAULT_DECODER_HOOK) end
+    end,
+  avro_util:parse_defaults(Type, ParseFun).
 
 %% @doc Decode JSON encoded payload to wrapped (boxed) #avro_value{} record,
 %% or unwrapped (unboxed) Erlang term.
@@ -125,7 +152,7 @@ parse_schema(Array) when is_list(Array) ->
 parse_schema(Name) when ?IS_NAME(Name) ->
   %% Json string: this is a type name.
   %% Return #avro_primitive_type{} for primitive types
-  %% otherwise make full name.
+  %% otherwise assert it is a valid reference to named type.
   try
     primitive_type(Name, [])
   catch error : {unknown_type, _} ->
@@ -134,8 +161,7 @@ parse_schema(Name) when ?IS_NAME(Name) ->
   end.
 
 %% @private Parse JSON object to avro type definition.
--spec parse_type([{binary(), json_value()}]) ->
-        avro_type() | no_return().
+-spec parse_type([{binary(), json_value()}]) -> avro_type() | no_return().
 parse_type(Attrs) ->
   case avro_util:get_opt(<<"type">>, Attrs) of
     ?AVRO_RECORD ->
@@ -166,16 +192,16 @@ primitive_type(Name, _CustomProps) ->
         record_type() | no_return().
 parse_record_type(Attrs) ->
   Name    = avro_util:get_opt(<<"name">>,      Attrs),
-  Ns      = avro_util:get_opt(<<"namespace">>, Attrs, <<"">>),
+  Ns      = avro_util:get_opt(<<"namespace">>, Attrs, ?NS_GLOBAL),
   Doc     = avro_util:get_opt(<<"doc">>,       Attrs, <<"">>),
   Aliases = avro_util:get_opt(<<"aliases">>,   Attrs, []),
   Fields0 = avro_util:get_opt(<<"fields">>,    Attrs),
   Fields  = parse_record_fields(Fields0),
   Custom  = filter_custom_props(Attrs, [<<"fields">>]),
   avro_record:type(Name, Fields,
-                   [ {namespace,    Ns}
-                   , {doc,          Doc}
-                   , {aliases,      Aliases}
+                   [ {namespace, Ns}
+                   , {doc,       Doc}
+                   , {aliases,   Aliases}
                    | Custom
                    ]).
 
@@ -183,9 +209,7 @@ parse_record_type(Attrs) ->
 -spec parse_record_fields([{name(), json_value()}]) ->
         [record_field()] | no_return().
 parse_record_fields(Fields) ->
-  lists:map(fun(?JSON_OBJ(FieldAttrs)) ->
-                parse_record_field(FieldAttrs)
-            end,
+  lists:map(fun(?JSON_OBJ(FieldAttrs)) -> parse_record_field(FieldAttrs) end,
             Fields).
 
 %% @private
@@ -203,27 +227,10 @@ parse_record_field(Attrs) ->
   { name    = Name
   , doc     = Doc
   , type    = FieldType
-  , default = parse_default_value(Default)
+  , default = Default
   , order   = parse_order(Order)
   , aliases = parse_aliases(Aliases)
   }.
-
-%% @private We do not care what default is provided in JSON schema.
-%% Valid or invalid, matters not.
-%%
-%% Two cases for future usage:
-%% 1. Use default value to encode missing fields in avro:in()
-%%    when encoding avro JSON or binary stream.
-%% 2. Use default value to up-vert or down-vert decoded avro:out()
-%%
-%% For case #1, the encoder will crash if invalid value is found
-%% in schema, user will have to fix schema anyway.
-%%
-%% For case #2, invalid value will be exposed to higher level, then
-%% it's up to the user to decide either fix caller code or schema.
-%% @end
--spec parse_default_value(term()) -> term().
-parse_default_value(Value) -> Value.
 
 %% @private
 -spec parse_order(binary()) -> ascending | descending | ignore.

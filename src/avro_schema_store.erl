@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -61,8 +61,9 @@
 
 -include("avro_internal.hrl").
 
--opaque store() :: ets:tab().
--type option_key() :: access | name.
+-opaque store() :: ets:tab() | {dict, dict:dict()}.
+-type option_key() :: access | name | dict.
+-type options() :: [option_key() | {option_key(), term()}].
 -type filename() :: file:filename_all().
 
 -export_type([store/0]).
@@ -75,19 +76,17 @@ new() -> new([]).
 
 %% @doc Create a new ets table to store avro types.
 %% Options:
-%%   {access, public|protected|private} - has same meaning as access
-%%     mode in ets:new and defines what processes can have access to
-%%   {name, atom()} - used to create a named ets table.
+%%  * `{access, public|protected|private}' - has same meaning as access
+%%    mode in ets:new and defines what processes can have access to
+%%  * `{name, atom()}' - used to create a named ets table.
+%%  * `dict' - use dict as store backend, ignore `access` and `name` options
 %% @end
--spec new([{option_key(), atom()}]) -> store().
+-spec new(options()) -> store().
 new(Options) ->
-  Access = avro_util:get_opt(access, Options, public),
-  {Name, EtsOpts} =
-    case avro_util:get_opt(name, Options, undefined) of
-      undefined -> {?MODULE, []};
-      Name1     -> {Name1, [named_table]}
-    end,
-  ets:new(Name, [Access, {read_concurrency, true} | EtsOpts]).
+  case proplists:get_bool(dict, Options) of
+    true -> {dict, dict:new()};
+    false -> new_ets(Options)
+  end.
 
 %% @doc Create a new schema store and improt the given schema JSON files.
 -spec new([proplists:property()], [filename()]) -> store().
@@ -137,15 +136,16 @@ import_schema_json(Json, Store) ->
 
 %% @doc Delete the ets table.
 -spec close(store()) -> ok.
+close({dict, _}) -> ok;
 close(Store) ->
   ets:delete(Store),
   ok.
 
 %% @doc To make dialyzer happy.
--spec ensure_store(atom()) -> store().
-ensure_store(A) ->
-  true = is_atom(A),
-  A.
+-spec ensure_store(atom() | integer() | {dict, dict:dict()}) -> store().
+ensure_store(Tid) when is_integer(Tid) -> Tid;
+ensure_store(Tname) when is_atom(Tname) -> Tname;
+ensure_store({dict, Dict}) -> {dict, Dict}.
 
 %% @doc Add named type into the schema store.
 %% NOTE: the type is flattened before inserting into the schema store.
@@ -180,10 +180,24 @@ lookup_type(FullName, Store) ->
 %% @doc Get all schema types
 -spec get_all_types(store()) -> [avro_type()].
 get_all_types(Store) ->
-  All = [Type || {_Name, Type} <- ets:tab2list(Store), ?IS_TYPE_RECORD(Type)],
-  sets:to_list(sets:from_list(All)).
+  All = [Type || {_Name, Type} <- to_list(Store), ?IS_TYPE_RECORD(Type)],
+  lists:usort(All).
 
 %%%_* Internal Functions =======================================================
+
+-spec to_list(store()) -> [{name(), avro_type()}].
+to_list({dict, Dict}) -> dict:to_list(Dict);
+to_list(Store) -> ets:tab2list(Store).
+
+-spec new_ets(options()) -> store().
+new_ets(Options) ->
+  Access = avro_util:get_opt(access, Options, public),
+  {Name, EtsOpts} =
+    case avro_util:get_opt(name, Options, undefined) of
+      undefined -> {?MODULE, []};
+      Name1     -> {Name1, [named_table]}
+    end,
+  ets:new(Name, [Access, {read_concurrency, true} | EtsOpts]).
 
 %% @private Add type by an assigned name.
 %% Except when assigned name is 'undefined'
@@ -212,7 +226,7 @@ parse_basename(FileName) ->
 %% @private Import JSON schema with assigned name.
 -spec import_schema_json(name_raw(), binary(), store()) -> store().
 import_schema_json(AssignedName, Json, Store) ->
-  Schema = avro_json_decoder:decode_schema(Json),
+  Schema = avro:decode_schema(Json),
   add_type(AssignedName, Schema, Store).
 
 %% @private
@@ -242,12 +256,20 @@ do_add_type_by_names([Name|Rest], Type, Store) ->
 
 %% @private
 -spec put_type_to_store(fullname(), avro_type(), store()) -> store().
+put_type_to_store(Name, Type, {dict, Dict}) ->
+  NewDict = dict:store(Name, Type, Dict),
+  {dict, NewDict};
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
   Store.
 
 %% @private
 -spec get_type_from_store(fullname(), store()) -> false | {ok, avro_type()}.
+get_type_from_store(Name, {dict, Dict}) ->
+  case dict:find(Name, Dict) of
+    error -> false;
+    {ok, Type} -> {ok, Type}
+  end;
 get_type_from_store(Name, Store) ->
   case ets:lookup(Store, Name) of
     []             -> false;

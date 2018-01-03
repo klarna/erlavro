@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -62,7 +62,7 @@ parse_record_type_test() ->
   Expected = avro_record:type("TestRecord", [], [{namespace, "name.space"}]),
   ?assertEqual(Expected, Record).
 
-parse_record_type_with_default_values_test() ->
+decode_with_default_values_test() ->
   Schema = ?JSON_OBJ(
     [ {<<"type">>, <<"record">>}
     , {<<"name">>, <<"TestRecord">>}
@@ -77,14 +77,17 @@ parse_record_type_with_default_values_test() ->
                                  , {<<"default">>, true}
                                  , {<<"order">>, <<"ignore">>}
                                  ])
-                     , ?JSON_OBJ([ {<<"name">>, <<"long_field">>}
+                     , ?JSON_OBJ([ {<<"name">>, <<"long_field1">>}
+                                 , {<<"type">>, <<"long">>}
+                                 ])
+                     , ?JSON_OBJ([ {<<"name">>, <<"long_field2">>}
                                  , {<<"type">>, <<"long">>}
                                  , {<<"default">>, null}
                                  , {<<"order">>, <<"ignore">>}
                                  ])
                      ]}
     ]),
-  Record = parse_schema(Schema),
+  JSON = iolist_to_binary(jsone:encode(Schema, [native_utf8])),
   ExpectedUnion = avro_union:type([ avro_primitive:boolean_type()
                                   , avro_primitive:int_type()
                                   ]),
@@ -102,14 +105,22 @@ parse_record_type_with_default_values_test() ->
          {order, ignore}
         ])
     , avro_record:define_field(
-        "long_field",
+        "long_field1",
+        avro_primitive:long_type(),
+        [])
+    , avro_record:define_field(
+        "long_field2",
         avro_primitive:long_type(),
         [{default, null},
          {order, ignore}
         ])
     ],
     [{namespace, "name.space"}]),
-  ?assertEqual(Expected, Record).
+  ?assertEqual(Expected, avro:decode_schema(JSON, [ignore_bad_default_values])),
+  ?assertError({bad_default, [ {record, <<"name.space.TestRecord">>}
+                             , {field, <<"long_field2">>}
+                             , {reason, _}]},
+               avro:decode_schema(JSON, [])).
 
 parse_union_type_test() ->
   Schema = [ <<"int">>
@@ -292,7 +303,7 @@ parse_fixed_value_test() ->
   ?assertEqual(<<1,127>>,
                parse(Json, Type, none, false, ?DEFAULT_DECODER_HOOK)).
 
-parse_value_with_extract_type_fun_test() ->
+parse_value_with_lkup_fun_test() ->
   Hook = avro_decoder_hooks:pretty_print_hist(),
   ExtractTypeFun = fun(<<"name.space.Test">>) -> get_test_record() end,
   Schema = ?JSON_OBJ([ {<<"type">>, <<"array">>}
@@ -313,7 +324,7 @@ parse_value_with_extract_type_fun_test() ->
 
 decode_schema_test() ->
   _ = avro:decode_schema(<<"{\"type\":\"int\"}">>),
-  _ = avro_json_decoder:decode_schema(<<"{\"type\":\"int\"}">>, ignored),
+  _ = avro:decode_schema(<<"{\"type\":\"int\"}">>, []),
   ok.
 
 decode_wrapped_value_test() ->

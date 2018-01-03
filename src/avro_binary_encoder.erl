@@ -100,7 +100,7 @@ enc(_Lkup, Type, Value) when ?IS_PRIMITIVE_TYPE(Type) ->
   encode_value(AvroValue);
 enc(Lkup, Type, Value) when ?IS_RECORD_TYPE(Type) ->
   avro_record:encode(Type, Value,
-    fun({_, FT, FV}) -> encode(Lkup, FT, FV) end);
+    fun(_FN, FT, FV) -> encode(Lkup, FT, FV) end);
 enc(_Lkup, Type, Value) when ?IS_ENUM_TYPE(Type) ->
   int(avro_enum:get_index(Type, Value));
 enc(Lkup, Type, Value) when ?IS_ARRAY_TYPE(Type) ->

@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -22,15 +22,19 @@
 -include_lib("eunit/include/eunit.hrl").
 
 get_all_types_test() ->
-  Store = avro_schema_store:new(),
-  Store1 = avro_schema_store:add_type(test_record(), Store),
-  ?assertEqual(
-    [ avro_fixed:type("MyFixed", 16, [{namespace, "com.klarna.test.bix"}])
-    , avro_enum:type("MyEnum", ["A"], [{namespace, "another.name"}])
-    , flat_sub_record()
-    , flat_test_record()
-    ],
-    avro_schema_store:get_all_types(Store1)).
+  TestFun =
+    fun(Store) ->
+      Store1 = avro_schema_store:add_type("assigned.name", test_record(), Store),
+      ?assertEqual(
+        [ avro_fixed:type("MyFixed", 16, [{namespace, "com.klarna.test.bix"}])
+        , avro_enum:type("MyEnum", ["A"], [{namespace, "another.name"}])
+        , flat_test_record()
+        , flat_sub_record()
+        ], avro_schema_store:get_all_types(Store1)),
+      ok = avro_schema_store:close(Store)
+    end,
+  ok = TestFun(avro_schema_store:new([{name, ?MODULE}])),
+  ok = TestFun(avro_schema_store:new([dict])).
 
 ensure_store_test() ->
   Pass = try
@@ -39,8 +43,10 @@ ensure_store_test() ->
             _:_  -> throw
         end,
   ?assertEqual(throw, Pass),
-  Store = 'looks like a store',
-  ?assertEqual(Store, avro_schema_store:ensure_store(Store)).
+  ?assertEqual(1, avro_schema_store:ensure_store(1)),
+  ?assertEqual(atom, avro_schema_store:ensure_store(atom)),
+  ?assertEqual({dict, dict:new()},
+               avro_schema_store:ensure_store({dict, dict:new()})).
 
 flatten_type_test() ->
   Type = avro_array:type(test_record()),
@@ -55,16 +61,21 @@ flatten_type_test() ->
   ?assertEqual(Expected, avro:flatten_type(Type)).
 
 add_type_test() ->
-  Store = avro_schema_store:new(),
-  Store1 = avro_schema_store:add_type(test_record(), Store),
-  ?assertEqual({ok, flat_test_record()},
-               lookup("com.klarna.test.bix.TestRecord", Store1)),
-  ?assertEqual({ok, flat_test_record()},
-               lookup("com.klarna.test.bix.TestRecordAlias1", Store1)),
-  ?assertEqual({ok, flat_sub_record()},
-               lookup("com.klarna.test.bix.TestSubRecord", Store1)),
-  ?assertEqual({ok, flat_sub_record()},
-               lookup("com.klarna.test.bix.TestSubRecordAlias", Store1)).
+  TestFun =
+    fun(Store) ->
+        Store1 = avro_schema_store:add_type(test_record(), Store),
+        ?assertEqual({ok, flat_test_record()},
+                     lookup("com.klarna.test.bix.TestRecord", Store1)),
+        ?assertEqual({ok, flat_test_record()},
+                     lookup("com.klarna.test.bix.TestRecordAlias1", Store1)),
+        ?assertEqual({ok, flat_sub_record()},
+                     lookup("com.klarna.test.bix.TestSubRecord", Store1)),
+        ?assertEqual({ok, flat_sub_record()},
+                     lookup("com.klarna.test.bix.TestSubRecordAlias", Store1)),
+        ok = avro_schema_store:close(Store1)
+    end,
+  ok = TestFun(avro_schema_store:new()),
+  ok = TestFun(avro_schema_store:new([dict])).
 
 lookup(Name, Store) ->
   avro_schema_store:lookup_type(Name, Store).

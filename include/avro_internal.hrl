@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -32,11 +32,13 @@
 
 -type ordering() :: ascending | descending | ignore.
 
+-define(NO_VALUE, undefined).
+
 -record(avro_record_field,
         { name      = ?AVRO_REQUIRED :: name()
         , doc       = ?NS_GLOBAL     :: typedoc()
         , type      = ?AVRO_REQUIRED :: type_or_name()
-        , default                    :: undefined | avro:in() | avro_value()
+        , default                    :: ?NO_VALUE | avro:in() | avro_value()
         , order     = ascending      :: ordering()
         , aliases   = []             :: [name()]
         }).

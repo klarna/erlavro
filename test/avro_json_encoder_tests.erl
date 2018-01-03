@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -446,7 +446,7 @@ sample_record() ->
 
 %% @private
 encode_type(Type) ->
-  iolist_to_binary(avro_json_encoder:encode_type(Type)).
+  iolist_to_binary(avro:encode_schema(Type)).
 
 %% @private
 encode_value(Value) ->

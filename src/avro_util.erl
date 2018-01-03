@@ -1,6 +1,6 @@
 %%%-----------------------------------------------------------------------------
 %%%
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -30,12 +30,14 @@
         , canonicalize_name/1
         , canonicalize_type_or_name/1
         , delete_opts/2
+        , encode_defaults/2
         , ensure_binary/1
         , expand_type/2
         , expand_type/3
         , flatten_type/1
         , get_opt/2
         , get_opt/3
+        , parse_defaults/2
         , resolve_duplicated_refs/1
         , verify_names/1
         , verify_dotted_name/1
@@ -56,6 +58,41 @@
 -define(SEEN, avro_get_nested_type_seen_full_names).
 
 %%%_* APIs =====================================================================
+
+%% @doc Go recursively into the type tree to encode default values.
+%% into JSON format, the encoded default values are later used (inline)
+%% to construct JSON schema.
+%% Type lookup function `Lkup` is to encode default value for named types
+%% @end
+-spec encode_defaults(type_or_name(), lkup_fun()) -> avro_type().
+encode_defaults(N, _) when ?IS_NAME(N) -> N;
+encode_defaults(T, _) when ?IS_PRIMITIVE_TYPE(T) -> T;
+encode_defaults(T, _) when ?IS_FIXED_TYPE(T) -> T;
+encode_defaults(T, _) when ?IS_ENUM_TYPE(T) -> T;
+encode_defaults(T, ParseFun) when ?IS_MAP_TYPE(T) ->
+  avro_map:update_items_type(T, fun(ST) -> encode_defaults(ST, ParseFun) end);
+encode_defaults(T, ParseFun) when ?IS_ARRAY_TYPE(T) ->
+  avro_array:update_items_type(T, fun(ST) -> encode_defaults(ST, ParseFun) end);
+encode_defaults(T, ParseFun) when ?IS_UNION_TYPE(T) ->
+  avro_union:update_member_types(T, fun(M) -> encode_defaults(M, ParseFun) end);
+encode_defaults(T, ParseFun) when ?IS_RECORD_TYPE(T) ->
+  avro_record:encode_defaults(T, ParseFun).
+
+%% @doc Decode default values into `avro:out()'.
+-spec parse_defaults(type_or_name(), avro_json_decoder:default_parse_fun()) ->
+        type_or_name().
+parse_defaults(N, _) when ?IS_NAME(N) -> N;
+parse_defaults(T, _) when ?IS_PRIMITIVE_TYPE(T) -> T;
+parse_defaults(T, _) when ?IS_FIXED_TYPE(T) -> T;
+parse_defaults(T, _) when ?IS_ENUM_TYPE(T) -> T;
+parse_defaults(T, ParseFun) when ?IS_MAP_TYPE(T) ->
+  avro_map:update_items_type(T, fun(ST) -> parse_defaults(ST, ParseFun) end);
+parse_defaults(T, ParseFun) when ?IS_ARRAY_TYPE(T) ->
+  avro_array:update_items_type(T, fun(ST) -> parse_defaults(ST, ParseFun) end);
+parse_defaults(T, ParseFun) when ?IS_UNION_TYPE(T) ->
+  avro_union:update_member_types(T, fun(M) -> parse_defaults(M, ParseFun) end);
+parse_defaults(T, ParseFun) when ?IS_RECORD_TYPE(T) ->
+  avro_record:parse_defaults(T, ParseFun).
 
 %% @doc Get prop from prop-list, 'error' exception if prop is not found.
 -spec get_opt(Key, [{Key, Value}]) -> Value | no_return()
@@ -184,7 +221,8 @@ flatten_type(Type) when ?IS_TYPE_RECORD(Type) ->
 %% This should allow callers to write a root type to one avsc schema file
 %% instead of scattering all named types to their own avsc files.
 %% @end
--spec expand_type(type_or_name(), store()) -> avro_type() | no_return().
+-spec expand_type(type_or_name(), lkup_fun() | store()) ->
+        avro_type() | no_return().
 expand_type(Type, Store) ->
   expand_type(Type, Store, compact).
 
@@ -194,10 +232,13 @@ expand_type(Type, Store) ->
 %% bloated: use type name reference only if a type is seen
 %%          before in the current traversing stack. (to avoid stack overflow)
 %% @end
--spec expand_type(type_or_name(), store(), compact | bloated) ->
+-spec expand_type(type_or_name(), lkup_fun() | store(), compact | bloated) ->
         avro_type() | no_return().
-expand_type(Type0, Store, Style) ->
-  Type = avro_util:canonicalize_type_or_name(Type0),
+expand_type(Type, Store, Style) when not is_function(Store) ->
+  Lkup = avro_schema_store:to_lookup_fun(Store),
+  expand_type(Type, Lkup, Style);
+expand_type(Type0, Lkup, Style) ->
+  Type = canonicalize_type_or_name(Type0),
   try
     %% Use process dictionary to keep the history of seen type names
     %% to simplify (comparing to a lists:foldr version) the loop functions.
@@ -210,8 +251,8 @@ expand_type(Type0, Store, Style) ->
     %% expanding to bloated style
     _ = erlang:put(?SEEN, []),
     case ?IS_NAME(Type) of
-      true  -> do_expand_type(Type, Store, Style, _Stack = []);
-      false -> expand(Type, Store, Style, _Stack = [])
+      true  -> do_expand_type(Type, Lkup, Style, _Stack = []);
+      false -> expand(Type, Lkup, Style, _Stack = [])
     end
   after
     erlang:erase(?SEEN)
@@ -314,7 +355,7 @@ flatten(#avro_union_type{} = Union) ->
 %% @private
 -spec do_expand_type(fullname(), store(), compact | bloated, [fullname()]) ->
         fullname() | avro_type() | no_return().
-do_expand_type(Fullname, Store, Style, Stack) when ?IS_NAME(Fullname) ->
+do_expand_type(Fullname, Lkup, Style, Stack) when ?IS_NAME(Fullname) ->
   Hist = erlang:get(?SEEN),
   IsSeenBefore =
     case Style of
@@ -329,39 +370,39 @@ do_expand_type(Fullname, Store, Style, Stack) when ?IS_NAME(Fullname) ->
       %% 2. Should not duplicate the type definitions for 'compact' style
       Fullname;
     false ->
-      {ok, T} = avro_schema_store:lookup_type(Fullname, Store),
+      T = Lkup(Fullname),
       erlang:put(?SEEN, [Fullname | Hist]),
-      expand(T, Store, Style, [Fullname | Stack])
+      expand(T, Lkup, Style, [Fullname | Stack])
   end.
 
 %% @private
 -spec expand(avro_type(), store(), compact | bloated, [fullname()]) ->
         avro_type() | no_return().
-expand(#avro_record_type{fields = Fields} = T, Store, Style, Stack) ->
+expand(#avro_record_type{fields = Fields} = T, Lkup, Style, Stack) ->
   ResolvedFields =
     lists:map(
       fun(#avro_record_field{type = Type} = F) ->
-        ResolvedType = expand(Type, Store, Style, Stack),
+        ResolvedType = expand(Type, Lkup, Style, Stack),
         F#avro_record_field{type = ResolvedType}
       end, Fields),
   T#avro_record_type{fields = ResolvedFields};
-expand(#avro_array_type{type = SubType} = T, Store, Style, Stack) ->
-  ResolvedSubType = expand(SubType, Store, Style, Stack),
+expand(#avro_array_type{type = SubType} = T, Lkup, Style, Stack) ->
+  ResolvedSubType = expand(SubType, Lkup, Style, Stack),
   T#avro_array_type{type = ResolvedSubType};
-expand(#avro_map_type{type = SubType} = T, Store, Style, Stack) ->
-  ResolvedSubType = expand(SubType, Store, Style, Stack),
+expand(#avro_map_type{type = SubType} = T, Lkup, Style, Stack) ->
+  ResolvedSubType = expand(SubType, Lkup, Style, Stack),
   T#avro_map_type{type = ResolvedSubType};
-expand(#avro_union_type{} = T, Store, Style, Stack) ->
+expand(#avro_union_type{} = T, Lkup, Style, Stack) ->
   SubTypes = avro_union:get_types(T),
   ResolvedSubTypes =
     lists:map(
       fun(SubType) ->
-          expand(SubType, Store, Style, Stack)
+          expand(SubType, Lkup, Style, Stack)
       end, SubTypes),
   avro_union:type(ResolvedSubTypes);
-expand(Fullname, Store, Style, Stack) when ?IS_NAME(Fullname) ->
-  do_expand_type(Fullname, Store, Style, Stack);
-expand(T, _Store, _Style, _Stack) when ?IS_TYPE_RECORD(T) ->
+expand(Fullname, Lkup, Style, Stack) when ?IS_NAME(Fullname) ->
+  do_expand_type(Fullname, Lkup, Style, Stack);
+expand(T, _Lkup, _Style, _Stack) when ?IS_TYPE_RECORD(T) ->
   T.
 
 %% @private Ensure string() format name for validation.

@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -45,7 +45,9 @@
 %% @end
 -spec encode_schema(avro_type()) -> iodata().
 encode_schema(Type0) ->
-  Type = avro_util:resolve_duplicated_refs(Type0),
+  Type1 = avro_util:resolve_duplicated_refs(Type0),
+  Lkup = avro:make_lkup_fun("__erlavro_assigned", Type1),
+  Type = avro_util:encode_defaults(Type1, Lkup),
   encode_json(do_encode_type(Type, _Namespace = ?NS_GLOBAL)).
 
 %% @doc Encode avro schema in JSON format.
@@ -98,7 +100,7 @@ enc(_Lkup, Type, Value) when ?IS_PRIMITIVE_TYPE(Type) ->
   do_encode_value(AvroValue);
 enc(Lkup, Type, Value) when ?IS_RECORD_TYPE(Type) ->
   avro_record:encode(Type, Value,
-    fun({FN, FT, FV}) -> {encode_string(FN), do_encode(Lkup, FT, FV)} end);
+    fun(FN, FT, FV) -> {encode_string(FN), do_encode(Lkup, FT, FV)} end);
 enc(_Lkup, Type, Value) when ?IS_ENUM_TYPE(Type) ->
   {ok, ?AVRO_VALUE(_, Str)} = avro_enum:cast(Type, Value),
   encode_string(Str);
@@ -229,7 +231,7 @@ encode_field(Field, EnclosingNamespace) ->
   [ {name, encode_string(Name)}
   , {type, do_encode_type(Type, EnclosingNamespace)}
   ]
-  ++ optional_field(default, Default, undefined, fun do_encode_value/1)
+  ++ optional_field(default, Default, ?NO_VALUE, fun(X) -> ?INLINE(X) end)
   ++ optional_field(doc,     Doc,     ?NO_DOC,   fun encode_string/1)
   ++ optional_field(order,   Order,   ascending, fun encode_order/1)
   ++ optional_field(aliases, Aliases, [],        fun encode_aliases/1).

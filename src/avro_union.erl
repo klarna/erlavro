@@ -1,6 +1,6 @@
 %%%-----------------------------------------------------------------------------
 %%%
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -42,6 +42,7 @@
         , resolve_fullname/2
         , to_term/1
         , type/1
+        , update_member_types/2
         ]).
 
 %% API functions which should be used only inside erlavro
@@ -86,10 +87,18 @@ type([_ | _ ] = Types0) ->
 
 %% @doc Resolve fullname by newly discovered enclosing namespace.
 -spec resolve_fullname(union_type(), namespace()) -> union_type().
-resolve_fullname(T0, Ns) ->
+resolve_fullname(Union, Ns) ->
+  F = fun(T) -> avro:resolve_fullname(T, Ns) end,
+  update_member_types(Union, F).
+
+%% @doc Update member types by evaluating callback function.
+-spec update_member_types(union_type(),
+                          fun((type_or_name()) -> type_or_name())) ->
+        union_type().
+update_member_types(T0, F) ->
   Types = get_types(T0),
-  ResolvedTypes = lists:map(fun(T) -> avro:resolve_fullname(T, Ns) end, Types),
-  type(ResolvedTypes).
+  UpdatedTypes = lists:map(F, Types),
+  type(UpdatedTypes).
 
 %% @doc Get the union member types in a list.
 -spec get_types(union_type()) -> [avro_type()].

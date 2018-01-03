@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -102,6 +102,11 @@ encode_wrapped_test() ->
   [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
     Decoder("com.example.MyRecord", Bin),
   ok.
+
+interop_schema_decode_test() ->
+  SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
+  {ok, JSON} = file:read_file(SchemaFilename),
+  avro:decode_schema(JSON, [validate_default_values]).
 
 readme_load_schmea_test() ->
   SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
@@ -302,6 +307,48 @@ array_of_union_cast_test() ->
   EncodedInt = avro:encode_wrapped(Lkup, Int, 1, avro_binary),
   ?assertMatch({error, {unknown_member, Union, <<"int">>}},
                avro:cast(Array, [EncodedInt])),
+  ok.
+
+default_values_test() ->
+  File = filename:join(priv_dir(), "test.avsc"),
+  {ok, JSON} = file:read_file(File),
+  Type = avro:decode_schema(JSON),
+  Lkup = avro:make_lkup_fun(Type),
+  NodeTypeFullName = <<"org.apache.avro.Node">>,
+  ?assertMatch(
+    #avro_record_type{
+      name = <<"Node">>,
+      fullname = NodeTypeFullName,
+      fields =
+        [#avro_record_field{ name = <<"label">>
+                           , type = #avro_primitive_type{name = <<"string">>}
+                           },
+         #avro_record_field{ name = <<"children">>
+                           , type = #avro_array_type{type = NodeTypeFullName}
+                           , default = [[{<<"label">>, <<"default-label">>},
+                                         {<<"children">>, []}]]
+                           }]},
+    Lkup(NodeTypeFullName)),
+  %% Encode input has no 'children' field, default value should be used
+  Input = [{"f1", [{"label", "x"}]}],
+  Expect = [{<<"f1">>, [ {<<"label">>, <<"x">>}
+                       , {<<"children">>,
+                          [ [ {<<"label">>, <<"default-label">>}
+                            , {<<"children">>, []}
+                            ]
+                          ]}
+                       ]}],
+  TestFun =
+    fun(Opts) ->
+      RootType = "org.apache.avro.test",
+      Encoder = avro:make_encoder(Lkup, Opts),
+      Decoder = avro:make_decoder(Lkup, Opts),
+      Encoded = Encoder(RootType, Input),
+      Decoded = Decoder(RootType, Encoded),
+      ?assertEqual(Expect, Decoded)
+    end,
+  TestFun([{encoding, avro_binary}]),
+  TestFun([{encoding, avro_json}]),
   ok.
 
 %% @private
