@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -31,6 +31,7 @@
         , to_term/1
         , type/1
         , type/2
+        , update_items_type/2
         ]).
 
 %% API to be used only inside erlavro
@@ -53,8 +54,15 @@ type(Type, CustomProps) ->
 
 %% @doc Resolve children type's fullnames.
 -spec resolve_fullname(array_type(), namespace()) -> array_type().
-resolve_fullname(#avro_array_type{type = SubType} = T, Ns) ->
-  T#avro_array_type{type = avro:resolve_fullname(SubType, Ns)}.
+resolve_fullname(Array, Ns) ->
+  update_items_type(Array, fun(T) -> avro:resolve_fullname(T, Ns) end).
+
+%% @doc Update children types by evaluating callback function.
+-spec update_items_type(array_type(),
+                        fun((type_or_name()) -> type_or_name())) ->
+        array_type().
+update_items_type(#avro_array_type{type = ST} = T, F) ->
+  T#avro_array_type{type = F(ST)}.
 
 %% @doc Get array element type.
 -spec get_items_type(array_type()) -> avro_type().

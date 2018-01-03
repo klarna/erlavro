@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2016 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -31,12 +31,12 @@ interop_test() ->
   PrivDir = priv_dir(),
   InteropOcfFile = filename:join([PrivDir, "interop.ocf"]),
   {Header, Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
-  SchemaStore = avro_ocf:init_schema_store(Schema),
+  Lkup = avro:make_lkup_fun(Schema),
   MyFile = filename:join([PrivDir, "interop.ocf.test"]),
   {ok, Fd} = file:open(MyFile, [write]),
   try
     ok = avro_ocf:write_header(Fd, Header),
-    ok = avro_ocf:append_file(Fd, Header, SchemaStore, Schema, Objects)
+    ok = avro_ocf:append_file(Fd, Header, Lkup, Schema, Objects)
   after
     file:close(Fd)
   end,

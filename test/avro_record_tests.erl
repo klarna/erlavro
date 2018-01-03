@@ -36,6 +36,7 @@
                      ]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include("avro_internal.hrl").
 
 type_test() ->
   Field = define_field("invno", long),
@@ -152,16 +153,17 @@ cast_by_aliases_test() ->
   ?assertEqual(avro_primitive:int(1), get_value("b", Record)).
 
 encode_test() ->
-  EncodeFun = fun({FieldName, _FieldType, Input}) ->
+  EncodeFun = fun(FieldName, _FieldType, Input) ->
                   {FieldName, {encoded, Input}}
               end,
   Type = type("Test",
               [ define_field("field1", long)
               , define_field("field2", string)],
               [ {namespace, "name.space"} ]),
-  ?assertException(error,
-                   {field_value_not_found, <<"name.space.Test">>, <<"field2">>},
-                   avro_record:encode(Type, [{<<"field1">>, 1}], EncodeFun)),
+  ?assertError(?ENC_ERR(required_field_missed,
+                        [{record, <<"name.space.Test">>},
+                         {field, <<"field2">>}]),
+               avro_record:encode(Type, [{<<"field1">>, 1}], EncodeFun)),
   ?assertEqual([{<<"field1">>, {encoded, 1}},
                 {<<"field2">>, {encoded, foo}}],
                avro_record:encode(Type,

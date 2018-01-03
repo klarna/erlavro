@@ -1,6 +1,6 @@
 %%%-----------------------------------------------------------------------------
 %%%
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -26,10 +26,12 @@
         , define_field/2
         , define_field/3
         , encode/3
+        , encode_defaults/2
         , get_all_field_types/1
         , get_field_type/2
         , get_value/2
         , new/2
+        , parse_defaults/2
         , resolve_fullname/2
         , set_values/2
         , set_value/3
@@ -92,13 +94,18 @@ resolve_fullname(#avro_record_type{ fullname  = FullName
                                   , fields    = Fields
                                   , aliases   = Aliases
                                   } = T, Ns) ->
-  NewFullName = avro:build_type_fullname(FullName, Ns),
-  NewFields = resolve_field_type_fullnames(Fields, Ns),
-  NewAliases = avro_util:canonicalize_aliases(Aliases, Ns),
-  T#avro_record_type{ fullname = NewFullName
-                    , fields   = NewFields
-                    , aliases  = NewAliases
-                    }.
+  case avro:build_type_fullname(FullName, Ns) of
+    FullName ->
+      %% it and its children types should all have been resolved already
+      T;
+    NewFullName ->
+      NewFields = resolve_field_type_fullnames(Fields, Ns),
+      NewAliases = avro_util:canonicalize_aliases(Aliases, Ns),
+      T#avro_record_type{ fullname = NewFullName
+                        , fields   = NewFields
+                        , aliases  = NewAliases
+                        }
+  end.
 
 %% @doc Define a record field with default properties.
 -spec define_field(name_raw(), type_or_name()) -> record_field().
@@ -112,7 +119,7 @@ define_field(Name, Type0, Opts) ->
   Type = avro_util:canonicalize_type_or_name(Type0),
   Doc = avro_util:get_opt(doc, Opts, ?NO_DOC),
   Order = avro_util:get_opt(order, Opts, ascending),
-  Default = avro_util:get_opt(default, Opts, undefined),
+  Default = avro_util:get_opt(default, Opts, ?NO_VALUE),
   Aliases = avro_util:get_opt(aliases, Opts, []),
   ok = avro_util:verify_names(Aliases),
   #avro_record_field
@@ -149,8 +156,89 @@ get_all_field_types(Type) when ?IS_RECORD_TYPE(Type) ->
       {FieldName, FieldTypeOrName}
     end, Fields).
 
+%% @doc Parse fields' default values.
+-spec parse_defaults(record_type(), avro_json_decoder:default_parse_fun()) ->
+        record_type().
+parse_defaults(#avro_record_type{ fields = Fields
+                                , fullname = FullName
+                                } = T, ParseFun) ->
+  F = fun(#avro_record_field{ type    = FieldType0
+                            , default = Default
+                            , name    = FieldName
+                            } = Field) ->
+          FieldType = resolve_default_type(FieldType0),
+          NewDefault = parse_default(FullName, FieldName,
+                                     ParseFun, FieldType, Default),
+          %% go deeper
+          NewFieldType = avro_util:parse_defaults(FieldType0, ParseFun),
+          Field#avro_record_field{ type = NewFieldType
+                                 , default = NewDefault
+                                 }
+      end,
+  T#avro_record_type{fields = lists:map(F, Fields)}.
+
+%% @doc Encode fields' default values to JSON format.
+-spec encode_defaults(record_type(), lkup_fun()) -> record_type().
+encode_defaults(#avro_record_type{ fields = Fields
+                                 , fullname = FullName
+                                 } = T, Lkup) ->
+  F = fun(#avro_record_field{ type    = FieldType0
+                            , default = Default
+                            , name    = FieldName
+                            } = Field) ->
+          FieldType = resolve_default_type(FieldType0),
+          NewDefault = encode_default(FullName, FieldName,
+                                      Lkup, FieldType, Default),
+          %% go deeper
+          NewFieldType = avro_util:encode_defaults(FieldType0, Lkup),
+          Field#avro_record_field{ type = NewFieldType
+                                 , default = NewDefault
+                                 }
+      end,
+  T#avro_record_type{fields = lists:map(F, Fields)}.
+
 %%%_* Value APIs ===============================================================
 
+%% @private
+-spec encode_default(fullname(), name(), lkup_fun(),
+                     type_or_name(), avro:in()) -> binary().
+encode_default(FullName, FieldName, Lkup, Type, Value) ->
+  F = fun(V) -> iolist_to_binary(avro_json_encoder:encode(Lkup, Type, V)) end,
+  do_default(FullName, FieldName, F, Value).
+
+%% @private
+-spec parse_default(fullname(), name(), avro_json_decoder:default_parse_fun(),
+                    type_or_name(), term()) -> avro:out().
+parse_default(FullName, FieldName, ParseFun, Type, Value) ->
+  DoFun = fun(V) -> ParseFun(Type, V) end,
+  do_default(FullName, FieldName, DoFun, Value).
+
+%% @private
+-spec do_default(fullname(), name(), function(), term()) -> any().
+do_default(_FullName, _FieldName, _DoFun, ?NO_VALUE) -> ?NO_VALUE;
+do_default(FullName, FieldName, DoFun, Value) ->
+  try
+    DoFun(Value)
+  catch
+    error : Reason ->
+      Stack = erlang:get_stacktrace(),
+      Context = [ {record, FullName}
+                , {field, FieldName}
+                , {reason, Reason}
+                ],
+      erlang:raise(error, {bad_default, Context}, Stack)
+  end.
+
+%% @private default value for a union type should be type checked by the
+%% first union member
+%% @end
+-spec resolve_default_type(type_or_name()) -> avro_type().
+resolve_default_type(T) when ?IS_UNION_TYPE(T) ->
+  hd(avro_union:get_types(T));
+resolve_default_type(T) ->
+  T.
+
+%% @private
 -spec cast(avro_type(), [{field_name_raw(), avro:in()}]) ->
         {ok, avro_value()} | {error, any()}.
 cast(Type, Value) when ?IS_RECORD_TYPE(Type) ->
@@ -235,20 +323,23 @@ to_term(Record) when ?IS_RECORD_VALUE(Record) ->
 
 %% @hidden Help function for JSON/binary encoder.
 -spec encode(record_type(), [{field_name_raw(), avro:in()}],
-             fun(({field_name(), avro_type(), avro:in()}) -> avro:out())) ->
-        [avro:out()].
-encode(Type, Fields, EncodeFun) ->
-  FieldTypes = get_all_field_types(Type),
-  TypeFullName = avro:get_type_fullname(Type),
-  TypeAndValueList = zip_record_field_types_with_key_value(
-                       TypeFullName, FieldTypes, Fields),
-  lists:map(fun({FieldName, _FieldType, _FieldValue} = X) ->
-                try
-                  EncodeFun(X)
-                catch
-                  C : E -> ?RAISE_ENC_ERR(C, E, [TypeFullName, FieldName])
-                end
-            end, TypeAndValueList).
+             fun((field_name(), avro_type(), avro:in()) -> avro:out())) -> [avro:out()].
+encode(#avro_record_type{ fields = FieldDefs
+                        , fullname = FullName
+                        }, FieldValues0, EncodeFun) ->
+  FieldValues = [{?NAME(N), V} || {N, V} <- FieldValues0],
+  lists:map(
+    fun(#avro_record_field{name = FieldName, type = FieldType} = FieldDef) ->
+        Value = lookup_value_from_list(FieldDef, FieldValues),
+        try
+          Value =:= ?NO_VALUE andalso erlang:error(required_field_missed),
+          EncodeFun(FieldName, FieldType, Value)
+        catch
+          C : E ->
+            ?RAISE_ENC_ERR(C, E, [{record, FullName},
+                                  {field, FieldName}])
+        end
+    end, FieldDefs).
 
 %%%_* Internal functions =======================================================
 
@@ -263,36 +354,6 @@ resolve_field_type_fullnames(Fields, Ns) ->
           Field#avro_record_field{type = avro:resolve_fullname(Type, Ns)}
       end,
   lists:map(F, Fields).
-
-%% @private
--spec zip_record_field_types_with_key_value(RecordTypeName :: fullname(),
-                                            [{field_name(), avro_type()}],
-                                            [{field_name_raw(), avro:in()}]) ->
-        [{field_name(), avro_type(), avro:in()}].
-zip_record_field_types_with_key_value(_Name, [], []) -> [];
-zip_record_field_types_with_key_value(Name, [{FieldName, FieldType} | Rest],
-    FieldValues0) ->
-  {FieldValue, FieldValues} =
-    take_record_field_value(Name, FieldName, FieldValues0, []),
-  [ {FieldName, FieldType, FieldValue}
-  | zip_record_field_types_with_key_value(Name, Rest, FieldValues)
-  ].
-
-%% @private
--spec take_record_field_value(fullname(), field_name(),
-                              [{field_name_raw(), avro:in()}],
-                              [{field_name_raw(), avro:in()}]) ->
-        {avro:in(), [{field_name_raw(), avro:in()}]}.
-take_record_field_value(RecordName, FieldName, [], _) ->
-  erlang:error({field_value_not_found, RecordName, FieldName});
-take_record_field_value(RecordName, FieldName, [{Tag, Value} | Rest], Tried) ->
-  case ?NAME(Tag) =:= FieldName of
-    true ->
-      {Value, Tried ++ Rest};
-    false ->
-      take_record_field_value(RecordName, FieldName, Rest,
-                              [{Tag, Value} | Tried])
-  end.
 
 %% @private Try to find a value for a field specified by list of its names
 %% (including direct name and aliases)
@@ -309,7 +370,7 @@ lookup_value_by_name([FieldName|Rest], Values) ->
 
 %% @private
 -spec lookup_value_from_list(record_field(), [{field_name(), avro:in()}]) ->
-        undefined | avro:in() | avro_value().
+        ?NO_VALUE | avro:in().
 lookup_value_from_list(FieldDef, Values) ->
   #avro_record_field
   { name = FieldName
@@ -333,7 +394,7 @@ cast_fields([FieldDef | Rest], Values, Acc) ->
   , type = FieldType
   } = FieldDef,
   case lookup_value_from_list(FieldDef, Values) of
-    undefined ->
+    ?NO_VALUE ->
       {error, {required_field_missed, FieldName}};
     Value ->
       case avro:cast(FieldType, Value) of

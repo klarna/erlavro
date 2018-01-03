@@ -1,6 +1,6 @@
 %%%-----------------------------------------------------------------------------
 %%%
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -24,6 +24,8 @@
 -module(avro).
 
 -export([ decode_schema/1
+        , decode_schema/2
+        , encode_schema/1
         , expand_type/2
         , expand_type_bloated/2
         , flatten_type/1
@@ -37,6 +39,8 @@
         , is_same_type/2
         , make_decoder/2
         , make_encoder/2
+        , make_lkup_fun/1
+        , make_lkup_fun/2
         , resolve_fullname/2
         ]).
 
@@ -83,6 +87,7 @@
              , primitive_type/0
              , record_field/0
              , record_type/0
+             , schema_opts/0
              , schema_store/0
              , typedoc/0
              , type_prop_name/0
@@ -115,9 +120,41 @@
 -type encode_fun() :: fun((type_or_name(), term()) -> iodata() | avro_value()).
 -type decode_fun() :: fun((type_or_name(), binary()) -> term()).
 -type encoding() :: avro_encoding().
+-type schema_opts() :: proplists:proplist().
 
-%% @doc Decode JSON format avro schema into erlavro internals.
+%% @doc Decode JSON format avro schema into `erlavro' internals.
+-spec decode_schema(binary()) -> avro_type().
 decode_schema(JSON) -> avro_json_decoder:decode_schema(JSON).
+
+%% @doc Make type lookup function from type definition.
+%% The given type is flattened then the flat types are keyed
+%% by their fullnames and aliases.
+%% @end
+-spec make_lkup_fun(avro_type()) -> lkup_fun().
+make_lkup_fun(Type) ->
+  make_lkup_fun("_erlavro_assigned", Type).
+
+%% @doc Make type lookup function. The root type is also
+%% keyed by the give assigned-name.
+%% @end
+-spec make_lkup_fun(name_raw(), avro_type()) -> lkup_fun().
+make_lkup_fun(AssignedName, Type) ->
+  Store0 = avro_schema_store:new([dict]),
+  Store = avro_schema_store:add_type(AssignedName, Type, Store0),
+  avro_schema_store:to_lookup_fun(Store).
+
+%% @doc Decode JSON format avro schema into `erlavro' internals
+%% Supported options:
+%%   * ignore_bad_default_values: boolean()
+%% @end
+-spec decode_schema(binary(), proplists:proplist()) -> avro_type().
+decode_schema(JSON, Options) ->
+  avro_json_decoder:decode_schema(JSON, Options).
+
+%% @doc Encode `erlavro' internals type records into JSON format.
+-spec encode_schema(avro_type()) -> binary().
+encode_schema(Type) ->
+  avro_json_encoder:encode_schema(Type).
 
 %% @doc Make a encoder function.
 %% Supported codec options:
@@ -339,13 +376,13 @@ get_custom_props(#avro_union_type{})               -> [].
 flatten_type(Type) -> avro_util:flatten_type(Type).
 
 %% @equiv avro_util:expand_type(Type, Store, compact)
--spec expand_type(type_or_name(), schema_store()) ->
+-spec expand_type(type_or_name(), lkup_fun() | schema_store()) ->
         avro_type() | none().
 expand_type(Type, Store) ->
   avro_util:expand_type(Type, Store).
 
 %% @equiv avro_util:expand_type(Type, Store, bloated)
--spec expand_type_bloated(type_or_name(), schema_store()) ->
+-spec expand_type_bloated(type_or_name(), lkup_fun() | schema_store()) ->
         avro_type() | none().
 expand_type_bloated(Type, Store) ->
   avro_util:expand_type(Type, Store, bloated).

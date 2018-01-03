@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2016-2017 Klarna AB
+%%% Copyright (c) 2016-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -40,12 +40,9 @@
 
 -include("avro_internal.hrl").
 
--ifdef(TEST).
--export([init_schema_store/1]).
--endif.
-
 -type filename() :: file:filename_all().
 -type meta() :: [{string() | binary(), binary()}].
+-type lkup() :: schema_store() | lkup_fun().
 
 -record(header, { magic
                 , meta
@@ -71,35 +68,30 @@ decode_binary(Bin) ->
    ], Tail} = decode_stream(ocf_schema(), Bin),
   {_, SchemaBytes} = lists:keyfind(<<"avro.schema">>, 1, Meta),
   Codec = get_codec(Meta),
-  Schema = avro_json_decoder:decode_schema(SchemaBytes),
-  Store = init_schema_store(Schema),
+  %% Ignore bad defaults because ocf schema should never need defaults
+  Schema = avro:decode_schema(SchemaBytes, [ignore_bad_default_values]),
+  Lkup = avro:make_lkup_fun("_erlavro_ocf_root", Schema),
   Header = #header{ magic = Magic
                   , meta  = Meta
                   , sync  = Sync
                   },
-  try
-    {Header, Schema, decode_blocks(Store, Schema, Codec, Sync, Tail, [])}
-  after
-    avro_schema_store:close(Store)
-  end.
+  {Header, Schema, decode_blocks(Lkup, Schema, Codec, Sync, Tail, [])}.
 
 %% @doc Write objects in a single block to the given file name.
--spec write_file(filename(), schema_store(),
-                 type_or_name(), [avro:in()]) -> ok.
-write_file(Filename, SchemaStore, Schema, Objects) ->
-  write_file(Filename, SchemaStore, Schema, Objects, []).
+-spec write_file(filename(), lkup(), type_or_name(), [avro:in()]) -> ok.
+write_file(Filename, Lkup, Schema, Objects) ->
+  write_file(Filename, Lkup, Schema, Objects, []).
 
 %% @doc Write objects in a single block to the given file name with custom
 %% metadata. @see make_header/2 for details about use of meta data.
 %% @end
--spec write_file(filename(), schema_store(),
-                 type_or_name(), [avro:in()], meta()) -> ok.
-write_file(Filename, SchemaStore, Schema, Objects, Meta) ->
+-spec write_file(filename(), lkup(), type_or_name(), [avro:in()], meta()) -> ok.
+write_file(Filename, Lkup, Schema, Objects, Meta) ->
   Header = make_header(Schema, Meta),
   {ok, Fd} = file:open(Filename, [write]),
   try
     ok = write_header(Fd, Header),
-    ok = append_file(Fd, Header, SchemaStore, Schema, Objects)
+    ok = append_file(Fd, Header, Lkup, Schema, Objects)
   after
     file:close(Fd)
   end.
@@ -131,11 +123,11 @@ append_file(Fd, Header, Objects) ->
   ok = file:write(Fd, ToWrite).
 
 %% @doc Encode the given objects and append to the file as one data block.
--spec append_file(file:io_device(), header(), schema_store(),
+-spec append_file(file:io_device(), header(), lkup(),
                   type_or_name(), [avro:in()]) -> ok.
-append_file(Fd, Header, SchemaStore, Schema, Objects) ->
+append_file(Fd, Header, Lkup, Schema, Objects) ->
   EncodedObjects =
-    [ avro:encode(SchemaStore, Schema, O, avro_binary) || O <- Objects ],
+    [ avro:encode(Lkup, Schema, O, avro_binary) || O <- Objects ],
   append_file(Fd, Header, EncodedObjects).
 
 %% @doc Make ocf header.
@@ -203,34 +195,34 @@ decode_stream(Type, Bin) when is_binary(Bin) ->
   avro_binary_decoder:decode_stream(Bin, Type, Lkup).
 
 %% @private
--spec decode_stream(schema_store(), avro_type(), binary()) ->
+-spec decode_stream(lkup(), avro_type(), binary()) ->
         {avro:out(), binary()} | no_return().
-decode_stream(SchemaStore, Type, Bin) when is_binary(Bin) ->
-  avro_binary_decoder:decode_stream(Bin, Type, SchemaStore).
+decode_stream(Lkup, Type, Bin) when is_binary(Bin) ->
+  avro_binary_decoder:decode_stream(Bin, Type, Lkup).
 
 %% @private
--spec decode_blocks(schema_store(), avro_type(), avro_codec(),
+-spec decode_blocks(lkup(), avro_type(), avro_codec(),
                     binary(), binary(), [avro:out()]) -> [avro:out()].
-decode_blocks(_Store, _Type, _Codec, _Sync, <<>>, Acc) ->
+decode_blocks(_Lkup, _Type, _Codec, _Sync, <<>>, Acc) ->
   lists:reverse(Acc);
-decode_blocks(Store, Type, Codec, Sync, Bin0, Acc) ->
+decode_blocks(Lkup, Type, Codec, Sync, Bin0, Acc) ->
   LongType = avro_primitive:long_type(),
-  {Count, Bin1} = decode_stream(Store, LongType, Bin0),
-  {Size, Bin} = decode_stream(Store, LongType, Bin1),
+  {Count, Bin1} = decode_stream(Lkup, LongType, Bin0),
+  {Size, Bin} = decode_stream(Lkup, LongType, Bin1),
   <<Block:Size/binary, Sync:16/binary, Tail/binary>> = Bin,
-  NewAcc = decode_block(Store, Type, Codec, Block, Count, Acc),
-  decode_blocks(Store, Type, Codec, Sync, Tail, NewAcc).
+  NewAcc = decode_block(Lkup, Type, Codec, Block, Count, Acc),
+  decode_blocks(Lkup, Type, Codec, Sync, Tail, NewAcc).
 
 %% @private
--spec decode_block(schema_store(), avro_type(), avro_codec(),
+-spec decode_block(lkup(), avro_type(), avro_codec(),
                    binary(), integer(), [avro:out()]) -> [avro:out()].
-decode_block(_Store, _Type, _Codec, <<>>, 0, Acc) -> Acc;
-decode_block(Store, Type, deflate, Bin, Count, Acc) ->
+decode_block(_Lkup, _Type, _Codec, <<>>, 0, Acc) -> Acc;
+decode_block(Lkup, Type, deflate, Bin, Count, Acc) ->
   Decompressed = zlib:unzip(Bin),
-  decode_block(Store, Type, null, Decompressed, Count, Acc);
-decode_block(Store, Type, null, Bin, Count, Acc) ->
-  {Obj, Tail} = decode_stream(Store, Type, Bin),
-  decode_block(Store, Type, null, Tail, Count - 1, [Obj | Acc]).
+  decode_block(Lkup, Type, null, Decompressed, Count, Acc);
+decode_block(Lkup, Type, null, Bin, Count, Acc) ->
+  {Obj, Tail} = decode_stream(Lkup, Type, Bin),
+  decode_block(Lkup, Type, null, Tail, Count - 1, [Obj | Acc]).
 
 %% @private Hande coded schema.
 %% {"type": "record", "name": "org.apache.avro.file.Header",
@@ -251,12 +243,6 @@ ocf_schema() ->
            , avro_record:define_field("sync", SyncType)
            ],
   avro_record:type("org.apache.avro.file.Header", Fields).
-
-%% @private Create and initialize schema store from schema decoded from.
--spec init_schema_store(avro_type()) -> schema_store().
-init_schema_store(Schema) ->
-  Store = avro_schema_store:new([]),
-  avro_schema_store:add_type(erlavro_ocf_root, Schema, Store).
 
 %% @private Get codec from meta fields
 -spec get_codec([{binary(), binary()}]) -> avro_codec().

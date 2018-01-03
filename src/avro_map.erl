@@ -1,6 +1,6 @@
 %%%-----------------------------------------------------------------------------
 %%%
-%%% Copyright (c) 2013-2017 Klarna AB
+%%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -34,6 +34,7 @@
         , to_term/1
         , type/1
         , type/2
+        , update_items_type/2
         ]).
 
 -export_type([data/0]).
@@ -65,13 +66,20 @@ type(Type, CustomProps) ->
 
 %% @doc Resolve fullname by newly discovered enclosing namespace.
 -spec resolve_fullname(map_type(), namespace()) -> map_type().
-resolve_fullname(#avro_map_type{type = ItemsType} = T, Ns) ->
-  T#avro_map_type{type = avro:resolve_fullname(ItemsType, Ns)}.
+resolve_fullname(Map, Ns) ->
+  F = fun(T) -> avro:resolve_fullname(T, Ns) end,
+  update_items_type(Map, F).
 
 %% @doc Return the map-value's type definition.
 -spec get_items_type(map_type()) -> avro_type().
 get_items_type(#avro_map_type{ type = SubType }) ->
   SubType.
+
+%% @doc Evaluate callback to update itmes type.
+-spec update_items_type(map_type(), fun((type_or_name()) -> type_or_name())) ->
+        map_type().
+update_items_type(#avro_map_type{type = IT} = T, F) ->
+  T#avro_map_type{type = F(IT)}.
 
 %% @doc Create a new typed (boxed) value.
 %% Raise an 'error' in case of failure.
@@ -108,7 +116,9 @@ encode(Type, Value, EncodeFun) ->
                 try
                   EncodeFun(ItemsType, K, V)
                 catch
-                  C : E -> ?RAISE_ENC_ERR(C, E, [Type, K])
+                  C : E ->
+                    ?RAISE_ENC_ERR(C, E, [{map, Type},
+                                          {key, K}])
                 end
             end, Value).
 

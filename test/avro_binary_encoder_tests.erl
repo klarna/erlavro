@@ -134,8 +134,10 @@ encode_record_error_test() ->
                      [ define_field("sub", SubType, [])
                      ]),
   In = [{sub, [{<<"bool_field">>, true}, {<<"int_field">>, "not int"}]}],
-  ?assertError(?ENC_ERR(_, [<<"root_rec">>, <<"sub">>,
-                            <<"sub_rec">>, <<"int_field">>]),
+  ?assertError(?ENC_ERR(_, [{record, <<"root_rec">>},
+                            {field, <<"sub">>},
+                            {record, <<"sub_rec">>},
+                            {field, <<"int_field">>}]),
                encode(fun(_) -> error(unexpected) end, RootType, In)).
 
 encode_enum_test() ->
@@ -171,7 +173,7 @@ encode_map_test() ->
 encode_map_error_test() ->
   Type = avro_map:type(int),
   Value = [{a, 3}, {"b", "not int"}],
-  ?assertError(?ENC_ERR(_, [Type, "b"]),
+  ?assertError(?ENC_ERR(_, [{map, Type}, {key, "b"}]),
                encode(fun(_) -> error(unexpected) end, Type, Value)).
 
 encode_union_test() ->
