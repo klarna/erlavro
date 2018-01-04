@@ -32,11 +32,13 @@
         , delete_opts/2
         , encode_defaults/2
         , ensure_binary/1
+        , ensure_lkup_fun/1
         , expand_type/2
         , expand_type/3
         , flatten_type/1
         , get_opt/2
         , get_opt/3
+        , make_lkup_fun/2
         , parse_defaults/2
         , resolve_duplicated_refs/1
         , verify_names/1
@@ -54,17 +56,36 @@
 
 -include("avro_internal.hrl").
 
--type store() :: avro_schema_store:store().
+-type lkup() :: avro:lkup_fun().
 -define(SEEN, avro_get_nested_type_seen_full_names).
 
 %%%_* APIs =====================================================================
 
+%% @doc Ensure type lookup fun.
+-spec ensure_lkup_fun(avro:schema_all()) -> lkup().
+ensure_lkup_fun(JSON) when is_binary(JSON) ->
+  ensure_lkup_fun(avro:decode_schema(JSON));
+ensure_lkup_fun(Lkup) when is_function(Lkup, 1) ->
+  Lkup;
+ensure_lkup_fun(Sc) ->
+  case avro_schema_store:is_store(Sc) of
+    true -> avro_schema_store:to_lookup_fun(Sc);
+    false -> make_lkup_fun("_erlavro_assigned", Sc)
+  end.
+
+%% @doc Make a schema store (dict based) and wrap it in a lookup fun.
+-spec make_lkup_fun(name_raw(), avro_type()) -> lkup().
+make_lkup_fun(AssignedName, Type) ->
+  Store0 = avro_schema_store:new([dict]),
+  Store = avro_schema_store:add_type(AssignedName, Type, Store0),
+  avro_schema_store:to_lookup_fun(Store).
+
 %% @doc Go recursively into the type tree to encode default values.
 %% into JSON format, the encoded default values are later used (inline)
 %% to construct JSON schema.
-%% Type lookup function `Lkup` is to encode default value for named types
+%% Type lookup function `Lkup' is to encode default value for named types
 %% @end
--spec encode_defaults(type_or_name(), lkup_fun()) -> avro_type().
+-spec encode_defaults(type_or_name(), lkup()) -> avro_type().
 encode_defaults(N, _) when ?IS_NAME(N) -> N;
 encode_defaults(T, _) when ?IS_PRIMITIVE_TYPE(T) -> T;
 encode_defaults(T, _) when ?IS_FIXED_TYPE(T) -> T;
@@ -221,10 +242,10 @@ flatten_type(Type) when ?IS_TYPE_RECORD(Type) ->
 %% This should allow callers to write a root type to one avsc schema file
 %% instead of scattering all named types to their own avsc files.
 %% @end
--spec expand_type(type_or_name(), lkup_fun() | store()) ->
+-spec expand_type(type_or_name(), avro:schema_all()) ->
         avro_type() | no_return().
-expand_type(Type, Store) ->
-  expand_type(Type, Store, compact).
+expand_type(Type, Sc) ->
+  expand_type(Type, Sc, compact).
 
 %% @doc Expand type in 2 different styles.
 %% compact: use type name reference if it is a type seen
@@ -232,12 +253,10 @@ expand_type(Type, Store) ->
 %% bloated: use type name reference only if a type is seen
 %%          before in the current traversing stack. (to avoid stack overflow)
 %% @end
--spec expand_type(type_or_name(), lkup_fun() | store(), compact | bloated) ->
+-spec expand_type(type_or_name(), avro:schema_all(), compact | bloated) ->
         avro_type() | no_return().
-expand_type(Type, Store, Style) when not is_function(Store) ->
-  Lkup = avro_schema_store:to_lookup_fun(Store),
-  expand_type(Type, Lkup, Style);
-expand_type(Type0, Lkup, Style) ->
+expand_type(Type0, Sc, Style) ->
+  Lkup = ensure_lkup_fun(Sc),
   Type = canonicalize_type_or_name(Type0),
   try
     %% Use process dictionary to keep the history of seen type names
@@ -353,7 +372,7 @@ flatten(#avro_union_type{} = Union) ->
   {avro_union:type(NewChildren), ExtractedTypes}.
 
 %% @private
--spec do_expand_type(fullname(), store(), compact | bloated, [fullname()]) ->
+-spec do_expand_type(fullname(), lkup(), compact | bloated, [fullname()]) ->
         fullname() | avro_type() | no_return().
 do_expand_type(Fullname, Lkup, Style, Stack) when ?IS_NAME(Fullname) ->
   Hist = erlang:get(?SEEN),
@@ -376,7 +395,7 @@ do_expand_type(Fullname, Lkup, Style, Stack) when ?IS_NAME(Fullname) ->
   end.
 
 %% @private
--spec expand(avro_type(), store(), compact | bloated, [fullname()]) ->
+-spec expand(avro_type(), lkup(), compact | bloated, [fullname()]) ->
         avro_type() | no_return().
 expand(#avro_record_type{fields = Fields} = T, Lkup, Style, Stack) ->
   ResolvedFields =

@@ -135,7 +135,7 @@ define_field(Name, Type0, Opts) ->
 %% Aliases can be used for FieldName.
 %% @end
 -spec get_field_type(field_name_raw(), record_type()) ->
-        avro_type() | no_return().
+        type_or_name() | no_return().
 get_field_type(FieldName, Type) when ?IS_RECORD_TYPE(Type) ->
   case get_field_def(FieldName, Type) of
     {ok, #avro_record_field{type = FieldType}} -> FieldType;

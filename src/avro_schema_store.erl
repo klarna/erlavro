@@ -41,6 +41,7 @@
         , new/1
         , new/2
         , close/1
+        , is_store/1
         ]).
 
 %% Import
@@ -79,7 +80,7 @@ new() -> new([]).
 %%  * `{access, public|protected|private}' - has same meaning as access
 %%    mode in ets:new and defines what processes can have access to
 %%  * `{name, atom()}' - used to create a named ets table.
-%%  * `dict' - use dict as store backend, ignore `access` and `name` options
+%%  * `dict' - use dict as store backend, ignore `access' and `name' options
 %% @end
 -spec new(options()) -> store().
 new(Options) ->
@@ -93,6 +94,11 @@ new(Options) ->
 new(Options, Files) ->
   Store = new(Options),
   import_files(Files, Store).
+
+%% @doc Return true if the given arg is a schema store.
+-spec is_store(term()) -> boolean().
+is_store({dict, _}) -> true;
+is_store(T) -> is_integer(T) orelse is_atom(T) orelse is_reference(T).
 
 %% @doc Make a schema lookup function from store.
 -spec to_lookup_fun(store()) -> fun((name_raw()) -> avro_type()).
@@ -142,10 +148,11 @@ close(Store) ->
   ok.
 
 %% @doc To make dialyzer happy.
--spec ensure_store(atom() | integer() | {dict, dict:dict()}) -> store().
-ensure_store(Tid) when is_integer(Tid) -> Tid;
-ensure_store(Tname) when is_atom(Tname) -> Tname;
-ensure_store({dict, Dict}) -> {dict, Dict}.
+-spec ensure_store(atom() | integer() | reference() | {dict, dict:dict()}) ->
+        store().
+ensure_store(Store) ->
+  true = is_store(Store),
+  Store.
 
 %% @doc Add named type into the schema store.
 %% NOTE: the type is flattened before inserting into the schema store.

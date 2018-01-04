@@ -51,8 +51,7 @@ NOT a unicode character list which may possibly contain some code points greater
 See `priv/interop.avsc` for avro schema definition.
 
 ```erlang
-1> Store = avro_schema_store:new([], ["priv/interop.avsc"]).
-16400
+1> {ok, SchemaJSON} = file:read_file("priv/interop.avsc").
 2> Term = hd(element(3, avro_ocf:decode_file("priv/interop.ocf"))).
 [{"intField",12},
  {"longField",15234324},
@@ -71,8 +70,8 @@ See `priv/interop.avsc` for avro schema definition.
  {"recordField",
   [{"label","blah"},
    {"children",[[{"label","inner"},{"children",[]}]]}]}]
-3> Encoder = avro:make_encoder(Store, []).
-4> Decoder = avro:make_decoder(Store, []).
+3> Encoder = avro:make_encoder(SchemaJSON, []).
+4> Decoder = avro:make_decoder(SchemaJSON, []).
 5> Encoded = iolist_to_binary(Encoder("org.apache.avro.Interop", Term)).
 6> Term =:= Decoder("org.apache.avro.Interop", Encoded).
 true
@@ -89,9 +88,8 @@ true
       [avro_record:define_field(f1, int),
        avro_record:define_field(f2, string)],
       [{namespace, 'com.example'}]),
-  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Encoder = avro:make_encoder(Store, []),
-  Decoder = avro:make_decoder(Store, []),
+  Encoder = avro:make_encoder(MyRecordType, []),
+  Decoder = avro:make_decoder(MyRecordType, []),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   Bin = Encoder("com.example.MyRecord", Term),
   [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
@@ -108,9 +106,8 @@ true
       [avro_record:define_field("f1", int),
        avro_record:define_field("f2", string)],
       [{namespace, "com.example"}]),
-  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
-  Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
+  Encoder = avro:make_encoder(MyRecordType, [{encoding, avro_json}]),
+  Decoder = avro:make_decoder(MyRecordType, [{encoding, avro_json}]),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),

@@ -36,6 +36,11 @@ get_all_types_test() ->
   ok = TestFun(avro_schema_store:new([{name, ?MODULE}])),
   ok = TestFun(avro_schema_store:new([dict])).
 
+is_store_test() ->
+  ?assertNot(avro_schema_store:is_store(<<"json">>)),
+  ?assert(avro_schema_store:is_store(avro_schema_store:new([dict]))),
+  ?assert(avro_schema_store:is_store(avro_schema_store:new([]))).
+
 ensure_store_test() ->
   Pass = try
           avro_schema_store:ensure_store("not a store")

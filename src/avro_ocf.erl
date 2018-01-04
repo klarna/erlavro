@@ -51,6 +51,10 @@
 
 -opaque header() :: #header{}.
 
+%% Tested in OTP-19, dialyzer had trouble understanding the second arg
+%% for the call to write_header/2.
+-dialyzer({nowarn_function, [write_file/4, write_file/5]}).
+
 %%%_* APIs =====================================================================
 
 %% @doc Decode ocf into unwrapped values.

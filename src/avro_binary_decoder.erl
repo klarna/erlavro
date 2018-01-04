@@ -61,7 +61,8 @@ decode(IoData, Type, StoreOrLkupFun) ->
              schema_store() | lkup_fun(), hook()) -> avro:out().
 decode(IoData, Type, StoreOrLkupFun, Hook) ->
   %% return decoded value as raw erlang term directly
-  {Value, <<>>} = do_decode(IoData, Type, StoreOrLkupFun, Hook),
+  Lkup = avro_util:ensure_lkup_fun(StoreOrLkupFun),
+  {Value, <<>>} = do_decode(IoData, Type, Lkup, Hook),
   Value.
 
 %% @doc decode_stream/4 equivalent with default hook fun.
@@ -78,16 +79,13 @@ decode_stream(IoData, Type, StoreOrLkupFun) ->
                     schema_store() | lkup_fun(), hook()) ->
         {avro:out(), binary()}.
 decode_stream(IoData, Type, StoreOrLkupFun, Hook) ->
-  do_decode(IoData, Type, StoreOrLkupFun, Hook).
+  do_decode(IoData, Type, avro_util:ensure_lkup_fun(StoreOrLkupFun), Hook).
 
 %%%_* Internal functions =======================================================
 
 %% @private
--spec do_decode(iodata(), type_or_name(),
-                schema_store() | lkup_fun(), hook()) -> {avro:out(), binary()}.
-do_decode(IoData, Type, Store, Hook) when not is_function(Store) ->
-  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  do_decode(IoData, Type, Lkup, Hook);
+-spec do_decode(iodata(), type_or_name(), lkup_fun(), hook()) ->
+        {avro:out(), binary()}.
 do_decode(IoData, Type, Lkup, Hook) when is_list(IoData) ->
   do_decode(iolist_to_binary(IoData), Type, Lkup, Hook);
 do_decode(Bin, TypeName, Lkup, Hook) when ?IS_NAME_RAW(TypeName) ->
