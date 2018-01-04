@@ -110,14 +110,10 @@ decode_schema(JSON, Opts) when is_list(Opts) ->
 %%       map:    [{Key :: string(), Value :: avro:out()}].
 %%       record: [{FieldName() :: binary(), FieldValue :: avro:out()}]}
 %% @end
--spec decode_value(binary(), type_or_name(),
-                   schema_store() | lkup_fun(),
+-spec decode_value(binary(), type_or_name(), avro:schema_all(),
                    options(), hook()) -> avro_value() | avro:out().
-decode_value(JsonValue, Schema, Store, Options, Hook)
- when not is_function(Store) ->
-  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  decode_value(JsonValue, Schema, Lkup, Options, Hook);
-decode_value(JsonValue, Schema, Lkup, Options, Hook) ->
+decode_value(JsonValue, Schema, MaybeLkup, Options, Hook) ->
+  Lkup = avro_util:ensure_lkup_fun(MaybeLkup),
   DecodedJson = decode_json(JsonValue),
   IsWrapped = case lists:keyfind(is_wrapped, 1, Options) of
                 {is_wrapped, V} -> V;

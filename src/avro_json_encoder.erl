@@ -65,12 +65,9 @@ encode_value(Value) ->
 %% i.e. data can be recursive, but recursive types are resolved by
 %% schema lookup
 %% @end
--spec encode(schema_store() | lkup_fun(),
-             type_or_name(), avro:in()) -> iodata().
-encode(Store, TypeOrName, Value) when not is_function(Store) ->
-  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  encode(Lkup, TypeOrName, Value);
-encode(Lkup, TypeOrName, Value) ->
+-spec encode(avro:schema_all(), type_or_name(), avro:in()) -> iodata().
+encode(Sc, TypeOrName, Value) ->
+  Lkup = avro_util:ensure_lkup_fun(Sc),
   encode_json(do_encode(Lkup, TypeOrName, Value)).
 
 %%%_* Internal functions =======================================================

@@ -87,6 +87,7 @@
              , primitive_type/0
              , record_field/0
              , record_type/0
+             , schema_all/0
              , schema_opts/0
              , schema_store/0
              , typedoc/0
@@ -121,6 +122,7 @@
 -type decode_fun() :: fun((type_or_name(), binary()) -> term()).
 -type encoding() :: avro_encoding().
 -type schema_opts() :: proplists:proplist().
+-type schema_all() :: avro_type() | binary() | lkup_fun() | schema_store().
 
 %% @doc Decode JSON format avro schema into `erlavro' internals.
 -spec decode_schema(binary()) -> avro_type().
@@ -139,9 +141,7 @@ make_lkup_fun(Type) ->
 %% @end
 -spec make_lkup_fun(name_raw(), avro_type()) -> lkup_fun().
 make_lkup_fun(AssignedName, Type) ->
-  Store0 = avro_schema_store:new([dict]),
-  Store = avro_schema_store:add_type(AssignedName, Type, Store0),
-  avro_schema_store:to_lookup_fun(Store).
+  avro_util:make_lkup_fun(AssignedName, Type).
 
 %% @doc Decode JSON format avro schema into `erlavro' internals
 %% Supported options:
@@ -164,19 +164,20 @@ encode_schema(Type) ->
 %%   when 'wrapped' is not in the option list, or {wrapped, false} is given,
 %%   return encoded iodata() without type info wrapped around.
 %% @end
--spec make_encoder(schema_store() | lkup_fun(), codec_options()) ->
+-spec make_encoder(schema_all(), codec_options()) ->
         encode_fun().
-make_encoder(StoreOrLkupFun, Options) ->
+make_encoder(Schema, Options) ->
+  Lkup = avro_util:ensure_lkup_fun(Schema),
   Encoding = proplists:get_value(encoding, Options, avro_binary),
   IsWrapped = proplists:get_bool(wrapped, Options),
   case IsWrapped of
     true ->
       fun(TypeOrName, Value) ->
-        ?MODULE:encode_wrapped(StoreOrLkupFun, TypeOrName, Value, Encoding)
+        ?MODULE:encode_wrapped(Lkup, TypeOrName, Value, Encoding)
       end;
     false ->
       fun(TypeOrName, Value) ->
-        ?MODULE:encode(StoreOrLkupFun, TypeOrName, Value, Encoding)
+        ?MODULE:encode(Lkup, TypeOrName, Value, Encoding)
       end
   end.
 
@@ -188,13 +189,13 @@ make_encoder(StoreOrLkupFun, Options) ->
 %%   The default hook is a dummy one (does nothing).
 %%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
 %% @end
--spec make_decoder(schema_store() | lkup_fun(), codec_options()) ->
-        decode_fun().
-make_decoder(StoreOrLkupFun, Options) ->
+-spec make_decoder(schema_all(), codec_options()) -> decode_fun().
+make_decoder(Schema, Options) ->
+  Lkup = avro_util:ensure_lkup_fun(Schema),
   Encoding = proplists:get_value(encoding, Options, avro_binary),
   Hook = proplists:get_value(hook, Options, ?DEFAULT_DECODER_HOOK),
   fun(TypeOrName, Bin) ->
-    ?MODULE:decode(Encoding, Bin, TypeOrName, StoreOrLkupFun, Hook)
+    ?MODULE:decode(Encoding, Bin, TypeOrName, Lkup, Hook)
   end.
 
 %% @doc Encode value to json or binary format.
@@ -210,10 +211,10 @@ encode(StoreOrLkup, Type, Value, avro_binary) ->
 %% wrapper structure. e.g. encode a big array of some complex type
 %% and use the result as a field value of a parent record
 %% @end
--spec encode_wrapped(schema_store() | lkup_fun(), type_or_name(),
+-spec encode_wrapped(schema_all(), type_or_name(),
                      term(), avro_encoding()) -> avro_value().
 encode_wrapped(S, TypeOrName, Value, Encoding) when not is_function(S) ->
-  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(S),
+  Lkup = avro_util:ensure_lkup_fun(S),
   encode_wrapped(Lkup, TypeOrName, Value, Encoding);
 encode_wrapped(Lkup, Name, Value, Encoding) when ?IS_NAME_RAW(Name) ->
   encode_wrapped(Lkup, Lkup(?NAME(Name)), Value, Encoding);
@@ -350,10 +351,9 @@ get_aliases(#avro_union_type{})                   -> [].
 %% is called to retrieve the type definition from schema store in case it is
 %% type name provided.
 %% @end
--spec get_custom_props(type_or_name(), lkup_fun() | schema_store()) ->
-        [custom_prop()].
+-spec get_custom_props(type_or_name(), schema_all()) -> [custom_prop()].
 get_custom_props(NameOrType, Store) when not is_function(Store) ->
-  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
+  Lkup = avro_util:ensure_lkup_fun(Store),
   get_custom_props(NameOrType, Lkup);
 get_custom_props(TypeName, Lkup) when ?IS_NAME_RAW(TypeName) ->
   get_custom_props(Lkup(?NAME(TypeName)), Lkup);
@@ -376,16 +376,16 @@ get_custom_props(#avro_union_type{})               -> [].
 flatten_type(Type) -> avro_util:flatten_type(Type).
 
 %% @equiv avro_util:expand_type(Type, Store, compact)
--spec expand_type(type_or_name(), lkup_fun() | schema_store()) ->
+-spec expand_type(type_or_name(), schema_all()) ->
         avro_type() | none().
-expand_type(Type, Store) ->
-  avro_util:expand_type(Type, Store).
+expand_type(Type, Sc) ->
+  avro_util:expand_type(Type, Sc).
 
 %% @equiv avro_util:expand_type(Type, Store, bloated)
--spec expand_type_bloated(type_or_name(), lkup_fun() | schema_store()) ->
+-spec expand_type_bloated(type_or_name(), schema_all()) ->
         avro_type() | none().
-expand_type_bloated(Type, Store) ->
-  avro_util:expand_type(Type, Store, bloated).
+expand_type_bloated(Type, Sc) ->
+  avro_util:expand_type(Type, Sc, bloated).
 
 %%%===================================================================
 %%% API: Calculating of canonical short and full names of types
@@ -456,7 +456,7 @@ cast(Type, Value) when ?IS_TYPE_RECORD(Type) -> do_cast(Type, Value);
 cast(Type, Value) when ?IS_NAME_RAW(Type) -> do_cast(name2type(Type), Value).
 
 %% @doc Convert avro values to erlang term.
--spec to_term(avro_value()) -> term().
+-spec to_term(avro_value()) -> out().
 to_term(#avro_value{type = T} = V) -> to_term(T, V).
 
 %%%_* Internal functions =======================================================
@@ -506,6 +506,7 @@ split_fullname(FullNameBin) when is_binary(FullNameBin) ->
   end.
 
 %% @private
+-spec to_term(type_or_name(), out() | avro_value()) -> out().
 to_term(#avro_primitive_type{}, V) -> avro_primitive:get_value(V);
 to_term(#avro_record_type{}, V)    -> avro_record:to_term(V);
 to_term(#avro_enum_type{}, V)      -> avro_enum:get_value(V);

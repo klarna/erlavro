@@ -77,19 +77,26 @@ encode_value(Union) when ?IS_UNION_VALUE(Union) ->
 %% i.e. data can be recursive, but recursive types are resolved by
 %% schema lookup
 %% @end
--spec encode(schema_store() | lkup_fun(), type_or_name(),
-             avro_value() | avro:in()) -> iodata().
-encode(Store, TypeName, Value) when not is_function(Store) ->
-  Lkup = ?AVRO_SCHEMA_LOOKUP_FUN(Store),
-  encode(Lkup, TypeName, Value);
-encode(Lkup, Type, #avro_value{type = T} = V) ->
+-spec encode(avro:schema_all(), type_or_name(), avro_value() | avro:in()) ->
+        iodata().
+encode(Sc, Type, Input) ->
+  Lkup = avro_util:ensure_lkup_fun(Sc),
+  do_encode(Lkup, Type, Input).
+
+%%%_* Internal functions =======================================================
+
+
+%% @private
+-spec do_encode(lkup_fun(), type_or_name(), avro_value() | avro:in()) ->
+        iodata().
+do_encode(Lkup, Type, #avro_value{type = T} = V) ->
   case avro:is_same_type(Type, T) of
     true  -> encode_value(V);
     false -> enc(Lkup, Type, V) %% try deeper
   end;
-encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
+do_encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
   enc(Lkup, Lkup(?NAME(TypeName)), Value);
-encode(Lkup, Type, Value) ->
+do_encode(Lkup, Type, Value) ->
   enc(Lkup, Type, Value).
 
 %% @private
@@ -121,8 +128,6 @@ enc(Lkup, Type, Union) when ?IS_UNION_TYPE(Type) ->
     fun(MemberT, Value, Index) ->
       [long(Index), encode(Lkup, MemberT, Value)]
     end).
-
-%%%_* Internal functions =======================================================
 
 %% @private
 -spec encode_prim(avro_type(), avro:in()) -> iodata().

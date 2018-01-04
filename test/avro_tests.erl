@@ -94,11 +94,11 @@ encode_wrapped_test() ->
       [avro_record:define_field(f1, int),
        avro_record:define_field(f2, string)],
       [{namespace, 'com.example'}]),
-  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Decoder = avro:make_decoder(Store, []),
+  Lkup = avro:make_lkup_fun(MyRecordType),
+  Decoder = avro:make_decoder(Lkup, []),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   ?AVRO_VALUE(_, {binary, Bin}) =
-    avro:encode_wrapped(Store, "com.example.MyRecord", Term, avro_binary),
+    avro:encode_wrapped(Lkup, "com.example.MyRecord", Term, avro_binary),
   [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
     Decoder("com.example.MyRecord", Bin),
   ok.
@@ -110,10 +110,10 @@ interop_schema_decode_test() ->
 
 readme_load_schmea_test() ->
   SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
+  {ok, SchemaJSON} = file:read_file(SchemaFilename),
   OcfFilename = filename:join(priv_dir(), "interop.ocf"),
-  Store = avro_schema_store:new([], [SchemaFilename]),
-  Encoder = avro:make_encoder(Store, []),
-  Decoder = avro:make_decoder(Store, []),
+  Encoder = avro:make_encoder(SchemaJSON, []),
+  Decoder = avro:make_decoder(SchemaJSON, []),
   Term = hd(element(3, avro_ocf:decode_file(OcfFilename))),
   Encoded = iolist_to_binary(Encoder("org.apache.avro.Interop", Term)),
   Term = Decoder("org.apache.avro.Interop", Encoded),
@@ -126,9 +126,8 @@ readme_binary_encode_decode_test() ->
       [avro_record:define_field(f1, int),
        avro_record:define_field(f2, string)],
       [{namespace, 'com.example'}]),
-  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Encoder = avro:make_encoder(Store, []),
-  Decoder = avro:make_decoder(Store, []),
+  Encoder = avro:make_encoder(MyRecordType, []),
+  Decoder = avro:make_decoder(MyRecordType, []),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   Bin = Encoder("com.example.MyRecord", Term),
   [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
@@ -142,9 +141,8 @@ readme_json_encode_decode_test() ->
       [avro_record:define_field("f1", int),
        avro_record:define_field("f2", string)],
       [{namespace, "com.example"}]),
-  Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
-  Encoder = avro:make_encoder(Store, [{encoding, avro_json}]),
-  Decoder = avro:make_decoder(Store, [{encoding, avro_json}]),
+  Encoder = avro:make_encoder(MyRecordType, [{encoding, avro_json}]),
+  Decoder = avro:make_decoder(MyRecordType, [{encoding, avro_json}]),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
   JSON = Encoder("com.example.MyRecord", Term),
   Term = Decoder("com.example.MyRecord", JSON),
@@ -271,9 +269,11 @@ encode_wrapped_unnamed_test() ->
 wrapped_union_cast_test() ->
   Rec1 = avro_record:type("rec1", [avro_record:define_field("f1", int)]),
   Rec2 = avro_record:type("rec2", [avro_record:define_field("f1", int)]),
-  Lkup = fun(<<"rec1">>) -> Rec1;
-            (<<"rec2">>) -> Rec2 end,
   Union = avro_union:type(["rec1", "rec2"]),
+  Store0 = avro_schema_store:new([dict]),
+  Store1 = avro_schema_store:add_type(Rec1, Store0),
+  Store = avro_schema_store:add_type(Rec2, Store1),
+  Lkup = avro_util:ensure_lkup_fun(Store),
   Rec1Val = avro:encode_wrapped(Lkup, "rec2", [{"f1", 1}], avro_binary),
   {ok, UnionVal} = avro:cast(Union, Rec1Val),
   Bin1 = avro_binary_encoder:encode_value(UnionVal),

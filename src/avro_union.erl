@@ -191,7 +191,8 @@ encode(Type, Value, EncodeFun) ->
 %% it is recommended to explicitly specify types for values, or not
 %% use such combinations of types at all.
 %% @end
--spec cast(union_type(), avro:in()) -> {ok, avro_value()} | {error, any()}.
+-spec cast(union_type(), {name(), avro_value()} | avro:in()) ->
+        {ok, avro_value()} | {error, any()}.
 cast(Type, Value) when ?IS_UNION_TYPE(Type) ->
   do_cast(Type, Value).
 
@@ -246,7 +247,7 @@ lookup_index(Name, #avro_union_type{name2id = Ids}) when ?IS_NAME_RAW(Name) ->
   end.
 
 %% @private
--spec do_cast(union_type(), avro:in()) ->
+-spec do_cast(union_type(), {name(), avro_value()} | avro:in()) ->
         {ok, avro_value()} | {error, any()}.
 do_cast(Type, {MemberId, Value}) ->
   case lookup_type(MemberId, Type) of

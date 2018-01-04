@@ -160,8 +160,6 @@
 %% By default, the hook fun does nothing else but calling the decode function.
 -define(DEFAULT_DECODER_HOOK, ?AVRO_DEFAULT_DECODER_HOOK).
 
--define(AVRO_SCHEMA_LOOKUP_FUN(Store), avro_schema_store:to_lookup_fun(Store)).
-
 %% Throw an exception in case the value is already encoded.
 -define(ASSERT_AVRO_VALUE(VALUE),
         case VALUE of
