@@ -397,7 +397,7 @@ encode_dup_ref_test() ->
   Field4 = avro_record:define_field("d", Enum, []),
   Type = avro_record:type("root", [Field1, Field2, Field3, Field4], []),
   JSON = avro_json_encoder:encode_type(Type),
-  DecodedType = avro_json_decoder:decode_schema(JSON),
+  DecodedType = avro:decode_schema(JSON, []),
   Store = avro_schema_store:new(),
   Store = avro_schema_store:add_type(DecodedType, Store),
   ExpandedType = avro:expand_type_bloated("root", Store),

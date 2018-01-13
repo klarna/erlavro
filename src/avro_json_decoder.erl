@@ -60,12 +60,24 @@ decode_schema(JSON) ->
 
 %% @doc Decode JSON format avro schema into erlavro internals.
 %% Supported options:
-%%   * ignore_bad_default_values: boolean()
+%% * ignore_bad_default_values: `boolean()'
+%%     Some library may produce invalid default values,
+%%     if this option is set, bad default valus will be whatever values
+%%     obtained from JSON decoder.
+%%     However, the encoder built from this schema may crash in case bad default
+%%     value is used (e.g. when a record field is missing from encoder input)
+%% * allow_bad_references: `boolean()'
+%%     This option is to allow referencing to a name reference to a non-existing
+%%     type. This allow types to be defined in multiple JSON schema files
+%%     and all imported to schema store to construct a valid over-all schema.
+%%  * allow_type_redefine: `boolean()'
+%%     This option is to allow one type being defined more than once.
 %% @end
 -spec decode_schema(binary(), sc_opts()) -> avro_type().
 decode_schema(JSON, Opts) when is_list(Opts) ->
   %% Parse JSON first
   Type = parse_schema(decode_json(JSON)),
+  ok = avro_util:validate(Type, Opts),
   %% Validate default after parsing because the record fields
   %% having default value can have a type name as type reference
   Lkup = avro:make_lkup_fun("__erlavro_assigned", Type),
