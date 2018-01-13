@@ -105,13 +105,13 @@ cast(Type, Value) when ?IS_FIXED_TYPE(Type) ->
 integer_to_fixed(Size, Integer) ->
   Bin = binary:encode_unsigned(Integer),
   true = (Size >= size(Bin)),
-  PadSize = (Size - size(Bin))*8,
+  PadSize = (Size - size(Bin)) * 8,
   <<0:PadSize, Bin/binary>>.
 
 %% @private
 do_cast(Type, Value) when is_integer(Value) ->
   #avro_fixed_type{ size = Size } = Type,
-  case Value >= 0 andalso Value < (1 bsl (8*Size)) of
+  case Value >= 0 andalso Value < (1 bsl (8 * Size)) of
     true  ->
       do_cast(Type, integer_to_fixed(Size, Value));
     false ->

@@ -1,41 +1,44 @@
-REBAR ?= $(shell which rebar || which ./rebar 2>/dev/null)
-
-suite=$(if $(SUITE), suite=$(SUITE), )
-
-.PHONY:	all deps check test clean
+REBAR ?= rebar3
 
 all: compile
 
+.PHONY: elvis-rock
+elvis-rock:
+	elvis rock
+
+.PHONY: compile
 compile: deps
 	$(REBAR) compile
 
+.PHONY: deps
 deps:
 	$(REBAR) get-deps
 
-docs:
-	$(REBAR) doc
+.PHONY: edoc
+edoc:
+	$(REBAR) edoc
 
-plt: compile
-	$(REBAR) build-plt
+.PHONY: dialyzer
+dialyzer: compile
+	$(REBAR) dialyzer
 
-check: compile
-	$(REBAR) check-plt
-	$(REBAR) dialyze
+.PHONY: eunit
+eunit:
+	$(REBAR) eunit -v
 
-test: compile
-	$(REBAR) eunit $(suite) apps=erlavro
-
-conf_clean:
-	@:
-
+.PHONY: clean
 clean:
 	$(REBAR) clean
-	$(RM) doc/*
 
+.PHONY: xref
 xref: compile
 	$(REBAR) xref
 
+.PHONY: hex-publish
 hex-publish: clean
-	rebar3 hex publish
+	$(REBAR) hex publish
 
-# eof
+.PHONY: cover
+cover:
+	$(REBAR) cover -v
+

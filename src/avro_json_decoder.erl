@@ -81,22 +81,20 @@ decode_schema(JSON, Opts) when is_list(Opts) ->
   %% Validate default after parsing because the record fields
   %% having default value can have a type name as type reference
   Lkup = avro:make_lkup_fun("__erlavro_assigned", Type),
-  ParseFun =
-    case proplists:get_bool(ignore_bad_default_values, Opts) of
-      true ->
-        fun(T, V) ->
-            try
-              parse(V, T, Lkup, false, ?DEFAULT_DECODER_HOOK)
-            catch
-              error : _ ->
-                %% ignore parse faulure
-                %% keep whatever obtained from JSON decoder
-                V
-            end
-        end;
-      false ->
-        fun(T, V) -> parse(V, T, Lkup, false, ?DEFAULT_DECODER_HOOK) end
+  ParseF = fun(T, V) -> parse(V, T, Lkup, false, ?DEFAULT_DECODER_HOOK) end,
+  SafeParseF =
+    fun(T, V) ->
+        try
+          ParseF(T, V)
+        catch
+          error : _ ->
+            V
+        end
     end,
+  ParseFun = case proplists:get_bool(ignore_bad_default_values, Opts) of
+               true ->  SafeParseF;
+               false -> ParseF
+             end,
   avro_util:parse_defaults(Type, ParseFun).
 
 %% @doc Decode JSON encoded payload to wrapped (boxed) #avro_value{} record,
@@ -453,7 +451,7 @@ parse_array(V, Type, Lkup, IsWrapped, Hook) when is_list(V) ->
                           fun(JsonV) ->
                             parse(JsonV, ItemsType, Lkup, IsWrapped, Hook)
                           end),
-        {Index+1, [ParsedItem | Acc]}
+        {Index + 1, [ParsedItem | Acc]}
       end,
       {_ZeroBasedIndexInitialValue = 0, []}, V),
   Items = lists:reverse(ParsedArray),

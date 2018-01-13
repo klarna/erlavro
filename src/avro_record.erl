@@ -323,7 +323,8 @@ to_term(Record) when ?IS_RECORD_VALUE(Record) ->
 
 %% @hidden Help function for JSON/binary encoder.
 -spec encode(record_type(), [{field_name_raw(), avro:in()}],
-             fun((field_name(), avro_type(), avro:in()) -> avro:out())) -> [avro:out()].
+             fun((field_name(), avro_type(), avro:in()) -> avro:out())) ->
+        [avro:out()].
 encode(#avro_record_type{ fields = FieldDefs
                         , fullname = FullName
                         }, FieldValues0, EncodeFun) ->
