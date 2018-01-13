@@ -226,7 +226,7 @@ block(Bin, ItemDecodeFun, Index, Acc, 0) ->
   blocks(Bin, ItemDecodeFun, Index, Acc);
 block(Bin, ItemDecodeFun, Index, Acc, Count) ->
   {Item, Tail} = ItemDecodeFun(Index, Bin),
-  block(Tail, ItemDecodeFun, Index+1, [Item | Acc], Count-1).
+  block(Tail, ItemDecodeFun, Index + 1, [Item | Acc], Count-1).
 
 %% @private
 -spec int(binary()) -> {integer(), binary()}.

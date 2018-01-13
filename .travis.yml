@@ -1,5 +1,11 @@
 language: erlang
 
+sudo: required
+
+before_install:
+  - git clone https://github.com/erlang/rebar3.git; cd rebar3; ./bootstrap; sudo cp rebar3 /usr/bin; cd ..
+  - git clone https://github.com/inaka/elvis.git; cd elvis; rebar3 escriptize; sudo cp _build/default/bin/elvis /usr/bin; cd ..
+
 notifications:
   email: false
 
@@ -10,9 +16,11 @@ otp_release:
   - 17.4
 
 script:
+  - make elvis-rock
   - make
-  - make test
-  - make docs
+  - make eunit
+  - make edoc
   - make xref
-  - if [ "$(erl -noshell -eval 'io:format(erlang:system_info(otp_release)), halt(0)')" -gt 18 ]; then make plt; make check; fi
+  - if [ "$(erl -noshell -eval 'io:format(erlang:system_info(otp_release)), halt(0)')" -gt 18 ]; then make dialyzer; fi
+  - make cover
 
