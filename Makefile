@@ -15,6 +15,9 @@ deps:
 docs:
 	$(REBAR) doc
 
+plt: compile
+	$(REBAR) build-plt
+
 check: compile
 	$(REBAR) check-plt
 	$(REBAR) dialyze
