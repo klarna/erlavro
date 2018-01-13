@@ -145,7 +145,18 @@ make_lkup_fun(AssignedName, Type) ->
 
 %% @doc Decode JSON format avro schema into `erlavro' internals
 %% Supported options:
-%%   * ignore_bad_default_values: boolean()
+%% * ignore_bad_default_values: `boolean()'
+%%     Some library may produce invalid default values,
+%%     if this option is set, bad default valus will be whatever values
+%%     obtained from JSON decoder.
+%%     However, the encoder built from this schema may crash in case bad default
+%%     value is used (e.g. when a record field is missing from encoder input)
+%% * allow_bad_references: `boolean()'
+%%     This option is to allow referencing to a non-existing type.
+%%     So types can be defined in multiple JSON schema files and all imported
+%%     to schema store to construct a valid over-all schema.
+%%  * allow_type_redefine: `boolean()'
+%%     This option is to allow one type being defined more than once.
 %% @end
 -spec decode_schema(binary(), proplists:proplist()) -> avro_type().
 decode_schema(JSON, Options) ->
@@ -158,10 +169,10 @@ encode_schema(Type) ->
 
 %% @doc Make a encoder function.
 %% Supported codec options:
-%% * {encoding, avro_binary | avro_json}, default = avro_binary
+%% * `{encoding, avro_binary | avro_json}', default = avro_binary
 %%   To get a encoder function for JSON or binary encoding
-%% * wrapped | {wrapped, true}, default = false
-%%   when 'wrapped' is not in the option list, or {wrapped, false} is given,
+%% * wrapped | `{wrapped, true}', default = false
+%%   when 'wrapped' is not in the option list, or `{wrapped, false}' is given,
 %%   return encoded iodata() without type info wrapped around.
 %% @end
 -spec make_encoder(schema_all(), codec_options()) ->
@@ -183,7 +194,7 @@ make_encoder(Schema, Options) ->
 
 %% @doc Make a decoder function.
 %% Supported codec options:
-%% * {encoding, avro_binary | avro_json}, default = avro_binary
+%% * `{encoding, avro_binary | avro_json}', default = avro_binary
 %%   To get a decoder function for JSON or binary encoded data
 %% * hook, default = ?DEFAULT_DECODER_HOOK
 %%   The default hook is a dummy one (does nothing).

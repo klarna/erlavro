@@ -327,6 +327,32 @@ decode_schema_test() ->
   _ = avro:decode_schema(<<"{\"type\":\"int\"}">>, []),
   ok.
 
+type_ref_validate_test() ->
+  Fixed = "{\"type\": \"fixed\", \"name\": \"MD5\", \"size\": 16}",
+  FixedRef = "\"MD5\"",
+  RecF = fun(Fixed1, Fixed2) ->
+             iolist_to_binary(
+               ["{\"type\": \"record\", \"name\":\"rec\","
+                 "\"fields\": ["
+                    "{\"name\": \"f1\", \"type\":", Fixed1, "},"
+                    "{\"name\": \"f2\", \"type\":", Fixed2, "}"
+                  "]}"])
+         end,
+  %% MD5 redefined
+  ?assertException(throw, {type_redefined, <<"MD5">>},
+                   avro:decode_schema(RecF(Fixed, Fixed))),
+  %% MD5 redefined, but allowed
+  _ = avro:decode_schema(RecF(Fixed, Fixed), [allow_type_redefine]),
+  %% First MD5 is forward-referencing to the second
+  %% according to spec, forward-referencing is not allowed
+  ?assertException(throw, {ref_to_unknown_type, <<"MD5">>},
+                   avro:decode_schema(RecF(FixedRef, Fixed))),
+  %% Bad reference allowed
+  _ = avro:decode_schema(RecF(FixedRef, Fixed), [allow_bad_references]),
+  %% perfect schema
+  _ = avro:decode_schema(RecF(Fixed, FixedRef), []),
+  ok.
+
 decode_wrapped_value_test() ->
   Type = avro_primitive:int_type(),
   Lkup = fun(<<"name">>) -> Type end,

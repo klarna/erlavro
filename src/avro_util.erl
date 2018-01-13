@@ -1,5 +1,4 @@
 %%%-----------------------------------------------------------------------------
-%%%
 %%% Copyright (c) 2013-2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
@@ -41,6 +40,7 @@
         , make_lkup_fun/2
         , parse_defaults/2
         , resolve_duplicated_refs/1
+        , validate/2
         , verify_names/1
         , verify_dotted_name/1
         , verify_aliases/1
@@ -59,7 +59,17 @@
 -type lkup() :: avro:lkup_fun().
 -define(SEEN, avro_get_nested_type_seen_full_names).
 
+-type validate_hist() :: [{avro:fullname(), ref | def}].
+-type validate_fun() :: fun((type_or_name(), validate_hist()) -> ok).
+
 %%%_* APIs =====================================================================
+
+%% @doc Validate type definitions according to given options.
+-spec validate(avro:avro_type(), avro:sc_opts()) -> ok | no_return().
+validate(Type, Opts) ->
+  AllowBadRefs = proplists:get_bool(allow_bad_references, Opts),
+  AllowTypeRedef = proplists:get_bool(allow_type_redefine, Opts),
+  validate(Type, AllowBadRefs, AllowTypeRedef).
 
 %% @doc Ensure type lookup fun.
 -spec ensure_lkup_fun(avro:schema_all()) -> lkup().
@@ -503,6 +513,80 @@ tokens_ex([C|Rest], Delimiter) ->
 %% @private Best-effort of arrary recognition.
 is_array([H | _]) -> not is_integer(H); %% a string
 is_array(_)       -> false.
+
+%% @private
+validate(T, AllowBadRefs, AllowTypeRedef) ->
+  Dummy = fun(_T, _Hist) -> ok end,
+  F1 = case AllowBadRefs of
+         true -> Dummy;
+         false -> fun validate_bad_ref/2
+       end,
+  F2 = case AllowTypeRedef of
+         true -> Dummy;
+         false -> fun validate_redef/2
+       end,
+  F = fun(Type, Hist) ->
+          ok = F1(Type, Hist),
+          ok = F2(Type, Hist),
+          case ?IS_NAME(Type) of
+            true  -> [{Type, ref} | Hist];
+            false -> [{Name, def} || Name <- names(Type)] ++ Hist
+          end
+      end,
+  ok = do_validate(T, F).
+
+-spec do_validate(avro_type(), validate_fun()) -> ok.
+do_validate(Type, ValidateFun) ->
+  _ = do_validate(Type, ValidateFun, _Hist = []),
+  ok.
+
+%% @private
+-spec do_validate(type_or_name(), validate_fun(), validate_hist()) ->
+        validate_hist().
+do_validate(Type, ValidateFun, Hist) ->
+  NewHist = ValidateFun(Type, Hist),
+  lists:foldl(
+    fun(ST, HistIn) ->
+        do_validate(ST, ValidateFun, HistIn)
+    end, NewHist, sub_types(Type)).
+
+%% @private
+-spec validate_bad_ref(avro:type_or_name(), validate_hist()) -> ok.
+validate_bad_ref(N, Hist) when ?IS_NAME(N) ->
+  case lists:any(fun({Name, _}) -> N =:= Name end, Hist) of
+    true -> ok;
+    false -> erlang:throw({ref_to_unknown_type, N})
+  end;
+validate_bad_ref(_T, _Hist) ->
+  ok.
+
+%% @private
+-spec validate_redef(avro:type_or_name(), validate_hist()) -> ok.
+validate_redef(T, Hist) ->
+  Names = names(T),
+  lists:foreach(
+    fun(Name) ->
+        case [N || {N, def} <- Hist, N =:= Name] of
+          [] -> ok;
+          _ -> erlang:throw({type_redefined, Name})
+               end
+    end, Names).
+
+%% @private
+-spec names(avro_type()) -> [avro:fullname()].
+names(#avro_enum_type{fullname = FN, aliases = Aliases}) -> [FN | Aliases];
+names(#avro_fixed_type{fullname = FN, aliases = Aliases}) -> [FN | Aliases];
+names(#avro_record_type{fullname = FN, aliases = Aliases}) -> [FN | Aliases];
+names(_) -> [].
+
+%% @private
+-spec sub_types(avro_type()) -> [avro_type()].
+sub_types(T) when ?IS_RECORD_TYPE(T) ->
+  [ST || {_N, ST} <- avro_record:get_all_field_types(T)];
+sub_types(T) when ?IS_UNION_TYPE(T) -> avro_union:get_types(T);
+sub_types(T) when ?IS_MAP_TYPE(T) -> [avro_map:get_items_type(T)];
+sub_types(T) when ?IS_ARRAY_TYPE(T) -> [avro_array:get_items_type(T)];
+sub_types(_) -> [].
 
 %%%_* Emacs ============================================================
 %%% Local Variables:
