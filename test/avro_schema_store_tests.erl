@@ -24,7 +24,8 @@
 get_all_types_test() ->
   TestFun =
     fun(Store) ->
-      Store1 = avro_schema_store:add_type("assigned.name", test_record(), Store),
+      Store1 =
+        avro_schema_store:add_type("assigned.name", test_record(), Store),
       ?assertEqual(
         [ avro_fixed:type("MyFixed", 16, [{namespace, "com.klarna.test.bix"}])
         , avro_enum:type("MyEnum", ["A"], [{namespace, "another.name"}])
