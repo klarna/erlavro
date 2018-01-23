@@ -99,6 +99,9 @@
              , union_type/0
              ]).
 
+-export([ crc64_fingerprint/1
+        ]).
+
 -include("avro_internal.hrl").
 
 -type in() :: null
@@ -469,6 +472,17 @@ cast(Type, Value) when ?IS_NAME_RAW(Type) -> do_cast(name2type(Type), Value).
 %% @doc Convert avro values to erlang term.
 -spec to_term(avro_value()) -> out().
 to_term(#avro_value{type = T} = V) -> to_term(T, V).
+
+
+%%%=============================================================================
+%%% API: Calculating Avro CRC 64 fingerprint
+%%%=============================================================================
+
+%% @doc Calculate hash using the Avro CRC 64 algorithm.
+%% @end
+-spec crc64_fingerprint(binary()) -> avro_fingerprint:crc64().
+crc64_fingerprint(Bin) ->
+    avro_fingerprint:crc64(Bin).
 
 %%%_* Internal functions =======================================================
 
