@@ -20,7 +20,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([crc64/1]). % silence warning about unused function
+% -export([crc64/1]). % silence warning about unused function
 
 % Run Java test cases from the Avro project:
 % https://github.com/apache/avro/blob/master/share/test/data/schema-tests.txt
@@ -28,48 +28,99 @@
 % comparing so we can use the same literal.
 
 bin(Value) ->
-    <<Value:8/unsigned-integer-unit:8>>.
+  <<Value:8/unsigned-integer-unit:8>>.
 
 crc64(Bin) ->
-    bin(avro_fingerprint:crc64(Bin)).
+  bin(avro_fingerprint:crc64(Bin)).
 
-java_test() ->
-    ?assertEqual(crc64(<<"\"null\"">>), bin(7195948357588979594)),        % 000
-    ?assertEqual(crc64(<<"\"boolean\"">>), bin(-6970731678124411036)),    % 002
-    ?assertEqual(crc64(<<"\"int\"">>), bin(8247732601305521295)),         % 004
-    ?assertEqual(crc64(<<"\"long\"">>), bin(-3434872931120570953)),       % 006
-    ?assertEqual(crc64(<<"\"double\"">>), bin(-8181574048448539266)),     % 010
-    ?assertEqual(crc64(<<"\"bytes\"">>), bin(5746618253357095269)),       % 012
-    ?assertEqual(crc64(<<"\"string\"">>), bin(-8142146995180207161)),     % 014
-    ?assertEqual(crc64(<<"[]">>), bin(-1241056759729112623)),             % 016
-    ?assertEqual(crc64(<<"[\"int\"]">>), bin(-5232228896498058493)),      % 017
-    ?assertEqual(crc64(<<"[\"int\",\"boolean\"]">>), bin(5392556393470105090)), % 018
-    ?assertEqual(crc64(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>),
-                 bin(-4824392279771201922)), % 019
-    ?assertEqual(crc64(<<"{\"name\":\"x.y.foo\",\"type\":\"record\",\"fields\":[]}">>),
-                 bin(5916914534497305771)), % 020
-    ?assertEqual(crc64(<<"{\"name\":\"a.b.foo\",\"type\":\"record\",\"fields\":[]}">>),
-                 bin(-4616218487480524110)), % 021
-    ?assertEqual(crc64(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>),
-                 bin(-4824392279771201922)), % 022
-    ?assertEqual(crc64(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[{\"name\":\"f1\",\"type\":\"boolean\"}]}">>),
-                 bin(7843277075252814651)), % 025
-    ?assertEqual(crc64(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[{\"name\":\"f1\",\"type\":\"boolean\"},{\"name\":\"f2\",\"type\":\"int\"}]}">>),
-                 bin(-4860222112080293046)), % 026
-    ?assertEqual(crc64(<<"{\"name\":\"foo\",\"type\":\"enum\",\"symbols\":[\"A1\"]}">>),
-                 bin(-6342190197741309591)), % 027
-    ?assertEqual(crc64(<<"{\"name\":\"x.y.z.foo\",\"type\":\"enum\",\"symbols\":[\"A1\",\"A2\"]}">>),
-                 bin(-4448647247586288245)), % 028
-    ?assertEqual(crc64(<<"{\"name\":\"foo\",\"type\":\"fixed\",\"size\":15}">>),
-                 bin(1756455273707447556)), % 029
-    ?assertEqual(crc64(<<"{\"name\":\"x.y.z.foo\",\"type\":\"fixed\",\"size\":32}">>),
-                 bin(-3064184465700546786)), % 030
-    ?assertEqual(crc64(<<"{\"type\":\"array\",\"items\":\"null\"}">>),
-                 bin(-589620603366471059)), % 031
-    ?assertEqual(crc64(<<"{\"type\":\"map\",\"values\":\"string\"}">>),
-                 bin(-8732877298790414990)), % 032
-    ?assertEqual(crc64(<<"{\"name\":\"PigValue\",\"type\":\"record\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"int\",\"long\",\"PigValue\"]}]}">>),
-                 bin(-1759257747318642341)). % 033
+java_000_test() ->
+  ?assertEqual(bin(7195948357588979594), crc64(<<"\"null\"">>)).
+
+java_002_test() ->
+  ?assertEqual(bin(-6970731678124411036), crc64(<<"\"boolean\"">>)).
+
+java_004_test() ->
+  ?assertEqual(bin(8247732601305521295), crc64(<<"\"int\"">>)).
+
+java_006_test() ->
+  ?assertEqual(bin(-3434872931120570953), crc64(<<"\"long\"">>)).
+
+java_010_test() ->
+  ?assertEqual(bin(-8181574048448539266), crc64(<<"\"double\"">>)).
+
+java_012_test() ->
+  ?assertEqual(bin(5746618253357095269), crc64(<<"\"bytes\"">>)).
+
+java_014_test() ->
+  ?assertEqual(bin(-8142146995180207161), crc64(<<"\"string\"">>)).
+
+java_016_test() ->
+  ?assertEqual(bin(-1241056759729112623), crc64(<<"[]">>)).
+
+java_017_test() ->
+  ?assertEqual(bin(-5232228896498058493), crc64(<<"[\"int\"]">>)).
+
+java_018_test() ->
+  ?assertEqual(bin(5392556393470105090), crc64(<<"[\"int\",\"boolean\"]">>)).
+
+java_019_test() ->
+  ?assertEqual(bin(-4824392279771201922),
+    crc64(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>)).
+
+java_020_test() ->
+  ?assertEqual(bin(5916914534497305771),
+    crc64(<<"{\"name\":\"x.y.foo\",\"type\":\"record\",\"fields\":[]}">>)).
+
+java_021_test() ->
+  ?assertEqual(bin(-4616218487480524110),
+    crc64(<<"{\"name\":\"a.b.foo\",\"type\":\"record\",\"fields\":[]}">>)).
+
+java_022_test() ->
+  ?assertEqual(bin(-4824392279771201922),
+    crc64(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>)).
+
+java_025_test() ->
+  ?assertEqual(bin(7843277075252814651),
+    crc64(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":["
+            "{\"name\":\"f1\",\"type\":\"boolean\"}]}">>)).
+
+java_026_test() ->
+  ?assertEqual(bin(-4860222112080293046),
+    crc64(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":["
+            "{\"name\":\"f1\",\"type\":\"boolean\"},"
+            "{\"name\":\"f2\",\"type\":\"int\"}]}">>)).
+
+java_027_test() ->
+  ?assertEqual(bin(-6342190197741309591),
+    crc64(<<"{\"name\":\"foo\",\"type\":\"enum\",\"symbols\":[\"A1\"]}">>)).
+
+java_028_test() ->
+  ?assertEqual(bin(-4448647247586288245),
+    crc64(<<"{\"name\":\"x.y.z.foo\",\"type\":\"enum\",\"symbols\":["
+            "\"A1\",\"A2\"]}">>)).
+
+java_029_test() ->
+  ?assertEqual(bin(1756455273707447556),
+    crc64(<<"{\"name\":\"foo\",\"type\":\"fixed\",\"size\":15}">>)).
+
+java_030_test() ->
+  ?assertEqual(bin(-3064184465700546786),
+    crc64(<<"{\"name\":\"x.y.z.foo\",\"type\":\"fixed\","
+            "\"size\":32}">>)).
+
+java_031_test() ->
+  ?assertEqual(bin(-589620603366471059),
+    crc64(<<"{\"type\":\"array\",\"items\":\"null\"}">>)).
+
+java_032_test() ->
+  ?assertEqual(bin(-8732877298790414990),
+    crc64(<<"{\"type\":\"map\",\"values\":\"string\"}">>)).
+
+java_033_test() ->
+  ?assertEqual(bin(-1759257747318642341),
+    crc64(<<"{\"name\":\"PigValue\",\"type\":\"record\",\"fields\":["
+            "{\"name\":\"value\",\"type\":["
+            "\"null\",\"int\",\"long\",\"PigValue\"]}]}">>)).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
