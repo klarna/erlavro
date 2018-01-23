@@ -48,6 +48,10 @@
 %%%    }
 %%%  }
 %%%  '''
+%%%
+%%% In the Avro Java SchemaNormalization code, they serialize the fingerprint
+%%% in little-endian format.
+%%%
 %%% @end
 %%%
 %%% @reference See <a href="https://avro.apache.org/docs/1.8.2/spec.html#
