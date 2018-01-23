@@ -25,50 +25,55 @@
 %%% The algorithm is defined with this Java code:
 %%%
 %%%  ```
-%%%   static long fingerprint64(byte[] buf) {
-%%%       if (FP_TABLE == null) initFPTable();
-%%%       long fp = EMPTY;
-%%%       for (int i = 0; i < buf.length; i++)
-%%%           fp = (fp >>> 8) ^ FP_TABLE[(int)(fp ^ buf[i]) & 0xff];
-%%%       return fp;
-%%%   }
+%%%  static long fingerprint64(byte[] buf) {
+%%%    if (FP_TABLE == null) initFPTable();
+%%%    long fp = EMPTY;
+%%%    for (int i = 0; i < buf.length; i++)
+%%%      fp = (fp >>> 8) ^ FP_TABLE[(int)(fp ^ buf[i]) & 0xff];
+%%%    return fp;
+%%%  }
 %%%
-%%%   static long EMPTY = 0xc15d213aa4d7a795L;
-%%%   static long[] FP_TABLE = null;
+%%%  static long EMPTY = 0xc15d213aa4d7a795L;
+%%%  static long[] FP_TABLE = null;
 %%%
-%%%   static void initFPTable() {
-%%%       FP_TABLE = new long[256];
-%%%       for (int i = 0; i < 256; i++) {
-%%%           long fp = i;
-%%%           for (int j = 0; j < 8; j++)
-%%%               fp = (fp >>> 1) ^ (EMPTY & -(fp & 1L));
-%%%           FP_TABLE[i] = fp;
-%%%           // Generate the lookup table used in this code
-%%%           System.out.format("fp_table(%d) -> 16#%s;%n", i, Long.toHexString(fp));
-%%%       }
-%%%   }
+%%%  static void initFPTable() {
+%%%    FP_TABLE = new long[256];
+%%%    for (int i = 0; i < 256; i++) {
+%%%      long fp = i;
+%%%      for (int j = 0; j < 8; j++)
+%%%        fp = (fp >>> 1) ^ (EMPTY & -(fp & 1L));
+%%%      FP_TABLE[i] = fp;
+%%%      // Generate the lookup table used in this code
+%%%      System.out.format("fp_table(%d) -> 16#%s;%n", i, Long.toHexString(fp));
+%%%    }
+%%%  }
 %%%  '''
 %%% @end
 %%%
-%%% @reference See <a href="https://avro.apache.org/docs/1.8.2/spec.html#schema_fingerprints">The
-%%% Avro Spec</a> for more information.
-%%% @reference See <a href="https://avro.apache.org/docs/1.8.2/api/java/org/apache/avro/SchemaNormalization.html">The source</a>
+%%% @reference See <a href="https://avro.apache.org/docs/1.8.2/spec.html#
+%%% schema_fingerprints">The Avro Spec</a> for more information.
+%%% @reference See <a
+%%% href="https://avro.apache.org/docs/1.8.2/api/java/org/apache/avro/
+%%% SchemaNormalization.html">The source</a>
 %%%-----------------------------------------------------------------------------
 -module(avro_fingerprint).
 
 %% API
 -export([crc64/1]).
 
--spec crc64(binary()) -> binary().
+-type crc64() :: non_neg_integer().
+-export_type([crc64/0]).
+
+-spec crc64(binary()) -> non_neg_integer().
 crc64(Data) ->
-    crc64(Data, 16#c15d213aa4d7a795).
+  crc64(Data, 16#c15d213aa4d7a795).
 
 -spec crc64(binary(), non_neg_integer()) -> non_neg_integer().
-crc64(<<Byte,Rest/binary>>, Fp) ->
-    Fp1 = (Fp bsr 8) bxor fp_table((Fp bxor Byte) band 16#ff),
-    crc64(Rest, Fp1);
+crc64(<<Byte, Rest/binary>>, Fp) ->
+  Fp1 = (Fp bsr 8) bxor fp_table((Fp bxor Byte) band 16#ff),
+  crc64(Rest, Fp1);
 crc64(<<>>, Fp) ->
-    Fp.
+  Fp.
 
 -spec fp_table(non_neg_integer()) -> non_neg_integer().
 fp_table(0) -> 16#0;
