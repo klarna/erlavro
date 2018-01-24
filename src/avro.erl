@@ -26,6 +26,7 @@
 -export([ decode_schema/1
         , decode_schema/2
         , encode_schema/1
+        , encode_schema/2
         , expand_type/2
         , expand_type_bloated/2
         , flatten_type/1
@@ -177,6 +178,10 @@ decode_schema(JSON, Options) ->
 -spec encode_schema(avro_type()) -> binary().
 encode_schema(Type) ->
   avro_json_encoder:encode_schema(Type).
+
+-spec encode_schema(avro_type(), map()) -> binary().
+encode_schema(Type, Options) ->
+  avro_json_encoder:encode_schema(Type, Options).
 
 %% @doc Make a encoder function.
 %% Supported codec options:
