@@ -20,8 +20,6 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-% -export([crc64/1]). % silence warning about unused function
-
 % Run Java test cases from the Avro project:
 % https://github.com/apache/avro/blob/master/share/test/data/schema-tests.txt
 % The Java tests use literal signed integers, so we convert to binary when
@@ -31,7 +29,7 @@ bin(Value) ->
   <<Value:8/unsigned-integer-unit:8>>.
 
 crc64(Bin) ->
-  bin(avro_fingerprint:crc64(Bin)).
+  bin(avro:crc64_fingerprint(Bin)).
 
 java_000_test() ->
   ?assertEqual(bin(7195948357588979594), crc64(<<"\"null\"">>)).

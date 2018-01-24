@@ -58,6 +58,9 @@
         , encode_wrapped/4
         ]).
 
+-export([ crc64_fingerprint/1
+        ]).
+
 -export_type([ array_type/0
              , avro_type/0
              , avro_value/0
@@ -98,9 +101,6 @@
              , union_index/0
              , union_type/0
              ]).
-
--export([ crc64_fingerprint/1
-        ]).
 
 -include("avro_internal.hrl").
 

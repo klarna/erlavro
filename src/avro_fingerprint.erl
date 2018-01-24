@@ -64,11 +64,11 @@
 
 %% API
 -export([crc64/1]).
-
--type crc64() :: non_neg_integer().
 -export_type([crc64/0]).
 
--spec crc64(binary()) -> non_neg_integer().
+-type crc64() :: non_neg_integer().
+
+-spec crc64(binary()) -> crc64().
 crc64(Data) ->
   crc64(Data, 16#c15d213aa4d7a795).
 
