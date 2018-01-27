@@ -5,3 +5,5 @@
    - Type reference validation options for avro:decode_schema/2
    - Changed default build from rebar to rebar3
 
+* 2.5.0
+   - Add an Erlang implementation of the Avro CRC 64 fingerprint algorithm, avro:crc64_fingerprint/1.
