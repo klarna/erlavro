@@ -80,7 +80,7 @@ decode_schema(JSON, Opts) when is_list(Opts) ->
   ok = avro_util:validate(Type, Opts),
   %% Validate default after parsing because the record fields
   %% having default value can have a type name as type reference
-  Lkup = avro:make_lkup_fun("__erlavro_assigned", Type),
+  Lkup = avro:make_lkup_fun(?ASSIGNED_NAME, Type),
   ParseF = fun(T, V) -> parse(V, T, Lkup, false, ?DEFAULT_DECODER_HOOK) end,
   SafeParseF =
     fun(T, V) ->

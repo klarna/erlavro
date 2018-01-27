@@ -25,6 +25,7 @@
                    , is_valid_name/1
                    , is_valid_dotted_name/1
                    ]).
+
 -include_lib("eunit/include/eunit.hrl").
 
 flatten_primitive_type_test() ->
@@ -77,7 +78,12 @@ get_opt_test() ->
   ?assertException(error, {not_found, "key"},
                    avro_util:get_opt("key", [{key, value}])).
 
-%% @private
+ensure_lkup_fun_test() ->
+  _ = avro_util:ensure_lkup_fun(<<"{\"type\": \"int\"}">>),
+  Type = avro:name2type("int"),
+  ?assert(is_function(avro_util:ensure_lkup_fun(Type), 1)),
+  ok.
+
 get_test_type(Name, Namespace) ->
   avro_fixed:type(Name, 16, [{namespace, Namespace}]).
 

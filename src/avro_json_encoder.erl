@@ -46,7 +46,7 @@
 -spec encode_schema(avro_type()) -> iodata().
 encode_schema(Type0) ->
   Type1 = avro_util:resolve_duplicated_refs(Type0),
-  Lkup = avro:make_lkup_fun("__erlavro_assigned", Type1),
+  Lkup = avro:make_lkup_fun(?ASSIGNED_NAME, Type1),
   Type = avro_util:encode_defaults(Type1, Lkup),
   encode_json(do_encode_type(Type, _Namespace = ?NS_GLOBAL)).
 

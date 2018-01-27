@@ -112,11 +112,11 @@ readme_load_schmea_test() ->
   SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
   {ok, SchemaJSON} = file:read_file(SchemaFilename),
   OcfFilename = filename:join(priv_dir(), "interop.ocf"),
-  Encoder = avro:make_encoder(SchemaJSON, []),
-  Decoder = avro:make_decoder(SchemaJSON, []),
+  Encoder = avro:make_simple_encoder(SchemaJSON, []),
+  Decoder = avro:make_simple_decoder(SchemaJSON, []),
   Term = hd(element(3, avro_ocf:decode_file(OcfFilename))),
-  Encoded = iolist_to_binary(Encoder("org.apache.avro.Interop", Term)),
-  Term = Decoder("org.apache.avro.Interop", Encoded),
+  Encoded = iolist_to_binary(Encoder(Term)),
+  Term = Decoder(Encoded),
   ok.
 
 readme_binary_encode_decode_test() ->
@@ -126,12 +126,11 @@ readme_binary_encode_decode_test() ->
       [avro_record:define_field(f1, int),
        avro_record:define_field(f2, string)],
       [{namespace, 'com.example'}]),
-  Encoder = avro:make_encoder(MyRecordType, []),
-  Decoder = avro:make_decoder(MyRecordType, []),
+  Encoder = avro:make_simple_encoder(MyRecordType, []),
+  Decoder = avro:make_simple_decoder(MyRecordType, []),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
-  Bin = Encoder("com.example.MyRecord", Term),
-  [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
-    Decoder("com.example.MyRecord", Bin),
+  Bin = Encoder(Term),
+  [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] = Decoder(Bin),
   ok.
 
 readme_json_encode_decode_test() ->
@@ -141,11 +140,11 @@ readme_json_encode_decode_test() ->
       [avro_record:define_field("f1", int),
        avro_record:define_field("f2", string)],
       [{namespace, "com.example"}]),
-  Encoder = avro:make_encoder(MyRecordType, [{encoding, avro_json}]),
-  Decoder = avro:make_decoder(MyRecordType, [{encoding, avro_json}]),
+  Encoder = avro:make_simple_encoder(MyRecordType, [{encoding, avro_json}]),
+  Decoder = avro:make_simple_decoder(MyRecordType, [{encoding, avro_json}]),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
-  JSON = Encoder("com.example.MyRecord", Term),
-  Term = Decoder("com.example.MyRecord", JSON),
+  JSON = Encoder(Term),
+  Term = Decoder(JSON),
   ok.
 
 readme_encode_wrapped_test_() ->

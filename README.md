@@ -70,10 +70,10 @@ See `priv/interop.avsc` for avro schema definition.
  {"recordField",
   [{"label","blah"},
    {"children",[[{"label","inner"},{"children",[]}]]}]}]
-3> Encoder = avro:make_encoder(SchemaJSON, []).
-4> Decoder = avro:make_decoder(SchemaJSON, []).
-5> Encoded = iolist_to_binary(Encoder("org.apache.avro.Interop", Term)).
-6> Term =:= Decoder("org.apache.avro.Interop", Encoded).
+3> Encoder = avro:make_simple_encoder(SchemaJSON, []).
+4> Decoder = avro:make_simple_decoder(SchemaJSON, []).
+5> Encoded = iolist_to_binary(Encoder(Term)).
+6> Term =:= Decoder(Encoded).
 true
 ```
 
@@ -88,12 +88,11 @@ true
       [avro_record:define_field(f1, int),
        avro_record:define_field(f2, string)],
       [{namespace, 'com.example'}]),
-  Encoder = avro:make_encoder(MyRecordType, []),
-  Decoder = avro:make_decoder(MyRecordType, []),
+  Encoder = avro:make_simple_encoder(MyRecordType, []),
+  Decoder = avro:make_simple_decoder(MyRecordType, []),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
-  Bin = Encoder("com.example.MyRecord", Term),
-  [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] =
-    Decoder("com.example.MyRecord", Bin),
+  Bin = Encoder(Term),
+  [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}] = Decoder(Bin),
   ok.
 ```
 
@@ -106,11 +105,11 @@ true
       [avro_record:define_field("f1", int),
        avro_record:define_field("f2", string)],
       [{namespace, "com.example"}]),
-  Encoder = avro:make_encoder(MyRecordType, [{encoding, avro_json}]),
-  Decoder = avro:make_decoder(MyRecordType, [{encoding, avro_json}]),
+  Encoder = avro:make_simple_encoder(MyRecordType, [{encoding, avro_json}]),
+  Decoder = avro:make_simple_decoder(MyRecordType, [{encoding, avro_json}]),
   Term = [{<<"f1">>, 1}, {<<"f2">>, <<"my string">>}],
-  JSON = Encoder("com.example.MyRecord", Term),
-  Term = Decoder("com.example.MyRecord", JSON),
+  JSON = Encoder(Term),
+  Term = Decoder(JSON),
   io:put_chars(user, JSON),
   ok.
 ```
