@@ -39,6 +39,8 @@
         , is_same_type/2
         , make_decoder/2
         , make_encoder/2
+        , make_simple_decoder/2
+        , make_simple_encoder/2
         , make_lkup_fun/1
         , make_lkup_fun/2
         , resolve_fullname/2
@@ -66,6 +68,7 @@
              , avro_value/0
              , canonicalized_value/0
              , codec_options/0
+             , crc64_fingerprint/0
              , custom_prop/0
              , custom_prop_name/0
              , custom_prop_value/0
@@ -90,6 +93,8 @@
              , primitive_type/0
              , record_field/0
              , record_type/0
+             , simple_decoder/0
+             , simple_encoder/0
              , schema_all/0
              , schema_opts/0
              , schema_store/0
@@ -121,11 +126,14 @@
              | [{name(), avro:out()}].
 
 -type codec_options() :: [proplists:property()].
--type encode_fun() :: fun((type_or_name(), term()) -> iodata() | avro_value()).
--type decode_fun() :: fun((type_or_name(), binary()) -> term()).
+-type encode_fun() :: fun((type_or_name(), in()) -> iodata() | avro_value()).
+-type simple_encoder() :: fun((in()) -> iodata()).
+-type decode_fun() :: fun((type_or_name(), binary()) -> out()).
+-type simple_decoder() :: fun((binary()) -> out()).
 -type encoding() :: avro_encoding().
 -type schema_opts() :: proplists:proplist().
 -type schema_all() :: avro_type() | binary() | lkup_fun() | schema_store().
+-type crc64_fingerprint() :: avro_fingerprint:crc64().
 
 %% @doc Decode JSON format avro schema into `erlavro' internals.
 -spec decode_schema(binary()) -> avro_type().
@@ -137,7 +145,7 @@ decode_schema(JSON) -> avro_json_decoder:decode_schema(JSON).
 %% @end
 -spec make_lkup_fun(avro_type()) -> lkup_fun().
 make_lkup_fun(Type) ->
-  make_lkup_fun("_erlavro_assigned", Type).
+  make_lkup_fun(?ASSIGNED_NAME, Type).
 
 %% @doc Make type lookup function. The root type is also
 %% keyed by the give assigned-name.
@@ -177,7 +185,8 @@ encode_schema(Type) ->
 %% * wrapped | `{wrapped, true}', default = false
 %%   when 'wrapped' is not in the option list, or `{wrapped, false}' is given,
 %%   return encoded iodata() without type info wrapped around.
-%% @end
+%%   A wrapped result can be used as 'already encoded' part to inline a
+%%   wrapper object.
 -spec make_encoder(schema_all(), codec_options()) ->
         encode_fun().
 make_encoder(Schema, Options) ->
@@ -195,6 +204,22 @@ make_encoder(Schema, Options) ->
       end
   end.
 
+%% @doc Make a encoder function.
+%% Supported codec options:
+%% * `{encoding, avro_binary | avro_json}', default = avro_binary
+%%   To get a encoder function for JSON or binary encoding
+%% A simple container can only be built from self-contained full schema.
+%% And unlike a regular encoder (from `make_encoder/2'), a simple encoder
+%% takes only one `avro:in()' input arg, and does not support `wrapped' option.
+-spec make_simple_encoder(binary() | avro_type(), codec_options()) ->
+        simple_encoder().
+make_simple_encoder(JSON, Options) when is_binary(JSON) ->
+  make_simple_encoder(decode_schema(JSON), Options);
+make_simple_encoder(Type, Options) when ?IS_TYPE_RECORD(Type) ->
+  Lkup = make_lkup_fun(Type),
+  Encoding = proplists:get_value(encoding, Options, avro_binary),
+  fun(Value) -> ?MODULE:encode(Lkup, Type, Value, Encoding) end.
+
 %% @doc Make a decoder function.
 %% Supported codec options:
 %% * `{encoding, avro_binary | avro_json}', default = avro_binary
@@ -202,7 +227,6 @@ make_encoder(Schema, Options) ->
 %% * hook, default = ?DEFAULT_DECODER_HOOK
 %%   The default hook is a dummy one (does nothing).
 %%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
-%% @end
 -spec make_decoder(schema_all(), codec_options()) -> decode_fun().
 make_decoder(Schema, Options) ->
   Lkup = avro_util:ensure_lkup_fun(Schema),
@@ -211,6 +235,26 @@ make_decoder(Schema, Options) ->
   fun(TypeOrName, Bin) ->
     ?MODULE:decode(Encoding, Bin, TypeOrName, Lkup, Hook)
   end.
+
+%% @doc Make a decoder function.
+%% Supported codec options:
+%% * `{encoding, avro_binary | avro_json}', default = avro_binary
+%%   To get a decoder function for JSON or binary encoded data
+%% * hook, default = ?DEFAULT_DECODER_HOOK
+%%   The default hook is a dummy one (does nothing).
+%%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
+%% A simple decoder can only be built from self-contained full schema.
+%% And unlike a regular decoder (from `make_decoder/2'), a simple decoder
+%% takes only one `binary()' input arg.
+-spec make_simple_decoder(avro_type() | binary(), codec_options()) ->
+        simple_decoder().
+make_simple_decoder(JSON, Options) when is_binary(JSON) ->
+  make_simple_decoder(decode_schema(JSON), Options);
+make_simple_decoder(Type, Options) when ?IS_TYPE_RECORD(Type) ->
+  Lkup = make_lkup_fun(Type),
+  Encoding = proplists:get_value(encoding, Options, avro_binary),
+  Hook = proplists:get_value(hook, Options, ?DEFAULT_DECODER_HOOK),
+  fun(Bin) -> ?MODULE:decode(Encoding, Bin, Type, Lkup, Hook) end.
 
 %% @doc Encode value to json or binary format.
 -spec encode(schema_store() | lkup_fun(), type_or_name(),

@@ -80,7 +80,7 @@ ensure_lkup_fun(Lkup) when is_function(Lkup, 1) ->
 ensure_lkup_fun(Sc) ->
   case avro_schema_store:is_store(Sc) of
     true -> avro_schema_store:to_lookup_fun(Sc);
-    false -> make_lkup_fun("_erlavro_assigned", Sc)
+    false -> make_lkup_fun(?ASSIGNED_NAME, Sc)
   end.
 
 %% @doc Make a schema store (dict based) and wrap it in a lookup fun.
