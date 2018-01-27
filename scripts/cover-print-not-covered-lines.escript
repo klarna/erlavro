@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -pa ebin -pa ../ebin
+%%! -pa _build/default/lib/erlavro/ebin
 
 %%%
 %%%   Copyright (c) 2015-2017, Klarna AB

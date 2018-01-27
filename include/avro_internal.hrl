@@ -68,6 +68,8 @@
 -type custom_prop_value() :: number() | binary() | [binary()].
 -type custom_prop() :: {custom_prop_name(), custom_prop_value()}.
 
+-define(ASSIGNED_NAME, <<"_erlavro_assigned">>).
+
 -define(NAME(X), avro_util:canonicalize_name(X)).
 -define(DOC(X), unicode:characters_to_binary(X, utf8)).
 
