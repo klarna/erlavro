@@ -119,6 +119,21 @@ readme_load_schmea_test() ->
   Term = Decoder(Encoded),
   ok.
 
+simple_encoder_decoder_load_schema_equality_test() ->
+  SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
+  {ok, SchemaJSON} = file:read_file(SchemaFilename),
+  OcfFilename = filename:join(priv_dir(), "interop.ocf"),
+  Encoder = avro:make_encoder(SchemaJSON, []),
+  Decoder = avro:make_decoder(SchemaJSON, []),
+  SimpleEncoder = avro:make_simple_encoder(SchemaJSON, []),
+  SimpleDecoder = avro:make_simple_decoder(SchemaJSON, []),
+  Term = hd(element(3, avro_ocf:decode_file(OcfFilename))),
+  Encoded = iolist_to_binary(Encoder("org.apache.avro.Interop", Term)),
+  Encoded = iolist_to_binary(SimpleEncoder(Term)),
+  Term = Decoder("org.apache.avro.Interop", Encoded),
+  Term = SimpleDecoder( Encoded),
+  ok.
+
 readme_binary_encode_decode_test() ->
   MyRecordType =
     avro_record:type(
