@@ -69,13 +69,12 @@ type(Name, Fields) ->
 %% @doc Declare a record type with pre-defined record fields.
 -spec type(name_raw(), [record_field()], record_opts()) -> record_type().
 type(Name0, Fields0, Opts) ->
-  {Name, Ns0} = avro:split_type_name(Name0, ?NS_GLOBAL),
-  Ns          = ?NAME(avro_util:get_opt(namespace, Opts, Ns0)),
-  true        = (Ns0 =:= ?NS_GLOBAL orelse Ns0 =:= Ns), %% assert
-  Doc         = avro_util:get_opt(doc, Opts, ?NO_DOC),
-  Aliases     = avro_util:get_opt(aliases, Opts, []),
-  Fields      = resolve_field_type_fullnames(Fields0, Ns),
-  ok          = avro_util:verify_aliases(Aliases),
+  Ns0        = ?NAME(avro_util:get_opt(namespace, Opts, ?NS_GLOBAL)),
+  {Name, Ns} = avro:split_type_name(Name0, Ns0),
+  Doc        = avro_util:get_opt(doc, Opts, ?NO_DOC),
+  Aliases    = avro_util:get_opt(aliases, Opts, []),
+  Fields     = resolve_field_type_fullnames(Fields0, Ns),
+  ok         = avro_util:verify_aliases(Aliases),
   Type = #avro_record_type
          { name      = Name
          , namespace = Ns
