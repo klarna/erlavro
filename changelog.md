@@ -10,3 +10,4 @@
    - Add `avro:make_simple_decoder/2` and `avro:make_simple_encoder/2` to simplify most common use cases.
      `avro:make_decoder/2` and `avro:make_encoder/2` are not deprecated and can still be used when
      there is a need to use the same decoer/encoder for multiple schema.
+   - Remove fullname-derived-namespace = namespace-in-type-attributes assertition (#60)

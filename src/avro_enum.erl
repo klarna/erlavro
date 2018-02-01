@@ -59,15 +59,14 @@ type(Name, Symbols) ->
 -spec type(name_raw(), [symbol_raw()], avro:type_props()) ->
         enum_type() | no_return().
 type(Name0, Symbols0, Opts) ->
-  {Name, Ns0} = avro:split_type_name(Name0, ?NS_GLOBAL),
-  Ns          = ?NAME(avro_util:get_opt(namespace, Opts, Ns0)),
-  true        = (Ns0 =:= ?NS_GLOBAL orelse Ns0 =:= Ns), %% assert
-  Symbols     = lists:map(fun(S) -> ?SYMBOL(S) end, Symbols0),
-  ok          = check_symbols(Symbols),
-  Doc         = avro_util:get_opt(doc, Opts, ?NO_DOC),
-  Aliases0    = avro_util:get_opt(aliases, Opts, []),
-  ok          = avro_util:verify_aliases(Aliases0),
-  Aliases     = avro_util:canonicalize_aliases(Aliases0, Ns),
+  Ns0        = avro_util:get_opt(namespace, Opts, ?NS_GLOBAL),
+  {Name, Ns} = avro:split_type_name(Name0, Ns0),
+  Symbols    = lists:map(fun(S) -> ?SYMBOL(S) end, Symbols0),
+  ok         = check_symbols(Symbols),
+  Doc        = avro_util:get_opt(doc, Opts, ?NO_DOC),
+  Aliases0   = avro_util:get_opt(aliases, Opts, []),
+  ok         = avro_util:verify_aliases(Aliases0),
+  Aliases    = avro_util:canonicalize_aliases(Aliases0, Ns),
   Type = #avro_enum_type
          { name      = Name
          , namespace = Ns

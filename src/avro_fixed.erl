@@ -46,11 +46,10 @@ type(Name, Size) ->
 %% @doc Declare a fixed type.
 -spec type(name_raw(), pos_integer(), type_props()) -> fixed_type().
 type(Name0, Size, Opts) ->
-  {Name, Ns0} = avro:split_type_name(Name0, ?NS_GLOBAL),
-  Ns          = ?NAME(avro_util:get_opt(namespace, Opts, Ns0)),
-  true        = (Ns0 =:= ?NS_GLOBAL orelse Ns0 =:= Ns), %% assert
-  Aliases     = avro_util:get_opt(aliases, Opts, []),
-  ok          = avro_util:verify_aliases(Aliases),
+  Ns0        = avro_util:get_opt(namespace, Opts, ?NS_GLOBAL),
+  {Name, Ns} = avro:split_type_name(Name0, Ns0),
+  Aliases    = avro_util:get_opt(aliases, Opts, []),
+  ok         = avro_util:verify_aliases(Aliases),
   ?ERROR_IF(not is_integer(Size) orelse Size < 1, {invalid_size, Size}),
   Type = #avro_fixed_type
          { name      = Name
