@@ -11,3 +11,4 @@
      `avro:make_decoder/2` and `avro:make_encoder/2` are not deprecated and can still be used when
      there is a need to use the same decoer/encoder for multiple schema.
    - Remove fullname-derived-namespace = namespace-in-type-attributes assertition (#60)
+   - Add avro_ocf:make_ocf/2 to allow building ocf content in memory
