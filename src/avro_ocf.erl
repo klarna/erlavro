@@ -104,20 +104,14 @@ write_file(Filename, Lkup, Schema, Objects, Meta) ->
 %% @doc Writer header bytes to a ocf file.
 -spec write_header(file:io_device(), header()) -> ok.
 write_header(Fd, Header) ->
-  HeaderFields =
-    [ {"magic", Header#header.magic}
-    , {"meta", Header#header.meta}
-    , {"sync", Header#header.sync}
-    ],
-  HeaderRecord = avro_record:new(ocf_schema(), HeaderFields),
-  HeaderBytes = avro_binary_encoder:encode_value(HeaderRecord),
+  HeaderBytes = encode_header(Header),
   ok = file:write(Fd, HeaderBytes).
 
 %% @doc Append encoded objects to the file as one data block.
 -spec append_file(file:io_device(), header(), [binary()]) -> ok.
 append_file(Fd, Header, Objects) ->
-  OcfIoData = make_ocf(Header, Objects),
-  ok = file:write(Fd, OcfIoData).
+  IoData = make_block(Header, Objects),
+  ok = file:write(Fd, IoData).
 
 %% @doc Encode the given objects and append to the file as one data block.
 -spec append_file(file:io_device(), header(), lkup(),
@@ -156,6 +150,24 @@ make_header(Type, Meta0) ->
 
 -spec make_ocf(header(), [binary()]) -> iodata().
 make_ocf(Header, Objects) ->
+  HeaderBytes = encode_header(Header),
+  DataBytes = make_block(Header, Objects),
+  [HeaderBytes, DataBytes].
+
+%%%_* Internal functions =======================================================
+
+-spec encode_header(header()) -> iodata().
+encode_header(Header) ->
+  HeaderFields =
+    [ {"magic", Header#header.magic}
+    , {"meta", Header#header.meta}
+    , {"sync", Header#header.sync}
+    ],
+  HeaderRecord = avro_record:new(ocf_schema(), HeaderFields),
+  avro_binary_encoder:encode_value(HeaderRecord).
+
+-spec make_block(header(), [binary()]) -> iodata().
+make_block(Header, Objects) ->
   Count = length(Objects),
   Data = encode_block(Header#header.meta, Objects),
   Size = size(Data),
@@ -164,8 +176,6 @@ make_ocf(Header, Objects) ->
   , Data
   , Header#header.sync
   ].
-
-%%%_* Internal functions =======================================================
 
 %% @private Raise an exception if meta has a bad format.
 %% Otherwise return the formatted metadata entries
