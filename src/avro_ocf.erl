@@ -29,6 +29,7 @@
         , decode_file/1
         , make_header/1
         , make_header/2
+        , make_ocf/2
         , write_header/2
         , write_file/4
         , write_file/5
@@ -115,16 +116,8 @@ write_header(Fd, Header) ->
 %% @doc Append encoded objects to the file as one data block.
 -spec append_file(file:io_device(), header(), [binary()]) -> ok.
 append_file(Fd, Header, Objects) ->
-  Count = length(Objects),
-  Data = encode_block(Header#header.meta, Objects),
-  Size = size(Data),
-  ToWrite =
-    [ avro_binary_encoder:encode_value(avro_primitive:long(Count))
-    , avro_binary_encoder:encode_value(avro_primitive:long(Size))
-    , Data
-    , Header#header.sync
-    ],
-  ok = file:write(Fd, ToWrite).
+  OcfIoData = make_ocf(Header, Objects),
+  ok = file:write(Fd, OcfIoData).
 
 %% @doc Encode the given objects and append to the file as one data block.
 -spec append_file(file:io_device(), header(), lkup(),
@@ -160,6 +153,17 @@ make_header(Type, Meta0) ->
          , meta  = [{<<"avro.schema">>, iolist_to_binary(TypeJson)} | Meta]
          , sync  = generate_sync_bytes()
          }.
+
+-spec make_ocf(header(), [binary()]) -> iodata().
+make_ocf(Header, Objects) ->
+  Count = length(Objects),
+  Data = encode_block(Header#header.meta, Objects),
+  Size = size(Data),
+  [ avro_binary_encoder:encode_value(avro_primitive:long(Count))
+  , avro_binary_encoder:encode_value(avro_primitive:long(Size))
+  , Data
+  , Header#header.sync
+  ].
 
 %%%_* Internal functions =======================================================
 
