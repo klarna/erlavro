@@ -143,18 +143,9 @@ optional_field(Key, Value, _Default, MappingFun, _Opt) ->
 % type, name, fields, symbols, items, values, size
 
 %% @private
-do_encode_type(Name, EnclosingNamespace, #{canon := true} = Opt)
+do_encode_type(Name, _EnclosingNamespace, #{canon := true})
   when ?IS_NAME(Name) ->
-
-  {ShortName, Namespace} = case split_fullname(Name) of
-                            {_, _} = N ->
-                               %% Fullname
-                               N;
-                            false ->
-                               %% Name without without namespace
-                               {Name, EnclosingNamespace}
-                          end,
-  encode_name(ShortName, Namespace, Opt);
+  encode_string(Name);
 do_encode_type(Name, EnclosingNamespace, _Opt) when ?IS_NAME(Name) ->
   MaybeShortName =
     case avro:split_type_name(Name, EnclosingNamespace) of
@@ -170,6 +161,7 @@ do_encode_type(#avro_primitive_type{name = Name, custom = Custom}, _Ns, _Opt) ->
   ];
 do_encode_type(#avro_record_type{} = T, EnclosingNamespace, Opt) ->
   #avro_record_type{ name      = Name
+                   , fullname  = Fullname
                    , namespace = Namespace
                    , doc       = Doc
                    , aliases   = Aliases
@@ -180,7 +172,7 @@ do_encode_type(#avro_record_type{} = T, EnclosingNamespace, Opt) ->
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
                      ?NS_GLOBAL, fun encode_string/1, Opt)
-    , {name, encode_name(Name, canon_ns(Namespace, EnclosingNamespace), Opt)}
+    , {name, encode_name(Name, Fullname, Opt)}
     , {type, encode_string(?AVRO_RECORD)}
     , optional_field(doc,       Doc,  ?NO_DOC, fun encode_string/1, Opt)
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1, Opt)
@@ -192,6 +184,7 @@ do_encode_type(#avro_record_type{} = T, EnclosingNamespace, Opt) ->
   lists:flatten(SchemaObjectFields);
 do_encode_type(#avro_enum_type{} = T, EnclosingNamespace, Opt) ->
   #avro_enum_type{ name      = Name
+                 , fullname  = Fullname
                  , namespace = Namespace
                  , aliases   = Aliases
                  , doc       = Doc
@@ -201,7 +194,7 @@ do_encode_type(#avro_enum_type{} = T, EnclosingNamespace, Opt) ->
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
                      ?NS_GLOBAL, fun encode_string/1, Opt)
-    , {name, encode_name(Name, canon_ns(Namespace, EnclosingNamespace), Opt)}
+    , {name, encode_name(Name, Fullname, Opt)}
     , {type, encode_string(?AVRO_ENUM)}
     , optional_field(doc,       Doc,  ?NO_DOC, fun encode_string/1, Opt)
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1, Opt)
@@ -229,6 +222,7 @@ do_encode_type(#avro_union_type{} = T, EnclosingNamespace, Opt) ->
   lists:map(F, Members);
 do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace, Opt) ->
   #avro_fixed_type{ name      = Name
+                  , fullname  = Fullname
                   , namespace = Namespace
                   , aliases   = Aliases
                   , size      = Size
@@ -237,7 +231,7 @@ do_encode_type(#avro_fixed_type{} = T, EnclosingNamespace, Opt) ->
   SchemaObjectFields =
     [ optional_field(namespace, ns(Namespace, EnclosingNamespace),
                      ?NS_GLOBAL, fun encode_string/1, Opt)
-    , {name, encode_name(Name, canon_ns(Namespace, EnclosingNamespace), Opt)}
+    , {name, encode_name(Name, Fullname, Opt)}
     , {type, encode_string(?AVRO_FIXED)}
     , {size, encode_integer(Size)}
     , optional_field(aliases,   Aliases,   [], fun encode_aliases/1, Opt)
@@ -253,7 +247,7 @@ encode_field(Field, EnclosingNamespace, Opt) ->
                     , default = Default
                     , order   = Order
                     , aliases = Aliases} = Field,
-  [ {name, encode_name(Name, EnclosingNamespace, Opt)}
+  [ {name, encode_string(Name)}
   , {type, do_encode_type(Type, EnclosingNamespace, Opt)}
   ]
   ++ optional_field(default, Default, ?NO_VALUE, fun(X) -> ?INLINE(X) end, Opt)
@@ -268,24 +262,14 @@ encode_field(Field, EnclosingNamespace, Opt) ->
 ns(Namespace, Namespace)           -> ?NS_GLOBAL;
 ns(Namespace, _EnclosingNamespace) -> Namespace.
 
-%% @private Get namespace to encode for Canonical Parsing Form.
-%% @end
--spec canon_ns(namespace(), namespace()) -> namespace().
-canon_ns(Namespace, Namespace) -> Namespace;
-canon_ns(Namespace, ?NS_GLOBAL) -> Namespace;
-canon_ns(?NS_GLOBAL, Namespace) -> Namespace;
-canon_ns(Namespace, _EnclosingNamespace) -> Namespace.
-
 %% @private
 encode_string(String) ->
   erlang:iolist_to_binary(String).
 
 %% @private
-encode_name(Name, ?NS_GLOBAL, #{canon := true}) ->
-  erlang:iolist_to_binary(Name);
-encode_name(Name, Namespace, #{canon := true}) ->
-  erlang:iolist_to_binary([Namespace, <<".">>, Name]);
-encode_name(Name, _Namespace, _Opt) ->
+encode_name(_Name, Fullname, #{canon := true}) ->
+  erlang:iolist_to_binary(Fullname);
+encode_name(Name, _Fullname, _Opt) ->
   erlang:iolist_to_binary(Name).
 
 %% @private
@@ -366,24 +350,6 @@ to_hex(D) when D >= 10 andalso D =< 15 ->
 %% @private
 encode_float(Number) ->
   ?INLINE(iolist_to_binary(io_lib:format("~p", [Number]))).
-
-%% TODO: this was taken from avro.erl, where it is private
-%% @private Splits FullName to {Name, Namespace} or returns false
-%% if the given name is a short name (no dots).
-%% @end
--spec split_fullname(fullname()) -> false | {name(), namespace()}.
-split_fullname(FullNameBin) when is_binary(FullNameBin) ->
-  %% Avro names are always ascii chars, no need for utf8 caring.
-  FullName = binary_to_list(FullNameBin),
-  case string:rchr(FullName, $.) of
-    0 ->
-      %% Dot not found
-      false;
-    DotPos ->
-      { ?NAME(string:substr(FullName, DotPos + 1))
-      , ?NAME(string:substr(FullName, 1, DotPos-1))
-      }
-  end.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
