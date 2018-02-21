@@ -179,7 +179,7 @@ decode_schema(JSON, Options) ->
 encode_schema(Type) ->
   avro_json_encoder:encode_schema(Type).
 
--spec encode_schema(avro_type(), map()) -> binary().
+-spec encode_schema(avro_type(), schema_opts()) -> binary().
 encode_schema(Type, Options) ->
   avro_json_encoder:encode_schema(Type, Options).
 

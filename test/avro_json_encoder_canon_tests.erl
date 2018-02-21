@@ -22,7 +22,7 @@
 
 canon(Json) ->
   Schema = avro_json_decoder:decode_schema(Json),
-  avro:encode_schema(Schema, #{canon => true}).
+  avro:encode_schema(Schema, [{canon, true}]).
 
 % Run Java test cases from the Avro project:
 % https://github.com/apache/avro/blob/master/share/test/data/schema-tests.txt

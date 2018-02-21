@@ -48,12 +48,15 @@
 encode_schema(Type) ->
     encode_schema(Type, #{}).
 
--spec encode_schema(avro_type(), map()) -> iodata().
+-spec encode_schema(avro_type(), avro:schema_opts()) -> iodata().
 encode_schema(Type0, Opt) ->
   Type1 = avro_util:resolve_duplicated_refs(Type0),
   Lkup = avro:make_lkup_fun(?ASSIGNED_NAME, Type1),
   Type = avro_util:encode_defaults(Type1, Lkup),
-  encode_json(do_encode_type(Type, _Namespace = ?NS_GLOBAL, Opt)).
+  OptMap = lists:foldl(fun ({Key, Value}, Acc) ->
+                               maps:put(Key, Value, Acc)
+                       end, #{}, Opt),
+  encode_json(do_encode_type(Type, _Namespace = ?NS_GLOBAL, OptMap)).
 
 %% @doc Encode avro schema in JSON format.
 -spec encode_type(avro_type()) -> iodata().
