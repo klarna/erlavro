@@ -128,8 +128,8 @@ encode_record_type_test() ->
   Json = encode_type(sample_record_type()),
   ?assertEqual(<<"{"
   "\"namespace\":\"com.klarna.test.bix\","
-  "\"type\":\"record\","
   "\"name\":\"SampleRecord\","
+  "\"type\":\"record\","
   "\"doc\":\"Record documentation\","
   "\"fields\":["
   "{\"name\":\"bool\","
@@ -181,8 +181,8 @@ encode_enum_type_test() ->
   EnumTypeJson = encode_type(EnumType),
   ?assertEqual(<<"{"
   "\"namespace\":\"com.klarna.test.bix\","
-  "\"type\":\"enum\","
   "\"name\":\"Enum\","
+  "\"type\":\"enum\","
   "\"symbols\":[\"A\",\"B\",\"C\"]"
   "}">>, EnumTypeJson).
 
@@ -251,8 +251,8 @@ encode_fixed_type_test() ->
   Json = encode_type(Type),
   ?assertEqual(<<"{"
   "\"namespace\":\"name.space\","
-  "\"type\":\"fixed\","
   "\"name\":\"FooBar\","
+  "\"type\":\"fixed\","
   "\"size\":2,"
   "\"aliases\":[\"name.space.Alias1\",\"name.space.Alias2\"]}">>, Json).
 
@@ -339,8 +339,8 @@ encode_type_shortname_ref_test() ->
   Encoded = encode_type(Type),
   Expected =
     <<"{\"namespace\":\"com.example\","
-       "\"type\":\"record\","
        "\"name\":\"rec\","
+       "\"type\":\"record\","
        "\"fields\":[{\"name\":\"f1\",\"type\":\"mytype\"}]}">>,
   ?assertEqual(Expected, iolist_to_binary(Encoded)).
 
@@ -351,13 +351,13 @@ encode_type_no_redundant_ns_test() ->
   Field = avro_record:define_field("f", SubType, []),
   Type = avro_record:type("rec", [Field], [{namespace, "com.example"}]),
   Encoded = encode_type(Type),
-  SubJSON = ["{\"type\":\"record\","
-              "\"name\":\"subrec\","
+  SubJSON = ["{\"name\":\"subrec\","
+              "\"type\":\"record\","
               "\"fields\":[{\"name\":\"subf\",\"type\":\"int\"}]}"],
   Expected =
     ["{\"namespace\":\"com.example\","
-      "\"type\":\"record\","
       "\"name\":\"rec\","
+      "\"type\":\"record\","
       "\"fields\":"
           "[{\"name\":\"f\","
             "\"type\":", SubJSON,
@@ -376,8 +376,8 @@ encode_field_order_test_() ->
           end,
         Expected =
            ["{\"namespace\":\"com.example\","
-             "\"type\":\"record\","
              "\"name\":\"rec\","
+             "\"type\":\"record\","
              "\"fields\":[{\"name\":\"f\","
                           "\"type\":\"mytype\"",
                           EncodedOrder,
