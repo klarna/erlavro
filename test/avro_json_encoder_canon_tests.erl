@@ -62,21 +62,14 @@ java_020_test() ->
                        "\"namespace\":\"x.y\"}">>)).
 
 java_021_test() ->
-%  % The schema parser (avro_record:type/3) requires that the namespace must
-%  % match the fullname namespace, but that seems overly strict.
+% https://avro.apache.org/docs/1.8.2/spec.html#names
 %
-%  % https://avro.apache.org/docs/1.8.2/spec.html#names
-%  %
-%  % "A fullname is specified. If the name specified contains a dot, then it is
-%  % assumed to be a fullname, and any namespace also specified is ignored. For
-%  % example, use "name": "org.foo.X" to indicate the fullname org.foo.X."
-%  %
-%  ?assertEqual(<<"{\"name\":\"a.b.foo\",\"type\":\"record\",\"fields\":[]}">>,
-%               canon(<<"{\"fields\":[], \"type\":\"record\", "
-%                       "\"name\":\"a.b.foo\", \"namespace\":\"x.y\"}">>)).
+% "A fullname is specified. If the name specified contains a dot, then it is
+% assumed to be a fullname, and any namespace also specified is ignored. For
+% example, use "name": "org.foo.X" to indicate the fullname org.foo.X."
   ?assertEqual(<<"{\"name\":\"a.b.foo\",\"type\":\"record\",\"fields\":[]}">>,
-                canon(<<"{\"fields\":[], \"type\":\"record\", "
-                        "\"name\":\"a.b.foo\", \"namespace\":\"a.b\"}">>)).
+               canon(<<"{\"fields\":[], \"type\":\"record\", "
+                       "\"name\":\"a.b.foo\", \"namespace\":\"x.y\"}">>)).
 
 java_022_test() ->
   ?assertEqual(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>,
