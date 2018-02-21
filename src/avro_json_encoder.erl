@@ -46,7 +46,7 @@
 %% @end
 -spec encode_schema(avro_type()) -> iodata().
 encode_schema(Type) ->
-    encode_schema(Type, #{}).
+    encode_schema(Type, []).
 
 -spec encode_schema(avro_type(), avro:schema_opts()) -> iodata().
 encode_schema(Type0, Opt) ->
