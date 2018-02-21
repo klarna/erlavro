@@ -138,8 +138,7 @@ optional_field(Key, Value, _Default, MappingFun, _Opt) ->
 % type, name, fields, symbols, items, values, size
 
 %% @private
-do_encode_type(Name, _EnclosingNamespace, #{canon := true})
-  when ?IS_NAME(Name) ->
+do_encode_type(Name, _Ns, #{canon := true}) when ?IS_NAME(Name) ->
   encode_string(Name);
 do_encode_type(Name, EnclosingNamespace, _Opt) when ?IS_NAME(Name) ->
   MaybeShortName =
