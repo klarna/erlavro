@@ -132,10 +132,7 @@ enc(Lkup, Type, Union) when ?IS_UNION_TYPE(Type) ->
 
 %% @private
 optional_field(_Key, Default, Default, _MappingFun) -> [];
-optional_field(Key, Value, _Default, MappingFun) ->
-    [{Key, MappingFun(Value)}].
-
-% type, name, fields, symbols, items, values, size
+optional_field(Key, Value, _Default, MappingFun) -> [{Key, MappingFun(Value)}].
 
 %% @private
 do_encode_type(Name, _Ns, #{canon := true}) when ?IS_NAME(Name) ->
