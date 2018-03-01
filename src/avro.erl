@@ -62,6 +62,7 @@
         ]).
 
 -export([ crc64_fingerprint/1
+        , canonical_form_fingerprint/1
         ]).
 
 -export_type([ array_type/0
@@ -530,9 +531,15 @@ to_term(#avro_value{type = T} = V) -> to_term(T, V).
 %%% API: Calculating Avro CRC 64 fingerprint
 %%%=============================================================================
 
+%% @doc Encode type into canonical form JSON schema
+%% and return its crc64 fingerprint.
+-spec canonical_form_fingerprint(avro_type()) -> crc64_fingerprint().
+canonical_form_fingerprint(Type) ->
+  JSON = encode_schema(Type, [{canon, true}]),
+  crc64_fingerprint(JSON).
+
 %% @doc Calculate hash using the Avro CRC 64 algorithm.
-%% @end
--spec crc64_fingerprint(binary()) -> avro_fingerprint:crc64().
+-spec crc64_fingerprint(binary()) -> crc64_fingerprint().
 crc64_fingerprint(Bin) ->
     avro_fingerprint:crc64(Bin).
 

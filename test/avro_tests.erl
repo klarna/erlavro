@@ -209,13 +209,36 @@ get_custom_props_test() ->
   ?assertEqual([{<<"p">>, <<"v">>}], FieldTypeProps(enum)),
   ?assertEqual([{<<"key">>, <<"value">>}], FieldTypeProps(fixed)),
   ?assertEqual([{<<"key">>, <<"value">>}], FieldTypeProps(map)),
-  JSON = avro_json_encoder:encode_schema(MyRecordType),
+  JSON = avro:encode_schema(MyRecordType),
   ?assertEqual(MyRecordType,
                avro_json_decoder:decode_schema(iolist_to_binary(JSON))),
   Store = avro_schema_store:add_type(MyRecordType, avro_schema_store:new([])),
   ?assertEqual([{<<"key_fields">>, [<<"k1">>, <<"k2">>]}],
                avro:get_custom_props("com.example.MyRecord", Store)),
   ok.
+
+fingerprint_test() ->
+  Date1 = avro_primitive:type(int, [{logicalType, "Date"}, {"p", "v"}]),
+  Date2 = avro_primitive:type(int, []),
+  RecordType =
+    fun(Ns, Date, Doc) ->
+      avro_record:type(
+        <<"MyRecord">>,
+        [ avro_record:define_field(k1, int)
+        , avro_record:define_field(date, Date)
+        ],
+        [ {namespace, Ns}
+        , {key_fields, [k1, k2]}
+        , {doc, Doc}
+        ])
+    end,
+  R1 = RecordType("ns1", Date1, "foo"),
+  R2 = RecordType("ns1", Date2, "bar"),
+  R3 = RecordType("ns2", Date2, "bar"),
+  ?assertEqual(avro:canonical_form_fingerprint(R1),
+               avro:canonical_form_fingerprint(R2)),
+  ?assertNot(avro:canonical_form_fingerprint(R1) =:=
+             avro:canonical_form_fingerprint(R3)).
 
 encode_wrapped(CodecOptions) ->
   NullableInt = avro_union:type([null, int]),
