@@ -179,6 +179,10 @@ decode_schema(JSON, Options) ->
 encode_schema(Type) ->
   avro_json_encoder:encode_schema(Type).
 
+%% @doc Encode `erlavro' internals type records into JSON format.
+%% Supported options:
+%% * canon: `boolean()'
+%%     Encode parsing canonical form format
 -spec encode_schema(avro_type(), schema_opts()) -> binary().
 encode_schema(Type, Options) ->
   avro_json_encoder:encode_schema(Type, Options).
@@ -192,8 +196,7 @@ encode_schema(Type, Options) ->
 %%   return encoded iodata() without type info wrapped around.
 %%   A wrapped result can be used as 'already encoded' part to inline a
 %%   wrapper object.
--spec make_encoder(schema_all(), codec_options()) ->
-        encode_fun().
+-spec make_encoder(schema_all(), codec_options()) -> encode_fun().
 make_encoder(Schema, Options) ->
   Lkup = avro_util:ensure_lkup_fun(Schema),
   Encoding = proplists:get_value(encoding, Options, avro_binary),
