@@ -12,3 +12,6 @@
      there is a need to use the same decoer/encoder for multiple schema.
    - Remove fullname-derived-namespace = namespace-in-type-attributes assertition (#60)
    - Add avro_ocf:make_ocf/2 to allow building ocf content in memory
+* 2.6.0
+   - Support Parsing Canonical Form for Schemas (contributer @congini @reachfh)
+
