@@ -110,7 +110,16 @@ meta_test() ->
   _ = avro_ocf:make_header(<<"int">>, [{<<"avro.codec">>, <<"null">>}]),
   ok.
 
-%% @private
+make_ocf_test() ->
+  L = lists:seq(1, 1000),
+  Type = avro_primitive:type(long, []),
+  Header = avro_ocf:make_header(Type),
+  Encoder = avro:make_simple_encoder(Type, []),
+  Objects = [Encoder(I) || I <- L],
+  Bin = iolist_to_binary(avro_ocf:make_ocf(Header, Objects)),
+  {_, _, DecodedL} = avro_ocf:decode_binary(Bin),
+  ?assertEqual(L, DecodedL).
+
 priv_dir() ->
   case code:priv_dir(erlavro) of
     {error, bad_name} ->
