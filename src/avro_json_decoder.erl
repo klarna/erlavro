@@ -365,6 +365,8 @@ parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_UNION_TYPE(Type) ->
 
 %% @private Parse primitive values, return wrapped (boxed) value.
 -spec parse_prim(json_value(), avro_type()) -> avro_value().
+parse_prim(<<"null">>, Type) when ?IS_NULL_TYPE(Type) ->
+    avro_primitive:null();
 parse_prim(null, Type) when ?IS_NULL_TYPE(Type) ->
   avro_primitive:null();
 parse_prim(V, Type) when ?IS_BOOLEAN_TYPE(Type) andalso is_boolean(V) ->
