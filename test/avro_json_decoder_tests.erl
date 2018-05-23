@@ -62,6 +62,34 @@ parse_record_type_test() ->
   Expected = avro_record:type("TestRecord", [], [{namespace, "name.space"}]),
   ?assertEqual(Expected, Record).
 
+allow_null_as_string_for_default_test() ->
+  Schema = ?JSON_OBJ(
+    [ {<<"type">>, <<"record">>}
+    , {<<"name">>, <<"TestRecord">>}
+    , {<<"namespace">>, <<"name.space">>}
+    , {<<"fields">>, [ ?JSON_OBJ([ {<<"name">>, <<"union_null_field">>}
+                                 , {<<"type">>, [<<"null">>, <<"int">>]}
+                                 , {<<"default">>, <<"null">>}
+                                 , {<<"order">>, <<"ignore">>}
+                                 ])
+
+                     ]}
+    ]),
+  JSON = iolist_to_binary(jsone:encode(Schema, [native_utf8])),
+  ExpectedUnion = avro_union:type([ avro_primitive:null_type()
+                                  , avro_primitive:int_type()
+                                  ]),
+  Expected = avro_record:type(
+    "TestRecord",
+    [ avro_record:define_field(
+        "union_null_field", ExpectedUnion,
+        [{default, null},
+         {order, ignore}
+        ])
+    ],
+    [{namespace, "name.space"}]),
+  ?assertEqual(Expected, avro:decode_schema(JSON, [])).
+
 decode_with_default_values_test() ->
   Schema = ?JSON_OBJ(
     [ {<<"type">>, <<"record">>}
@@ -85,11 +113,6 @@ decode_with_default_values_test() ->
                                  , {<<"default">>, null}
                                  , {<<"order">>, <<"ignore">>}
                                  ])
-                     , ?JSON_OBJ([ {<<"name">>, <<"union_null_field">>}
-                                 , {<<"type">>, [<<"null">>, <<"int">>]}
-                                 , {<<"default">>, "null"}
-                                 , {<<"order">>, <<"ignore">>}
-                                 ])
 
                      ]}
     ]),
@@ -97,9 +120,6 @@ decode_with_default_values_test() ->
   ExpectedUnion = avro_union:type([ avro_primitive:boolean_type()
                                   , avro_primitive:int_type()
                                   ]),
-  ExpectedNullUnion = avro_union:type([ avro_primitive:null_type()
-                                      , avro_primitive:int_type()
-                                      ]),
   Expected = avro_record:type(
     "TestRecord",
     [ avro_record:define_field(
@@ -121,11 +141,6 @@ decode_with_default_values_test() ->
         "long_field2",
         avro_primitive:long_type(),
         [{default, null},
-         {order, ignore}
-        ])
-    , avro_record:define_field(
-        "union_null_field", ExpectedNullUnion,
-        [{default, "null"},
          {order, ignore}
         ])
     ],
