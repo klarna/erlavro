@@ -10,5 +10,7 @@
                  {"name": "children",
                   "type": {"type": "array", "items": "Node"},
                   "default": [{"label": "default-label", "children": []}]}
-                ]}}
+                ]}},
+    {"name": "f2", "type": ["null", "string"], "default": null},
+    {"name": "f3", "type": ["null", "string"], "default": "null"}
    ]}
