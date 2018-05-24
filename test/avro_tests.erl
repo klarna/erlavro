@@ -351,7 +351,9 @@ default_values_test() ->
                             , {<<"children">>, []}
                             ]
                           ]}
-                       ]}],
+                       ]},
+            {<<"f2">>, null},
+            {<<"f3">>, null}],
   TestFun =
     fun(Opts) ->
       RootType = "org.apache.avro.test",
