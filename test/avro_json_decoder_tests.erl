@@ -85,12 +85,21 @@ decode_with_default_values_test() ->
                                  , {<<"default">>, null}
                                  , {<<"order">>, <<"ignore">>}
                                  ])
+                     , ?JSON_OBJ([ {<<"name">>, <<"union_null_field">>}
+                                 , {<<"type">>, [<<"null">>, <<"int">>]}
+                                 , {<<"default">>, "null"}
+                                 , {<<"order">>, <<"ignore">>}
+                                 ])
+
                      ]}
     ]),
   JSON = iolist_to_binary(jsone:encode(Schema, [native_utf8])),
   ExpectedUnion = avro_union:type([ avro_primitive:boolean_type()
                                   , avro_primitive:int_type()
                                   ]),
+  ExpectedNullUnion = avro_union:type([ avro_primitive:null_type()
+                                      , avro_primitive:int_type()
+                                      ]),
   Expected = avro_record:type(
     "TestRecord",
     [ avro_record:define_field(
@@ -112,6 +121,11 @@ decode_with_default_values_test() ->
         "long_field2",
         avro_primitive:long_type(),
         [{default, null},
+         {order, ignore}
+        ])
+    , avro_record:define_field(
+        "union_null_field", ExpectedNullUnion,
+        [{default, "null"},
          {order, ignore}
         ])
     ],
