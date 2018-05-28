@@ -14,4 +14,7 @@
    - Add avro_ocf:make_ocf/2 to allow building ocf content in memory
 * 2.6.0
    - Support Parsing Canonical Form for Schemas (contributer congini/@reachfh)
+* 2.6.1
+   - Allow `"null"` string as default value for 'null' type in union type record fields (contributer bka9)
+
 
