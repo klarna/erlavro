@@ -20,6 +20,7 @@
 -define(AVRO_INTERNAL_HRL, true).
 
 -include("erlavro.hrl").
+-include("avro_stacktrace.hrl").
 
 -define(INT4_MIN, -2147483648).
 -define(INT4_MAX,  2147483647).
@@ -181,9 +182,8 @@
 -define(ENC_ERR(Reason, Context),
         {'$avro_encode_error', Reason, Context}).
 
--define(RAISE_ENC_ERR(EXCEPTION_CLASS, EXCEPTION_REASON, THIS_CONTEXT),
+-define(RAISE_ENC_ERR(EXCEPTION_CLASS, EXCEPTION_REASON, THIS_CONTEXT, STACK),
         begin
-          Stack = erlang:get_stacktrace(),
           {Reason, Context} =
             case EXCEPTION_REASON of
               ?ENC_ERR(ReasonX, ContextX) ->
@@ -191,7 +191,7 @@
               _ ->
                 {EXCEPTION_REASON, THIS_CONTEXT}
             end,
-          erlang:raise(EXCEPTION_CLASS, ?ENC_ERR(Reason, Context), Stack)
+          erlang:raise(EXCEPTION_CLASS, ?ENC_ERR(Reason, Context), STACK)
         end).
 -endif.
 

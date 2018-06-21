@@ -68,6 +68,7 @@
         ]).
 
 -include("erlavro.hrl").
+-include("avro_stacktrace.hrl").
 
 -define(PD_PP_INDENTATION, '$avro_decoder_pp_indentation').
 -define(PD_DECODER_HIST, '$avro_decoder_hist').
@@ -172,12 +173,13 @@ print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, HistCount) ->
   ok = add_hist({push, Name, Sub}),
   try
     decode_and_add_trace(Sub, Data, DecodeFun)
-  catch C : R when not (is_tuple(R) andalso element(1, R) =:= ?REASON_TAG) ->
+  catch
+    C : R ?CAPTURE_STACKTRACE
+      when not (is_tuple(R) andalso element(1, R) =:= ?REASON_TAG) ->
     %% catch only the very first error
-    Stack = erlang:get_stacktrace(),
     ok = print_trace(PrintFun, HistCount),
     ok = erase_hist(),
-    erlang:raise(C, {?REASON_TAG, R}, Stack)
+    erlang:raise(C, {?REASON_TAG, R}, ?GET_STACKTRACE)
   end.
 
 %% @private
