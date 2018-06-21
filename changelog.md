@@ -16,5 +16,5 @@
    - Support Parsing Canonical Form for Schemas (contributer congini/@reachfh)
 * 2.6.1
    - Allow `"null"` string as default value for 'null' type in union type record fields (contributer bka9)
-
-
+* 2.6.2
+   - Support Erlang 21.0 stacktraces
