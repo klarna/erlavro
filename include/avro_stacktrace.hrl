@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2013-2018 Klarna AB
+%%% Copyright (c) 2018 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -19,17 +19,6 @@
 %% erlang:get_stacktrace/1 is deprecated by http://erlang.org/eeps/eep-0047.md
 %% This file provides macros to support source code compaibility with old and
 %% new ways of doing things.
-
--type stack_item() :: {Module :: module(),
-                       Function :: atom(),
-                       Arity :: arity() | (Args :: [term()]),
-                       Location :: [{file, Filename :: string()} |
-                                    {line, Line :: pos_integer()}]}.
-%% An item in a stack back-trace.
-%%
-%% Note that the `erlang' module already defines the same `stack_item/0' type,
-%% but it is not exported from the module.
-%% So, maybe as a temporary measure, we redefine this type for passing full dialyzer analysis.
 
 -ifdef('FUN_STACKTRACE').
 -define(CAPTURE_STACKTRACE, ).
