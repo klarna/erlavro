@@ -173,7 +173,9 @@ print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, HistCount) ->
   ok = add_hist({push, Name, Sub}),
   try
     decode_and_add_trace(Sub, Data, DecodeFun)
-  catch C : R ?CAPTURE_STACKTRACE when not (is_tuple(R) andalso element(1, R) =:= ?REASON_TAG) ->
+  catch
+    C : R ?CAPTURE_STACKTRACE
+      when not (is_tuple(R) andalso element(1, R) =:= ?REASON_TAG) ->
     %% catch only the very first error
     ok = print_trace(PrintFun, HistCount),
     ok = erase_hist(),
