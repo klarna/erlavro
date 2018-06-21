@@ -219,13 +219,12 @@ do_default(FullName, FieldName, DoFun, Value) ->
   try
     DoFun(Value)
   catch
-    error : Reason ->
-      Stack = erlang:get_stacktrace(),
+    error : Reason ?CAPTURE_STACKTRACE ->
       Context = [ {record, FullName}
                 , {field, FieldName}
                 , {reason, Reason}
                 ],
-      erlang:raise(error, {bad_default, Context}, Stack)
+      erlang:raise(error, {bad_default, Context}, ?GET_STACKTRACE)
   end.
 
 %% @private default value for a union type should be type checked by the
@@ -335,7 +334,7 @@ encode(#avro_record_type{ fields = FieldDefs
           Value =:= ?NO_VALUE andalso erlang:error(required_field_missed),
           EncodeFun(FieldName, FieldType, Value)
         catch
-          C : E ->
+          C : E ?CAPTURE_STACKTRACE ->
             ?RAISE_ENC_ERR(C, E, [{record, FullName},
                                   {field, FieldName}])
         end
