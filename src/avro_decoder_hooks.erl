@@ -90,11 +90,11 @@ tag_unions() -> fun tag_unions/4.
 %%       and re-use for different decode attempts
 %% @end.
 -spec print_debug_trace(fun((iodata()) -> ok), count()) ->
-                           avro:decoder_hook_fun().
+        avro:decoder_hook_fun().
 print_debug_trace(PrintFun, MaxHistoryLength) ->
   ok = erase_hist(),
   fun(T, Sub, Data, DecodeFun) ->
-      print_trace_on_failure(T, Sub, Data, DecodeFun,
+    print_trace_on_failure(T, Sub, Data, DecodeFun,
                              PrintFun, MaxHistoryLength)
   end.
 
@@ -105,30 +105,30 @@ print_debug_trace(PrintFun, MaxHistoryLength) ->
 pretty_print_hist() ->
   _ = erase(?PD_PP_INDENTATION),
   fun(T, SubInfo, Data, DecodeFun) ->
-      Name = avro:get_type_fullname(T),
-      Indentation =
-        case get(?PD_PP_INDENTATION) of
-          undefined -> 0;
-          Indentati -> Indentati
-        end,
-      IndentationStr = lists:duplicate(Indentation * 2, $\s),
-      ToPrint =
-        [ IndentationStr
-        , Name
-        , case SubInfo of
-            ""                   -> ": ";
-            I when is_integer(I) -> [$., integer_to_list(I), "\n"];
-            B when is_binary(B)  -> [$., B, "\n"];
-            _                    -> "\n"
-          end
-        ],
-      io:put_chars(user, ToPrint),
-      _ = put(?PD_PP_INDENTATION, Indentation + 1),
-      DecodeResult = DecodeFun(Data),
-      ResultToPrint = get_pretty_print_result(DecodeResult),
-      _ = pretty_print_result(SubInfo, ResultToPrint, IndentationStr),
-      _ = put(?PD_PP_INDENTATION, Indentation),
-      DecodeResult
+    Name = avro:get_type_fullname(T),
+    Indentation =
+      case get(?PD_PP_INDENTATION) of
+        undefined -> 0;
+        Indentati -> Indentati
+      end,
+    IndentationStr = lists:duplicate(Indentation * 2, $\s),
+    ToPrint =
+      [ IndentationStr
+      , Name
+      , case SubInfo of
+          ""                   -> ": ";
+          I when is_integer(I) -> [$., integer_to_list(I), "\n"];
+          B when is_binary(B)  -> [$., B, "\n"];
+          _                    -> "\n"
+        end
+      ],
+    io:put_chars(user, ToPrint),
+    _ = put(?PD_PP_INDENTATION, Indentation + 1),
+    DecodeResult = DecodeFun(Data),
+    ResultToPrint = get_pretty_print_result(DecodeResult),
+    _ = pretty_print_result(SubInfo, ResultToPrint, IndentationStr),
+    _ = put(?PD_PP_INDENTATION, Indentation),
+    DecodeResult
   end.
 
 %%%_* Internal functions =======================================================
