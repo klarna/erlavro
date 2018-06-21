@@ -336,7 +336,7 @@ encode(#avro_record_type{ fields = FieldDefs
         catch
           C : E ?CAPTURE_STACKTRACE ->
             ?RAISE_ENC_ERR(C, E, [{record, FullName},
-                                  {field, FieldName}])
+                                  {field, FieldName}], ?GET_STACKTRACE)
         end
     end, FieldDefs).
 

@@ -182,7 +182,7 @@
 -define(ENC_ERR(Reason, Context),
         {'$avro_encode_error', Reason, Context}).
 
--define(RAISE_ENC_ERR(EXCEPTION_CLASS, EXCEPTION_REASON, THIS_CONTEXT),
+-define(RAISE_ENC_ERR(EXCEPTION_CLASS, EXCEPTION_REASON, THIS_CONTEXT, STACK),
         begin
           {Reason, Context} =
             case EXCEPTION_REASON of
@@ -191,7 +191,7 @@
               _ ->
                 {EXCEPTION_REASON, THIS_CONTEXT}
             end,
-          erlang:raise(EXCEPTION_CLASS, ?ENC_ERR(Reason, Context), ?GET_STACKTRACE)
+          erlang:raise(EXCEPTION_CLASS, ?ENC_ERR(Reason, Context), STACK)
         end).
 -endif.
 
