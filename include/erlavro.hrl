@@ -21,6 +21,16 @@
 -ifndef(_ERLAVRO_HRL_).
 -define(_ERLAVRO_HRL_, true).
 
+%% Add Macros to support new stacktrace handling 
+-ifdef('FUN_STACKTRACE').
+-define(CAPTURE_STACKTRACE, ).
+-define(GET_STACKTRACE, erlang:get_stacktrace()).
+-else.
+-define(CAPTURE_STACKTRACE,:StackTrace).
+-define(GET_STACKTRACE, StackTrace).
+-endif.
+
+
 %% Names of primitive types
 -define(AVRO_NULL,    <<"null">>).
 -define(AVRO_BOOLEAN, <<"boolean">>).
