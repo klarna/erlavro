@@ -94,7 +94,8 @@ tag_unions() -> fun tag_unions/4.
 print_debug_trace(PrintFun, MaxHistoryLength) ->
   ok = erase_hist(),
   fun(T, Sub, Data, DecodeFun) ->
-      print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, MaxHistoryLength)
+      print_trace_on_failure(T, Sub, Data, DecodeFun,
+                             PrintFun, MaxHistoryLength)
   end.
 
 %% @doc This hook prints the type tree with indentation, and the leaf values
