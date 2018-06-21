@@ -94,7 +94,8 @@ tag_unions() -> fun tag_unions/4.
 print_debug_trace(PrintFun, MaxHistoryLength) ->
   ok = erase_hist(),
   fun(T, Sub, Data, DecodeFun) ->
-    print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, MaxHistoryLength)
+    print_trace_on_failure(T, Sub, Data, DecodeFun,
+                             PrintFun, MaxHistoryLength)
   end.
 
 %% @doc This hook prints the type tree with indentation, and the leaf values
@@ -172,12 +173,13 @@ print_trace_on_failure(T, Sub, Data, DecodeFun, PrintFun, HistCount) ->
   ok = add_hist({push, Name, Sub}),
   try
     decode_and_add_trace(Sub, Data, DecodeFun)
-  catch C : R when not (is_tuple(R) andalso element(1, R) =:= ?REASON_TAG) ->
-    %% catch only the very first error
-    Stack = erlang:get_stacktrace(),
-    ok = print_trace(PrintFun, HistCount),
-    ok = erase_hist(),
-    erlang:raise(C, {?REASON_TAG, R}, Stack)
+  catch C : R ?CAPTURE_STACKTRACE
+      when not (is_tuple(R) andalso element(1, R) =:= ?REASON_TAG) ->
+      %% catch only the very first error
+      Stack = ?GET_STACKTRACE,
+      ok = print_trace(PrintFun, HistCount),
+      ok = erase_hist(),
+      erlang:raise(C, {?REASON_TAG, R}, Stack)
   end.
 
 %% @private
