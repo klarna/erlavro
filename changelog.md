@@ -18,3 +18,6 @@
    - Allow `"null"` string as default value for 'null' type in union type record fields (contributer bka9)
 * 2.6.2
    - Support Erlang 21.0 stacktraces
+* 2.6.3
+   - Upgrade jsone from 1.4.3 to 1.4.6 (for OTP-21)
+
