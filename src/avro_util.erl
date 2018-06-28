@@ -47,12 +47,11 @@
         , verify_type/1
         ]).
 
--ifdef(TEST).
+%% Exported for test
 -export([ is_valid_dotted_name/1
         , is_valid_name/1
         , tokens_ex/2
         ]).
--endif.
 
 -include("avro_internal.hrl").
 

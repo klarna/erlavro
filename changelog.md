@@ -20,4 +20,5 @@
    - Support Erlang 21.0 stacktraces
 * 2.6.3
    - Upgrade jsone from 1.4.3 to 1.4.6 (for OTP-21)
-
+* 2.6.4
+   - Do not conditionally export functions

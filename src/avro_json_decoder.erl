@@ -36,10 +36,8 @@
 
 -include("avro_internal.hrl").
 
--ifdef(TEST).
--export([ parse_schema/1
-        ]).
--endif.
+%% Exported for test
+-export([ parse_schema/1 ]).
 
 -type option_name() :: is_wrapped.
 

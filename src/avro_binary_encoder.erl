@@ -36,13 +36,12 @@
 
 -include("avro_internal.hrl").
 
--ifdef(TEST).
+%% Exported for test
 -export([ int/1
         , long/1
         , string/1
         , zigzag/2
         ]).
--endif.
 
 -type index() :: non_neg_integer(). %% zero based
 
