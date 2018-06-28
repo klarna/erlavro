@@ -44,9 +44,8 @@
 
 -include("avro_internal.hrl").
 
--ifdef(TEST).
+%% Exported for test
 -export([get_field_def/2]).
--endif.
 
 -type field_name() :: binary().
 -type field_name_raw() :: atom() | string() | binary().

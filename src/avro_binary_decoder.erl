@@ -35,11 +35,10 @@
         , decode_stream/4
         ]).
 
--include("avro_internal.hrl").
-
--ifdef(TEST).
+%% Exported for test
 -export([zigzag/1]).
--endif.
+
+-include("avro_internal.hrl").
 
 -type hook() :: decoder_hook_fun().
 -type index() :: pos_integer().
