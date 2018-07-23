@@ -145,7 +145,6 @@ decode_value(JsonValue, Schema, StoreOrLkupFun, Options) ->
 
 %%%_* Internal functions =======================================================
 
-%% @private
 -spec parse_schema(json_value()) -> avro_type() | no_return().
 parse_schema(?JSON_OBJ(Attrs)) ->
   %% Json object: this is a complex type definition (except for unions)
@@ -164,7 +163,7 @@ parse_schema(Name) when ?IS_NAME(Name) ->
     Name
   end.
 
-%% @private Parse JSON object to avro type definition.
+%% Parse JSON object to avro type definition.
 -spec parse_type([{binary(), json_value()}]) -> avro_type() | no_return().
 parse_type(Attrs) ->
   case avro_util:get_opt(<<"type">>, Attrs) of
@@ -183,7 +182,6 @@ parse_type(Attrs) ->
       primitive_type(Name, CustomProps)
   end.
 
-%% @private
 -spec primitive_type(name(), [custom_prop()]) ->
         primitive_type() | no_return().
 primitive_type(Name, CustomProps) when ?IS_AVRO_PRIMITIVE_NAME(Name) ->
@@ -191,7 +189,6 @@ primitive_type(Name, CustomProps) when ?IS_AVRO_PRIMITIVE_NAME(Name) ->
 primitive_type(Name, _CustomProps) ->
   erlang:error({unknown_type, Name}).
 
-%% @private
 -spec parse_record_type([{binary(), json_value()}]) ->
         record_type() | no_return().
 parse_record_type(Attrs) ->
@@ -209,14 +206,12 @@ parse_record_type(Attrs) ->
                    | Custom
                    ]).
 
-%% @private
 -spec parse_record_fields([{name(), json_value()}]) ->
         [record_field()] | no_return().
 parse_record_fields(Fields) ->
   lists:map(fun(?JSON_OBJ(FieldAttrs)) -> parse_record_field(FieldAttrs) end,
             Fields).
 
-%% @private
 -spec parse_record_field([{binary(), json_value()}]) ->
         record_field() | no_return().
 parse_record_field(Attrs) ->
@@ -236,13 +231,11 @@ parse_record_field(Attrs) ->
   , aliases = parse_aliases(Aliases)
   }.
 
-%% @private
 -spec parse_order(binary()) -> ascending | descending | ignore.
 parse_order(<<"ascending">>)  -> ascending;
 parse_order(<<"descending">>) -> descending;
 parse_order(<<"ignore">>)     -> ignore.
 
-%% @private
 -spec parse_enum_type([{binary(), json_value()}]) -> enum_type().
 parse_enum_type(Attrs) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
@@ -259,26 +252,22 @@ parse_enum_type(Attrs) ->
                  | Custom
                  ]).
 
-%% @private
 -spec parse_enum_symbols([binary()]) -> [enum_symbol()].
 parse_enum_symbols([_|_] = SymbolsArray) ->
   SymbolsArray.
 
-%% @private
 -spec parse_array_type([{binary(), json_value()}]) -> array_type().
 parse_array_type(Attrs) ->
   Items  = avro_util:get_opt(<<"items">>, Attrs),
   Custom = filter_custom_props(Attrs, [<<"items">>]),
   avro_array:type(parse_schema(Items), Custom).
 
-%% @private
 -spec parse_map_type([{binary(), json_value()}]) -> map_type().
 parse_map_type(Attrs) ->
   Values = avro_util:get_opt(<<"values">>, Attrs),
   Custom = filter_custom_props(Attrs, [<<"values">>]),
   avro_map:type(parse_schema(Values), Custom).
 
-%% @private
 -spec parse_fixed_type([{binary(), json_value()}]) -> fixed_type().
 parse_fixed_type(Attrs) ->
   NameBin = avro_util:get_opt(<<"name">>,      Attrs),
@@ -295,11 +284,9 @@ parse_fixed_type(Attrs) ->
                   | Custom
                   ]).
 
-%% @private
 -spec parse_fixed_size(integer()) -> pos_integer().
 parse_fixed_size(N) when is_integer(N) andalso N > 0 -> N.
 
-%% @private
 -spec parse_union_type(json_value()) -> union_type().
 parse_union_type(Attrs) ->
   Types = lists:map(
@@ -309,7 +296,6 @@ parse_union_type(Attrs) ->
             Attrs),
   avro_union:type(Types).
 
-%% @private
 -spec parse_aliases([name()]) -> [name()] | no_return().
 parse_aliases(AliasesArray) when is_list(AliasesArray) ->
   lists:map(
@@ -319,7 +305,6 @@ parse_aliases(AliasesArray) when is_list(AliasesArray) ->
     end,
     AliasesArray).
 
-%% @private
 -spec parse(json_value(), type_or_name(), lkup_fun(), boolean(), hook()) ->
         avro_value() | avro:out() | no_return().
 parse(Value, TypeName, Lkup, IsWrapped, Hook) when ?IS_NAME_RAW(TypeName) ->
@@ -361,7 +346,7 @@ parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_MAP_TYPE(Type) ->
 parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_UNION_TYPE(Type) ->
   parse_union(V, Type, Lkup, IsWrapped, Hook).
 
-%% @private Parse primitive values, return wrapped (boxed) value.
+%% Parse primitive values, return wrapped (boxed) value.
 -spec parse_prim(json_value(), avro_type()) -> avro_value().
 parse_prim(<<"null">>, Type) when ?IS_NULL_TYPE(Type) ->
     avro_primitive:null();
@@ -393,12 +378,10 @@ parse_prim(V, Type) when ?IS_STRING_TYPE(Type) andalso
                          is_binary(V) ->
   avro_primitive:string(V).
 
-%% @private
 -spec parse_bytes(binary()) -> binary().
 parse_bytes(BytesStr) ->
   list_to_binary(parse_bytes(BytesStr, [])).
 
-%% @private
 -spec parse_bytes(binary(), [byte()]) -> [byte()].
 parse_bytes(<<>>, Acc) ->
   lists:reverse(Acc);
@@ -406,7 +389,6 @@ parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
   Byte = erlang:list_to_integer([B1, B0], 16),
   parse_bytes(Rest, [Byte | Acc]).
 
-%% @private
 -spec parse_record(json_value(), record_type(),
                    lkup_fun(), boolean(), hook()) ->
         avro_value() | avro:out().
@@ -421,7 +403,6 @@ parse_record(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
          end
        end).
 
-%% @private
 -spec convert_attrs_to_record_fields(json_value(), record_type(), lkup_fun(),
                                      boolean(), hook()) ->
         [{name(), avro_value() | avro:out()}] | no_return().
@@ -438,7 +419,6 @@ convert_attrs_to_record_fields(Attrs, Type, Lkup, IsWrapped, Hook) ->
     end,
     Attrs).
 
-%% @private
 -spec parse_array([json_value()], array_type(),
                   lkup_fun(), boolean(), hook()) ->
         [avro_value() | avro:out()].
@@ -464,7 +444,6 @@ parse_array(V, Type, Lkup, IsWrapped, Hook) when is_list(V) ->
       Items
   end.
 
-%% @private
 -spec parse_map(json_value(), map_type(), lkup_fun(), boolean(), hook()) ->
         avro_value() | avro:out().
 parse_map(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
@@ -482,7 +461,6 @@ parse_map(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
     false -> L
   end.
 
-%% @private
 -spec parse_union(json_value(), union_type(),
                   lkup_fun(), boolean(), hook()) ->
         avro_value() | avro:out() | no_return().
@@ -494,7 +472,6 @@ parse_union(?JSON_OBJ([{ValueTypeName, Value}]),
   %% Union value specified as {"type": <value>}
   parse_union_ex(ValueTypeName, Value, Type, Lkup, IsWrapped, Hook).
 
-%% @private
 -spec parse_union_ex(name(), json_value(), union_type(),
                      lkup_fun(), boolean(), hook()) ->
         avro_value() | avro:out() | no_return().
@@ -505,7 +482,6 @@ parse_union_ex(ValueTypeName, Value, UnionType, Lkup, IsWrapped, Hook) ->
                             Lkup, IsWrapped, Hook)
        end).
 
-%% @private
 -spec do_parse_union_ex(name(), json_value(), union_type(),
                         lkup_fun(), boolean(), hook()) ->
         avro_value() | avro:out() | no_return().
@@ -527,11 +503,11 @@ do_parse_union_ex(ValueTypeName, Value, UnionType,
       erlang:error({unknown_union_member, ValueTypeName})
   end.
 
-%% @private Always use tuple as object foramt.
+%% Always use tuple as object foramt.
 -spec decode_json(binary()) -> json_value().
 decode_json(JSON) -> jsone:decode(JSON, [{object_format, tuple}]).
 
-%% @private Filter out non-custom properties.
+%% Filter out non-custom properties.
 -spec filter_custom_props([{binary(), json_value()}], [name()]) ->
         [custom_prop()].
 filter_custom_props(Attrs, Keys0) ->

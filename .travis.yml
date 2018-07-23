@@ -10,17 +10,22 @@ notifications:
   email: false
 
 otp_release:
-  - 20.0
+  - 21.0
+  - 20.3
   - 19.3
-  - 18.1
-  - 17.4
 
 script:
   - make elvis-rock
-  - make
-  - make eunit
   - make edoc
   - make xref
-  - if [ "$(erl -noshell -eval 'io:format(erlang:system_info(otp_release)), halt(0)')" -gt 18 ]; then make dialyzer; fi
-  - make cover
+  - make eunit
+  - |
+    OTP_RELEASE=`erl -noshell -eval 'io:format(erlang:system_info(otp_release)), halt(0)'`
+    if [ $OTP_RELEASE -eq 21 ]; then
+      make dialyzer
+      make cover
+      make coveralls
+    else
+      make cover
+    fi
 

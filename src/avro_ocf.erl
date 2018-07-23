@@ -52,7 +52,7 @@
 
 -opaque header() :: #header{}.
 
-%% Tested in OTP-19, dialyzer had trouble understanding the second arg
+%% Tested in OTP-21, dialyzer had trouble understanding the second arg
 %% for the call to write_header/2.
 -dialyzer({nowarn_function, [write_file/4, write_file/5]}).
 
@@ -177,9 +177,8 @@ make_block(Header, Objects) ->
   , Header#header.sync
   ].
 
-%% @private Raise an exception if meta has a bad format.
+%% Raise an exception if meta has a bad format.
 %% Otherwise return the formatted metadata entries
-%% @end
 -spec validate_meta(meta()) -> meta() | no_return().
 validate_meta([]) -> [];
 validate_meta([{K0, V} | Rest]) ->
@@ -189,36 +188,32 @@ validate_meta([{K0, V} | Rest]) ->
   is_binary(V) orelse erlang:error({bad_meta_value, V}),
   [{K, V} | validate_meta(Rest)].
 
-%% @private Meta keys which start with 'avro.' are reserved.
+%% Meta keys which start with 'avro.' are reserved.
 -spec is_reserved_meta_key(binary()) -> boolean().
 is_reserved_meta_key(<<"avro.codec">>) -> false;
 is_reserved_meta_key(<<"avro.", _/binary>>) -> true;
 is_reserved_meta_key(_)                     -> false.
 
-%% @private If avro.codec meta is provided, it must be one of supported values.
+%% If avro.codec meta is provided, it must be one of supported values.
 -spec is_invalid_codec_meta(binary(), binary()) -> boolean().
 is_invalid_codec_meta(<<"avro.codec">>, <<"null">>) -> false;
 is_invalid_codec_meta(<<"avro.codec">>, <<"deflate">>) -> false;
 is_invalid_codec_meta(<<"avro.codec">>, _) -> true;
 is_invalid_codec_meta(_, _) -> false.
 
-%% @private
 -spec generate_sync_bytes() -> binary().
 generate_sync_bytes() -> crypto:strong_rand_bytes(16).
 
-%% @private
 -spec decode_stream(avro_type(), binary()) -> {avro:out(), binary()}.
 decode_stream(Type, Bin) when is_binary(Bin) ->
   Lkup = fun(_) -> erlang:error(unexpected) end,
   avro_binary_decoder:decode_stream(Bin, Type, Lkup).
 
-%% @private
 -spec decode_stream(lkup(), avro_type(), binary()) ->
         {avro:out(), binary()} | no_return().
 decode_stream(Lkup, Type, Bin) when is_binary(Bin) ->
   avro_binary_decoder:decode_stream(Bin, Type, Lkup).
 
-%% @private
 -spec decode_blocks(lkup(), avro_type(), avro_codec(),
                     binary(), binary(), [avro:out()]) -> [avro:out()].
 decode_blocks(_Lkup, _Type, _Codec, _Sync, <<>>, Acc) ->
@@ -231,7 +226,6 @@ decode_blocks(Lkup, Type, Codec, Sync, Bin0, Acc) ->
   NewAcc = decode_block(Lkup, Type, Codec, Block, Count, Acc),
   decode_blocks(Lkup, Type, Codec, Sync, Tail, NewAcc).
 
-%% @private
 -spec decode_block(lkup(), avro_type(), avro_codec(),
                    binary(), integer(), [avro:out()]) -> [avro:out()].
 decode_block(_Lkup, _Type, _Codec, <<>>, 0, Acc) -> Acc;
@@ -242,7 +236,7 @@ decode_block(Lkup, Type, null, Bin, Count, Acc) ->
   {Obj, Tail} = decode_stream(Lkup, Type, Bin),
   decode_block(Lkup, Type, null, Tail, Count - 1, [Obj | Acc]).
 
-%% @private Hande coded schema.
+%% Hande coded schema.
 %% {"type": "record", "name": "org.apache.avro.file.Header",
 %% "fields" : [
 %%   {"name": "magic", "type": {"type": "fixed", "name": "Magic", "size": 4}},
@@ -250,7 +244,6 @@ decode_block(Lkup, Type, null, Bin, Count, Acc) ->
 %%   {"name": "sync", "type": {"type": "fixed", "name": "Sync", "size": 16}}
 %%  ]
 %% }
-%% @end
 -spec ocf_schema() -> avro_type().
 ocf_schema() ->
   MagicType = avro_fixed:type("magic", 4),
@@ -262,7 +255,7 @@ ocf_schema() ->
            ],
   avro_record:type("org.apache.avro.file.Header", Fields).
 
-%% @private Get codec from meta fields
+%% Get codec from meta fields
 -spec get_codec([{binary(), binary()}]) -> avro_codec().
 get_codec(Meta) ->
   case lists:keyfind(<<"avro.codec">>, 1, Meta) of
@@ -272,7 +265,7 @@ get_codec(Meta) ->
       deflate
   end.
 
-%% @private Encode block according to selected codec
+%% Encode block according to selected codec
 -spec encode_block([{binary(), binary()}], iolist()) -> binary().
 encode_block(Meta, Data) ->
   case get_codec(Meta) of

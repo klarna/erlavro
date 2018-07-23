@@ -42,3 +42,6 @@ hex-publish: clean
 cover:
 	$(REBAR) cover -v
 
+.PHONY: coveralls
+coveralls:
+	$(REBAR) coveralls send

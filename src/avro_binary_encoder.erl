@@ -1,7 +1,7 @@
 %% coding: latin-1
 %%%-----------------------------------------------------------------------------
 %%%
-%%% Copyright (c) 2016-2018 Klarna AB
+%%% Copyright (c) 2016-2018 Klarna Bank AB (publ)
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -84,8 +84,9 @@ encode(Sc, Type, Input) ->
 
 %%%_* Internal functions =======================================================
 
-
-%% @private
+%% Tested in OTP-21, dialyzer had trouble understanding the 3 arg
+%% for the call to enc/3.
+-dialyzer({nowarn_function, [do_encode/3]}).
 -spec do_encode(lkup_fun(), type_or_name(), avro_value() | avro:in()) ->
         iodata().
 do_encode(Lkup, Type, #avro_value{type = T} = V) ->
@@ -98,7 +99,6 @@ do_encode(Lkup, TypeName, Value) when ?IS_NAME_RAW(TypeName) ->
 do_encode(Lkup, Type, Value) ->
   enc(Lkup, Type, Value).
 
-%% @private
 -spec enc(schema_store() | lkup_fun(), type_or_name(),
           avro_value() | avro:in()) -> iodata().
 enc(_Lkup, Type, Value) when ?IS_PRIMITIVE_TYPE(Type) ->
@@ -128,7 +128,6 @@ enc(Lkup, Type, Union) when ?IS_UNION_TYPE(Type) ->
       [long(Index), encode(Lkup, MemberT, Value)]
     end).
 
-%% @private
 -spec encode_prim(avro_type(), avro:in()) -> iodata().
 encode_prim(T, _) when ?IS_NULL_TYPE(T)    -> null();
 encode_prim(T, V) when ?IS_BOOLEAN_TYPE(T) -> bool(V);
@@ -139,7 +138,7 @@ encode_prim(T, V) when ?IS_DOUBLE_TYPE(T)  -> double(V);
 encode_prim(T, V) when ?IS_BYTES_TYPE(T)   -> bytes(V);
 encode_prim(T, V) when ?IS_STRING_TYPE(T)  -> string(V).
 
-%% @private Encode blocks, for arrays and maps
+%% Encode blocks, for arrays and maps
 %% 1. Blocks start with a 'long' type count
 %% 2. If count is negative (abs value for real count), it should be followed by
 %%    a 'long' type data size
@@ -160,7 +159,6 @@ encode_prim(T, V) when ?IS_STRING_TYPE(T)  -> string(V).
 %%  because it requires everyting in memory already).
 %% This is however benifical when concatinating large lists which have chunks
 %% encoded in different processes etc.
-%% @end
 -spec block(index(), iodata()) -> iodata().
 block(0, []) -> [0];
 block(Count, Payload) when is_binary(Payload) ->
@@ -169,44 +167,36 @@ block(Count, Payload) when is_binary(Payload) ->
 block(Count, Payload) ->
   block(Count, iolist_to_binary(Payload)).
 
-%% @private
 -spec null() -> binary().
 null() -> <<>>.
 
-%% @private
 -spec bool(boolean()) -> <<_:8>>.
 bool(false) -> <<0>>;
 bool(true)  -> <<1>>.
 
-%% @private
 -spec int(integer()) -> iodata().
 int(Int) ->
   ZzInt = zigzag(int, Int),
   varint(ZzInt).
 
-%% @private
 -spec long(integer()) -> iodata().
 long(Long) ->
   ZzLong = zigzag(long, Long),
   varint(ZzLong).
 
-%% @private
 -compile({no_auto_import, [float/1]}).
 -spec float(float()) -> binary().
 float(Float) when is_float(Float) ->
   <<Float:32/little-float>>.
 
-%% @private
 -spec double(float()) -> binary().
 double(Double) when is_float(Double) ->
   <<Double:64/little-float>>.
 
-%% @private
 -spec bytes(binary()) -> iodata().
 bytes(Data) when is_binary(Data) ->
   [long(byte_size(Data)), Data].
 
-%% @private
 -spec string(atom() | iodata()) -> iodata().
 string(Atom) when is_atom(Atom) ->
   string(atom_to_binary(Atom, utf8));
@@ -217,7 +207,6 @@ string(String) when is_list(String) ->
 string(String) when is_binary(String) ->
   [long(size(String)), String].
 
-%% @private
 %% ZigZag encode/decode
 %% https://developers.google.com/protocol-buffers/docs/encoding?&csw=1#types
 %% @end
@@ -225,7 +214,6 @@ string(String) when is_binary(String) ->
 zigzag(int, Int)  -> (Int bsl 1) bxor (Int bsr 31);
 zigzag(long, Int) -> (Int bsl 1) bxor (Int bsr 63).
 
-%% @private
 %% Variable-length format
 %% http://lucene.apache.org/core/3_5_0/fileformats.html#VInt
 %% @end
