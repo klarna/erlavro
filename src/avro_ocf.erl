@@ -236,7 +236,7 @@ decode_block(Lkup, Type, null, Bin, Count, Acc) ->
   {Obj, Tail} = decode_stream(Lkup, Type, Bin),
   decode_block(Lkup, Type, null, Tail, Count - 1, [Obj | Acc]).
 
-%% Hande coded schema.
+%% Hand coded schema.
 %% {"type": "record", "name": "org.apache.avro.file.Header",
 %% "fields" : [
 %%   {"name": "magic", "type": {"type": "fixed", "name": "Magic", "size": 4}},
