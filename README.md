@@ -4,7 +4,7 @@ Current version implements Apache Avro 1.8.1 specification.
 
 License: Apache License 2.0
 
-[![Build Status](https://travis-ci.org/klarna/erlavro.svg?branch=master)](https://travis-ci.org/klarna/erlavro)
+[![Build Status](https://travis-ci.org/klarna/erlavro.svg?branch=master)](https://travis-ci.org/klarna/erlavro) [![Coverage Status](https://coveralls.io/repos/github/klarna/erlavro/badge.svg?branch=master)](https://coveralls.io/github/klarna/erlavro?branch=master)
 
 # Avro Type and Erlang Spec Mapping
 

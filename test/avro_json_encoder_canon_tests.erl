@@ -128,7 +128,8 @@ java_029_test() ->
 java_030_test() ->
   ?assertEqual(<<"{\"name\":\"x.y.z.foo\",\"type\":\"fixed\",\"size\":32}">>,
                canon(<<"{\"namespace\":\"x.y.z\", \"type\":\"fixed\", "
-                       "\"name\":\"foo\", \"doc\":\"foo bar\", \"size\":32}">>)).
+                       "\"name\":\"foo\", \"doc\":\"foo bar\", \"size\":32}">>
+                    )).
 
 java_031_test() ->
   ?assertEqual(<<"{\"type\":\"array\",\"items\":\"null\"}">>,

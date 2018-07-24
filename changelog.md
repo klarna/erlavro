@@ -22,3 +22,5 @@
    - Upgrade jsone from 1.4.3 to 1.4.6 (for OTP-21)
 * 2.6.4
    - Do not conditionally export functions
+* 2.6.5
+   - Refine macros for `get_stacktrace` deprecation

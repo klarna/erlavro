@@ -20,7 +20,7 @@
 %% This file provides macros to support source code compaibility with old and
 %% new ways of doing things.
 
--ifdef('FUN_STACKTRACE').
+-ifndef(OTP_RELEASE).
 -define(CAPTURE_STACKTRACE, ).
 -define(GET_STACKTRACE, erlang:get_stacktrace()).
 -else.

@@ -115,6 +115,7 @@
             | boolean()
             | integer()
             | float()
+            | binary()
             | iolist()
             | [avro:in()]
             | [{name_raw(), avro:in()}].
