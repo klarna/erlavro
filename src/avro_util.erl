@@ -24,7 +24,8 @@
 -module(avro_util).
 
 %% API
--export([ canonicalize_aliases/2
+-export([ avro_schema_compatible/2
+        , canonicalize_aliases/2
         , canonicalize_custom_props/1
         , canonicalize_name/1
         , canonicalize_type_or_name/1
@@ -62,6 +63,72 @@
 -type validate_fun() :: fun((type_or_name(), validate_hist()) -> ok).
 
 %%%_* APIs =====================================================================
+%% @doc Checks whether two schemas are compatible in sense that an event
+%% encoded with the writer schema can be decoded by the reader schema.
+%% Schema compatibility is defined in
+%% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
+%% @end
+-spec avro_schema_compatible(avro_type(), avro_type()) ->
+                                true | false.
+avro_schema_compatible(Reader, Writer)
+  when ?IS_RECORD_TYPE(Reader) andalso ?IS_RECORD_TYPE(Writer) ->
+  SameFullName =
+    avro:get_type_fullname(Reader) =:= avro:get_type_fullname(Writer),
+  ReaderTypes = avro_record:get_all_field_data(Reader),
+  WriterTypes = avro_record:get_all_field_data(Writer),
+  FieldsDecodable =
+    lists:all(
+      fun({FieldName, FieldType, Default}) ->
+          case lists:keysearch(FieldName, 1, WriterTypes) of
+            false ->
+              Default =/= ?NO_VALUE;
+            {value, {_, WriterType, _}} ->
+              avro_schema_compatible(FieldType, WriterType)
+          end
+      end,
+      ReaderTypes
+     ),
+  SameFullName andalso FieldsDecodable;
+avro_schema_compatible(Reader, Writer)
+  when ?IS_ENUM_TYPE(Reader) andalso ?IS_ENUM_TYPE(Writer) ->
+  avro:is_same_type(Reader, Writer) andalso
+    (length(Writer#avro_enum_type.symbols --
+              Reader#avro_enum_type.symbols) == 0);
+avro_schema_compatible(Reader, Writer)
+  when ?IS_FIXED_TYPE(Reader) andalso ?IS_FIXED_TYPE(Writer) ->
+  avro:is_same_type(Reader, Writer) andalso
+    (Reader#avro_fixed_type.size == Writer#avro_fixed_type.size);
+avro_schema_compatible(Reader, Writer)
+  when ?IS_UNION_TYPE(Reader) andalso ?IS_UNION_TYPE(Writer) ->
+  ReaderTypes = avro_union:get_types(Reader),
+  WriterTypes = avro_union:get_types(Writer),
+  CheckFun =
+    fun F([], _) ->
+        true;
+        F([WriterType | T], Index) ->
+        avro_schema_compatible(WriterType, lists:nth(Index, ReaderTypes))
+          andalso F(T, Index + 1)
+    end,
+  length(ReaderTypes) >= length(WriterTypes) andalso CheckFun(WriterTypes, 1);
+avro_schema_compatible(Reader, Writer)
+  when ?IS_UNION_TYPE(Reader) ->
+  ReaderTypes = avro_union:get_types(Reader),
+  lists:any(
+    fun(ReaderType) ->
+        avro_schema_compatible(ReaderType, Writer)
+    end, ReaderTypes);
+avro_schema_compatible(Reader, Writer)
+  when ?IS_UNION_TYPE(Writer) ->
+  WriterTypes = avro_union:get_types(Writer),
+  lists:all(
+    fun(WriterType) ->
+        avro_schema_compatible(Reader, WriterType)
+    end,
+    WriterTypes
+   );
+avro_schema_compatible(Reader, Writer) ->
+  promotable(Reader, Writer) orelse
+    avro:is_same_type(Reader, Writer).
 
 %% @doc Validate type definitions according to given options.
 -spec validate(avro:avro_type(), avro:sc_opts()) -> ok | no_return().
@@ -586,6 +653,21 @@ sub_types(T) when ?IS_UNION_TYPE(T) -> avro_union:get_types(T);
 sub_types(T) when ?IS_MAP_TYPE(T) -> [avro_map:get_items_type(T)];
 sub_types(T) when ?IS_ARRAY_TYPE(T) -> [avro_array:get_items_type(T)];
 sub_types(_) -> [].
+
+%% @private
+promotable(Reader, Writer) when ?IS_INT_TYPE(Writer) ->
+   ?IS_LONG_TYPE(Reader) orelse ?IS_FLOAT_TYPE(Reader) orelse
+    ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_LONG_TYPE(Writer) ->
+  ?IS_FLOAT_TYPE(Reader) orelse ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_FLOAT_TYPE(Writer) ->
+  ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_STRING_TYPE(Writer) ->
+  ?IS_BYTES_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_BYTES_TYPE(Writer) ->
+  ?IS_STRING_TYPE(Reader);
+promotable(_, _) ->
+  false.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:
