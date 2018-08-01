@@ -36,6 +36,7 @@
         , get_type_name/1
         , get_type_namespace/1
         , get_type_fullname/1
+        , is_compatible/2
         , is_named_type/1
         , is_same_type/2
         , make_decoder/2
@@ -308,6 +309,73 @@ decode(avro_json, JSON, TypeOrName, StoreOrLkup, Hook) ->
                                  [{is_wrapped, false}], Hook);
 decode(avro_binary, Bin, TypeOrName, StoreOrLkup, Hook) ->
   avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Hook).
+
+%% @doc Checks whether two schemas are compatible in sense that an event
+%% encoded with the writer schema can be decoded by the reader schema.
+%% Schema compatibility is defined in
+%% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
+%% @end
+-spec is_compatible(avro_type(), avro_type()) -> boolean().
+is_compatible(Reader, Writer) ->
+  do_is_compatible(Reader, Writer).
+
+do_is_compatible(Reader, Writer)
+  when ?IS_RECORD_TYPE(Reader) andalso ?IS_RECORD_TYPE(Writer) ->
+  SameType = avro:is_same_type(Reader, Writer),
+  ReaderTypes = avro_record:get_all_field_data(Reader),
+  WriterTypes = avro_record:get_all_field_data(Writer),
+  FieldsDecodable =
+    lists:all(
+      fun({FieldName, FieldType, Default}) ->
+          case lists:keysearch(FieldName, 1, WriterTypes) of
+            false ->
+              Default =/= ?NO_VALUE;
+            {value, {_, WriterType, _}} ->
+              do_is_compatible(FieldType, WriterType)
+          end
+      end,
+      ReaderTypes
+     ),
+  SameType andalso FieldsDecodable;
+do_is_compatible(Reader, Writer)
+  when ?IS_ENUM_TYPE(Reader) andalso ?IS_ENUM_TYPE(Writer) ->
+  avro:is_same_type(Reader, Writer) andalso
+    Writer#avro_enum_type.symbols -- Reader#avro_enum_type.symbols == [];
+do_is_compatible(Reader, Writer)
+  when ?IS_FIXED_TYPE(Reader) andalso ?IS_FIXED_TYPE(Writer) ->
+  avro:is_same_type(Reader, Writer)
+    andalso (Reader#avro_fixed_type.size == Writer#avro_fixed_type.size);
+do_is_compatible(Reader, Writer)
+  when ?IS_UNION_TYPE(Reader) andalso ?IS_UNION_TYPE(Writer) ->
+  ReaderTypes = avro_union:get_types(Reader),
+  WriterTypes = avro_union:get_types(Writer),
+  CheckFun =
+    fun F([], _) ->
+        true;
+        F([WriterType | T], Index) ->
+        do_is_compatible(WriterType, lists:nth(Index, ReaderTypes))
+          andalso F(T, Index + 1)
+    end,
+  length(ReaderTypes) >= length(WriterTypes) andalso CheckFun(WriterTypes, 1);
+do_is_compatible(Reader, Writer)
+  when ?IS_UNION_TYPE(Reader) ->
+  ReaderTypes = avro_union:get_types(Reader),
+  lists:any(
+    fun(ReaderType) ->
+        do_is_compatible(ReaderType, Writer)
+    end, ReaderTypes);
+do_is_compatible(Reader, Writer)
+  when ?IS_UNION_TYPE(Writer) ->
+  WriterTypes = avro_union:get_types(Writer),
+  lists:all(
+    fun(WriterType) ->
+        do_is_compatible(Reader, WriterType)
+    end,
+    WriterTypes
+   );
+do_is_compatible(Reader, Writer) ->
+  promotable(Reader, Writer) orelse
+    avro:is_same_type(Reader, Writer).
 
 %% @doc Recursively resolve children type's fullname with enclosing
 %% namespace passed down from ancestor types.
@@ -605,6 +673,20 @@ to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V).
 make_fullname(Name, ?NS_GLOBAL) -> Name;
 make_fullname(Name, Namespace) ->
   iolist_to_binary([?NAME(Namespace), ".", ?NAME(Name)]).
+
+promotable(Reader, Writer) when ?IS_INT_TYPE(Writer) ->
+   ?IS_LONG_TYPE(Reader) orelse ?IS_FLOAT_TYPE(Reader) orelse
+    ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_LONG_TYPE(Writer) ->
+  ?IS_FLOAT_TYPE(Reader) orelse ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_FLOAT_TYPE(Writer) ->
+  ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_STRING_TYPE(Writer) ->
+  ?IS_BYTES_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_BYTES_TYPE(Writer) ->
+  ?IS_STRING_TYPE(Reader);
+promotable(_, _) ->
+  false.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
