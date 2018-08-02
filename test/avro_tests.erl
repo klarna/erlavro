@@ -544,7 +544,13 @@ avro_schema_compatible_union_test() ->
        avro:decode_schema(<<"[", FixedType1/binary, ",",
                             FixedType2/binary, "]">>),
        avro:decode_schema(<<"[", FixedType1/binary, "]">>)
-      )).
+      )),
+  ?assertMatch(
+     {not_compatible, [{union,<<"union">>}],  [<<"string">>]},
+     avro:is_compatible(
+       mkschema([<<"int">>, <<"double">>]),
+       mkschema(<<"string">>))).
+
 
 avro_schema_compatible_record_test() ->
   ?assert(

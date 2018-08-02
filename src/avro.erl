@@ -426,23 +426,16 @@ do_is_compatible(Reader, Writer)
 do_is_compatible(Reader, Writer)
   when ?IS_UNION_TYPE(Writer) ->
   WriterTypes = avro_union:get_types(Writer),
-  Result =
-    try
-      lists:all(
-        fun(WriterType) ->
-            do_is_compatible(Reader, WriterType)
-        end,
-        WriterTypes
-       )
-    catch throw:{not_compatible, _RPath, WPath} ->
-        erlang:throw({ not_compatible, desc(Reader)
-                     , [desc(Writer) | WPath]})
-    end,
-  case Result of
-    true ->
-      true;
-    false ->
-      erlang:throw({not_compatible, desc(Reader), desc(Writer)})
+  try
+    lists:all(
+      fun(WriterType) ->
+          do_is_compatible(Reader, WriterType)
+      end,
+      WriterTypes
+     )
+  catch throw:{not_compatible, _RPath, WPath} ->
+      erlang:throw({ not_compatible, desc(Reader)
+                   , [desc(Writer) | WPath]})
   end;
 do_is_compatible(Reader, Writer) ->
   Result = promotable(Reader, Writer) orelse
