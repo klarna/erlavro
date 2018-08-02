@@ -393,8 +393,10 @@ default_values_test() ->
 avro_schema_compatible_primitive_test() ->
   ?assert(avro:is_compatible(mkschema(primitive_type(int)),
                                mkschema(primitive_type(int)))),
-  ?assertNot(avro:is_compatible(mkschema(primitive_type(int)),
-                                mkschema(primitive_type(string)))).
+  ?assertMatch(
+     {not_compatible, [<<"int">>], [<<"string">>]},
+     avro:is_compatible(mkschema(primitive_type(int)),
+                        mkschema(primitive_type(string)))).
 
 avro_schema_promotable_primitive_test() ->
   ?assert(avro:is_compatible(mkschema(primitive_type(long)),
@@ -413,7 +415,9 @@ avro_schema_promotable_primitive_test() ->
                                  mkschema(primitive_type(string)))),
   ?assert(avro:is_compatible(mkschema(primitive_type(string)),
                                  mkschema(primitive_type(bytes)))),
-  ?assertNot(avro:is_compatible(mkschema(primitive_type(string)),
+  ?assertMatch(
+     {not_compatible, [<<"string">>], [<<"int">>]},
+     avro:is_compatible(mkschema(primitive_type(string)),
                                 mkschema(primitive_type(int)))).
 
 avro_schema_compatible_array_test() ->
@@ -421,8 +425,13 @@ avro_schema_compatible_array_test() ->
   Writer = mkschema(array_type(string)),
   Writer2 = mkschema(array_type(int)),
   ?assert(avro:is_compatible(Reader, Writer)),
-  ?assertNot(avro:is_compatible(Reader, Writer2)),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{<<"array">>, <<"string">>}],
+      [{<<"array">>, <<"int">>}]},
+     avro:is_compatible(Reader, Writer2)),
+  ?assertMatch(
+     {not_compatible, [{<<"array">>, <<"int">>}],
+      [{<<"array">>, {<<"map">>, <<"int">>}}]},
      avro:is_compatible(
        mkschema(array_type(int)),
        mkschema(array_type(map_type(int)))
@@ -433,7 +442,9 @@ avro_schema_compatible_maps_test() ->
   Reader = mkschema(map_type(string)),
   Writer = mkschema(map_type(string)),
   ?assert(avro:is_compatible(Reader, Writer)),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{<<"map">>, <<"string">>}],
+      [{<<"map">>, <<"int">>}]},
      avro:is_compatible(
        mkschema(map_type(string)),
        mkschema(map_type(int))
@@ -446,7 +457,8 @@ avro_schema_compatible_enums_test() ->
        mkschema(enum_type("Suit", Suits)),
        mkschema(enum_type("Suit", Suits))
       )),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{enum, <<"Suit">>}], [{enum, <<"Cars">>}]},
      avro:is_compatible(
        mkschema(enum_type("Suit", Suits)),
        mkschema(enum_type("Cars", Suits))
@@ -456,7 +468,8 @@ avro_schema_compatible_enums_test() ->
       mkschema(enum_type("Suit", Suits)),
       mkschema(enum_type("Suit", ["SPADES"]))
      )),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{enum, <<"Suit">>}], [{enum, <<"Suit">>}]},
      avro:is_compatible(
        mkschema(enum_type("Suit", ["SPADES"])),
        mkschema(enum_type("Suit", Suits))
@@ -468,12 +481,14 @@ avro_schema_compatible_fixed_test() ->
       mkschema(fixed_type("name", 16)),
       mkschema(fixed_type("name", 16))
      )),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{fixed, <<"name">>}], [{fixed, <<"name1">>}]},
      avro:is_compatible(
        mkschema(fixed_type("name", 16)),
        mkschema(fixed_type("name1", 16))
       )),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{fixed, <<"name">>}], [{fixed, <<"name">>}]},
      avro:is_compatible(
        mkschema(fixed_type("name", 16)),
        mkschema(fixed_type("name", 14))
@@ -505,7 +520,14 @@ avro_schema_compatible_union_test() ->
        mkschema(<<"string">>),
        mkschema([<<"string">>])
       )),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{union,<<"union">>}, <<"int">>],
+      [{union,<<"union">>}, <<"bytes">>]},
+     avro:is_compatible(
+       mkschema([<<"string">>, <<"int">>]),
+       mkschema([<<"string">>, <<"bytes">>]))),
+  ?assertMatch(
+     {not_compatible, [<<"string">>], [{union,<<"union">>}, <<"int">>]},
      avro:is_compatible(
        mkschema(<<"string">>),
        mkschema([<<"string">>, <<"int">>])
@@ -532,14 +554,17 @@ avro_schema_compatible_record_test() ->
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ]))
       )),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{record, <<"record0">>}], [{record, <<"record0">>}]},
      avro:is_compatible(
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ])),
        mkschema(record_type("record0",
                             [ field("field1", <<"string">>) ]))
       )),
-  ?assertNot(
+  ?assertMatch(
+     {not_compatible, [{record, <<"record0">>}, <<"string">>],
+                      [{record, <<"record0">>}, <<"int">>]},
      avro:is_compatible(
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ])),
@@ -552,7 +577,29 @@ avro_schema_compatible_record_test() ->
                             [ field("defaultfield",
                                     <<"string">>, <<"foo">>) ])),
        mkschema(record_type("record0", []))
-      )).
+      )),
+  ?assertMatch(
+     {not_compatible, [ {record, <<"record0">>}, {record, <<"inner_record">>}
+                      , <<"int">>],
+                      [ {record, <<"record0">>}, {record, <<"inner_record">>}
+                      , <<"string">>]},
+     avro:is_compatible(
+       mkschema(record_type("record0",
+                            [ field("field0", <<"string">>)
+                            , field("field1",
+                                    record_type("inner_record",
+                                                [ field("inner_field",
+                                                        <<"int">>)
+                                                ]))
+                            ])),
+       mkschema(record_type("record0",
+                            [ field("field0", <<"string">>)
+                            , field("field1",
+                                    record_type("inner_record",
+                                                [ field("inner_field",
+                                                        <<"string">>)
+                                                ]))
+                            ])))).
 
 primitive_type(Type) ->
   #{ type => Type }.
