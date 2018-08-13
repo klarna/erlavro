@@ -159,11 +159,10 @@ get_all_field_types(Type) when ?IS_RECORD_TYPE(Type) ->
 %% in a triple list.
 %% @end
 -spec get_all_field_data(avro_type()) -> [ {field_name()
-                                         , type_or_name(),
-                                         ?NO_VALUE | avro:in() | avro_value()
+                                         , type_or_name()
+                                         , ?NO_VALUE | avro:in() | avro_value()
                                          }].
-get_all_field_data(Type) when ?IS_RECORD_TYPE(Type) ->
-  #avro_record_type{fields = Fields} = Type,
+get_all_field_data(#avro_record_type{fields = Fields}) ->
   lists:map(
     fun(#avro_record_field{ name = FieldName
                           , type = FieldTypeOrName

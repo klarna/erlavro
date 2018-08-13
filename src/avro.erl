@@ -36,7 +36,6 @@
         , get_type_name/1
         , get_type_namespace/1
         , get_type_fullname/1
-        , is_compatible/2
         , is_named_type/1
         , is_same_type/2
         , make_decoder/2
@@ -309,143 +308,6 @@ decode(avro_json, JSON, TypeOrName, StoreOrLkup, Hook) ->
                                  [{is_wrapped, false}], Hook);
 decode(avro_binary, Bin, TypeOrName, StoreOrLkup, Hook) ->
   avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Hook).
-
-%% @doc Checks whether two schemas are compatible in sense that an event
-%% encoded with the writer schema can be decoded by the reader schema.
-%% Schema compatibility is defined in
-%% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
-%% @end
--spec is_compatible(avro_type(), avro_type()) -> boolean().
-is_compatible(Reader, Writer) ->
-  try
-    do_is_compatible(Reader, Writer)
-  catch throw:{not_compatible, RPath, WPath} ->
-      {not_compatible, lists:flatten(RPath), lists:flatten(WPath)}
-  end.
-
-desc(RecordType) when ?IS_RECORD_TYPE(RecordType) ->
-  [{record, avro:get_type_name(RecordType)}];
-desc(ArrayType) when ?IS_ARRAY_TYPE(ArrayType) ->
-  [ItemsType] =  desc(avro_array:get_items_type(ArrayType)),
-  [{avro:get_type_name(ArrayType), ItemsType}];
-desc(MapType) when ?IS_MAP_TYPE(MapType) ->
-  [ItemsType] =  desc(avro_map:get_items_type(MapType)),
-  [{avro:get_type_name(MapType), ItemsType}];
-desc(EnumType) when ?IS_ENUM_TYPE(EnumType) ->
-  [{enum, avro:get_type_name(EnumType)}];
-desc(FixedType) when ?IS_FIXED_TYPE(FixedType) ->
-  [{fixed, avro:get_type_name(FixedType)}];
-desc(UnionType) when ?IS_UNION_TYPE(UnionType) ->
-  [{union, avro:get_type_name(UnionType)}];
-desc(AvroType) ->
-  [avro:get_type_name(AvroType)].
-
-do_is_compatible(Reader, Writer)
-  when ?IS_RECORD_TYPE(Reader) andalso ?IS_RECORD_TYPE(Writer) ->
-  SameType = avro:is_same_type(Reader, Writer),
-  ReaderTypes = avro_record:get_all_field_data(Reader),
-  WriterTypes = avro_record:get_all_field_data(Writer),
-  FieldsDecodable =
-    try
-      lists:all(
-        fun({FieldName, FieldType, Default}) ->
-            case lists:keysearch(FieldName, 1, WriterTypes) of
-              false ->
-                Default =/= ?NO_VALUE;
-            {value, {_, WriterType, _}} ->
-                do_is_compatible(FieldType, WriterType)
-            end
-        end,
-        ReaderTypes
-       )
-    catch throw:{not_compatible, RPath, WPath} ->
-        erlang:throw({ not_compatible, [desc(Reader) | RPath]
-                     , [desc(Writer) | WPath]})
-    end,
-    Result = SameType andalso FieldsDecodable,
-    case Result of
-      true ->
-        true;
-      false ->
-        erlang:throw({not_compatible, desc(Reader), desc(Writer)})
-    end;
-do_is_compatible(Reader, Writer)
-  when ?IS_ENUM_TYPE(Reader) andalso ?IS_ENUM_TYPE(Writer) ->
-  Result = avro:is_same_type(Reader, Writer) andalso
-    Writer#avro_enum_type.symbols -- Reader#avro_enum_type.symbols == [],
-  case Result of
-    true ->
-      true;
-    false ->
-      erlang:throw({not_compatible, desc(Reader), desc(Writer)})
-  end;
-do_is_compatible(Reader, Writer)
-  when ?IS_FIXED_TYPE(Reader) andalso ?IS_FIXED_TYPE(Writer) ->
-  Result = avro:is_same_type(Reader, Writer)
-    andalso (Reader#avro_fixed_type.size == Writer#avro_fixed_type.size),
-  case Result of
-    true ->
-      true;
-    false ->
-      erlang:throw({not_compatible, desc(Reader), desc(Writer)})
-  end;
-do_is_compatible(Reader, Writer)
-  when ?IS_UNION_TYPE(Reader) andalso ?IS_UNION_TYPE(Writer) ->
-  ReaderTypes = avro_union:get_types(Reader),
-  WriterTypes = avro_union:get_types(Writer),
-  CheckFun =
-    fun F([], _) ->
-        true;
-        F([WriterType | WT], [ReaderType | RT]) ->
-        do_is_compatible(ReaderType, WriterType)
-          andalso F(WT, RT)
-    end,
-    try
-      CheckFun(WriterTypes, ReaderTypes)
-    catch throw:{not_compatible, RPath, WPath} ->
-        erlang:throw({ not_compatible, [desc(Reader) | RPath]
-                     , [desc(Writer) | WPath]})
-    end;
-do_is_compatible(Reader, Writer)
-  when ?IS_UNION_TYPE(Reader) ->
-  ReaderTypes = avro_union:get_types(Reader),
-  Result = lists:any(
-             fun(ReaderType) ->
-                 try
-                   do_is_compatible(ReaderType, Writer)
-                 catch throw:{not_compatible, _, _} ->
-                     false
-                 end
-             end, ReaderTypes),
-  case Result of
-    true ->
-      true;
-    false ->
-      erlang:throw({not_compatible, desc(Reader), desc(Writer)})
-  end;
-do_is_compatible(Reader, Writer)
-  when ?IS_UNION_TYPE(Writer) ->
-  WriterTypes = avro_union:get_types(Writer),
-  try
-    lists:all(
-      fun(WriterType) ->
-          do_is_compatible(Reader, WriterType)
-      end,
-      WriterTypes
-     )
-  catch throw:{not_compatible, _RPath, WPath} ->
-      erlang:throw({ not_compatible, desc(Reader)
-                   , [desc(Writer) | WPath]})
-  end;
-do_is_compatible(Reader, Writer) ->
-  Result = promotable(Reader, Writer) orelse
-    avro:is_same_type(Reader, Writer),
-  case Result of
-    true ->
-      true;
-    false ->
-      erlang:throw({not_compatible, desc(Reader), desc(Writer)})
-  end.
 
 %% @doc Recursively resolve children type's fullname with enclosing
 %% namespace passed down from ancestor types.
@@ -743,20 +605,6 @@ to_term(#avro_fixed_type{}, V)     -> avro_fixed:get_value(V).
 make_fullname(Name, ?NS_GLOBAL) -> Name;
 make_fullname(Name, Namespace) ->
   iolist_to_binary([?NAME(Namespace), ".", ?NAME(Name)]).
-
-promotable(Reader, Writer) when ?IS_INT_TYPE(Writer) ->
-   ?IS_LONG_TYPE(Reader) orelse ?IS_FLOAT_TYPE(Reader) orelse
-    ?IS_DOUBLE_TYPE(Reader);
-promotable(Reader, Writer) when ?IS_LONG_TYPE(Writer) ->
-  ?IS_FLOAT_TYPE(Reader) orelse ?IS_DOUBLE_TYPE(Reader);
-promotable(Reader, Writer) when ?IS_FLOAT_TYPE(Writer) ->
-  ?IS_DOUBLE_TYPE(Reader);
-promotable(Reader, Writer) when ?IS_STRING_TYPE(Writer) ->
-  ?IS_BYTES_TYPE(Reader);
-promotable(Reader, Writer) when ?IS_BYTES_TYPE(Writer) ->
-  ?IS_STRING_TYPE(Reader);
-promotable(_, _) ->
-  false.
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

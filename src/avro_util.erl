@@ -37,6 +37,7 @@
         , flatten_type/1
         , get_opt/2
         , get_opt/3
+        , is_compatible/2
         , make_lkup_fun/2
         , parse_defaults/2
         , resolve_duplicated_refs/1
@@ -294,6 +295,119 @@ expand_type(Type0, Sc, Style) ->
 resolve_duplicated_refs(Type0) ->
   {Type, _Refs} = resolve_duplicated_refs(Type0, []),
   Type.
+
+%% @doc Checks whether two schemas are compatible in sense that an event
+%% encoded with the writer schema can be decoded by the reader schema.
+%% Schema compatibility is described here:
+%% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
+%% An exception in this implementation is the comparison of two unions.
+%% Check considers union member order changes to be incompatible. This
+%% means that in order for a writer union to be compatible with the
+%% reader union, the writer union must only add new members to it.
+%% For exampl
+%% is_compatible([int, string], [int, string]) = TRUE
+%% is_compatible([string, int], [int, string]) = FALSE
+%% is_compatible([string, int], [string]) = TRUE
+%% is_compatible([string, int], [int]) = FALSE
+%% is_compatible([int, string], [int, string, some_record]) = TRUE
+%% @end
+-spec is_compatible(avro_type(), avro_type()) -> true | {not_compatible, _, _}.
+is_compatible(Reader, Writer) ->
+  try
+    do_is_compatible(Reader, Writer, [], [])
+  catch throw:{not_compatible, RPath, WPath} ->
+      {not_compatible, lists:reverse(RPath), lists:reverse(WPath)}
+  end.
+
+desc(RecordType) when ?IS_RECORD_TYPE(RecordType) ->
+  {record, avro:get_type_name(RecordType)};
+desc(ArrayType) when ?IS_ARRAY_TYPE(ArrayType) ->
+  {avro:get_type_name(ArrayType), desc(avro_array:get_items_type(ArrayType))};
+desc(MapType) when ?IS_MAP_TYPE(MapType) ->
+  {avro:get_type_name(MapType),desc(avro_map:get_items_type(MapType))};
+desc(EnumType) when ?IS_ENUM_TYPE(EnumType) ->
+  {enum, avro:get_type_name(EnumType)};
+desc(FixedType) when ?IS_FIXED_TYPE(FixedType) ->
+  {fixed, avro:get_type_name(FixedType)};
+desc(UnionType) when ?IS_UNION_TYPE(UnionType) ->
+  {union, avro:get_type_name(UnionType)};
+desc(AvroType) ->
+  avro:get_type_name(AvroType).
+
+do_is_compatible(Reader, Writer, RPath, WPath)
+  when ?IS_RECORD_TYPE(Reader) andalso ?IS_RECORD_TYPE(Writer) ->
+  SameType = avro:is_same_type(Reader, Writer),
+  ReaderTypes = avro_record:get_all_field_data(Reader),
+  WriterTypes = avro_record:get_all_field_data(Writer),
+  NewRPath = [desc(Reader) | RPath],
+  NewWPath = [desc(Writer) | WPath],
+  SameType andalso
+    lists:all(
+      fun({FieldName, FieldType, Default}) ->
+          case lists:keysearch(FieldName, 1, WriterTypes) of
+            false ->
+              Default =/= ?NO_VALUE orelse
+                erlang:throw({not_compatible, NewRPath, NewWPath});
+            {value, {_, WriterType, _}} ->
+              do_is_compatible(FieldType, WriterType, NewRPath, NewWPath)
+          end
+      end,
+      ReaderTypes);
+do_is_compatible(Reader, Writer, RPath, WPath)
+  when ?IS_ENUM_TYPE(Reader) andalso ?IS_ENUM_TYPE(Writer) ->
+  avro:is_same_type(Reader, Writer) andalso
+    Writer#avro_enum_type.symbols -- Reader#avro_enum_type.symbols == [] orelse
+    erlang:throw({ not_compatible, [desc(Reader) | RPath]
+                 , [desc(Writer) | WPath]});
+do_is_compatible(Reader, Writer, RPath, WPath)
+  when ?IS_FIXED_TYPE(Reader) andalso ?IS_FIXED_TYPE(Writer) ->
+  avro:is_same_type(Reader, Writer)
+    andalso (Reader#avro_fixed_type.size == Writer#avro_fixed_type.size) orelse
+    erlang:throw( {not_compatible, [desc(Reader) | RPath]
+                  , [desc(Writer) | WPath]});
+do_is_compatible(Reader, Writer, RPath, WPath)
+  when ?IS_UNION_TYPE(Reader) andalso ?IS_UNION_TYPE(Writer) ->
+  ReaderTypes = avro_union:get_types(Reader),
+  WriterTypes = avro_union:get_types(Writer),
+  NewRPath = [desc(Reader) | RPath],
+  NewWPath = [desc(Writer) | WPath],
+  CheckFun =
+    fun F([], _) ->
+        true;
+        F([WriterType | WT], [ReaderType | RT]) ->
+        do_is_compatible(ReaderType, WriterType, NewRPath, NewWPath)
+          andalso F(WT, RT)
+    end,
+  CheckFun(WriterTypes, ReaderTypes);
+do_is_compatible(Reader, Writer, RPath, WPath)
+  when ?IS_UNION_TYPE(Reader) ->
+  ReaderTypes = avro_union:get_types(Reader),
+  NewRPath = [desc(Reader) | RPath],
+  NewWPath = [desc(Writer) | WPath],
+  lists:any(
+    fun(ReaderType) ->
+        try
+          do_is_compatible(ReaderType, Writer, NewRPath, WPath)
+        catch throw:{not_compatible, _, _} ->
+            false
+        end
+    end, ReaderTypes) orelse
+    erlang:throw({not_compatible, NewRPath, NewWPath});
+do_is_compatible(Reader, Writer, RPath, WPath)
+  when ?IS_UNION_TYPE(Writer) ->
+  WriterTypes = avro_union:get_types(Writer),
+  NewWPath = [desc(Writer) | WPath],
+  lists:all(
+    fun(WriterType) ->
+        do_is_compatible(Reader, WriterType, RPath, NewWPath)
+    end,
+    WriterTypes
+   );
+do_is_compatible(Reader, Writer, RPath, WPath) ->
+  promotable(Reader, Writer) orelse
+    avro:is_same_type(Reader, Writer) orelse
+    erlang:throw({ not_compatible, [desc(Reader) | RPath]
+                 , [desc(Writer) | WPath]}).
 
 %%%_* Internal functions =======================================================
 
@@ -586,6 +700,21 @@ sub_types(T) when ?IS_UNION_TYPE(T) -> avro_union:get_types(T);
 sub_types(T) when ?IS_MAP_TYPE(T) -> [avro_map:get_items_type(T)];
 sub_types(T) when ?IS_ARRAY_TYPE(T) -> [avro_array:get_items_type(T)];
 sub_types(_) -> [].
+
+
+promotable(Reader, Writer) when ?IS_INT_TYPE(Writer) ->
+   ?IS_LONG_TYPE(Reader) orelse ?IS_FLOAT_TYPE(Reader) orelse
+    ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_LONG_TYPE(Writer) ->
+  ?IS_FLOAT_TYPE(Reader) orelse ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_FLOAT_TYPE(Writer) ->
+  ?IS_DOUBLE_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_STRING_TYPE(Writer) ->
+  ?IS_BYTES_TYPE(Reader);
+promotable(Reader, Writer) when ?IS_BYTES_TYPE(Writer) ->
+  ?IS_STRING_TYPE(Reader);
+promotable(_, _) ->
+  false.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:
