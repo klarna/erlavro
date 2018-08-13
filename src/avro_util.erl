@@ -324,7 +324,7 @@ desc(RecordType) when ?IS_RECORD_TYPE(RecordType) ->
 desc(ArrayType) when ?IS_ARRAY_TYPE(ArrayType) ->
   {avro:get_type_name(ArrayType), desc(avro_array:get_items_type(ArrayType))};
 desc(MapType) when ?IS_MAP_TYPE(MapType) ->
-  {avro:get_type_name(MapType),desc(avro_map:get_items_type(MapType))};
+  {avro:get_type_name(MapType), desc(avro_map:get_items_type(MapType))};
 desc(EnumType) when ?IS_ENUM_TYPE(EnumType) ->
   {enum, avro:get_type_name(EnumType)};
 desc(FixedType) when ?IS_FIXED_TYPE(FixedType) ->
