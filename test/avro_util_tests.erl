@@ -280,7 +280,7 @@ avro_schema_compatible_union_test() ->
        mkschema(<<"string">>))),
   ?assertMatch(
      {reader_missing_default_value,[ <<"union">>, {member_id, 0}
-                                   , {record, <<"record0">>}, {field, "field0"}
+                                   , <<"record0">>, {field, "field0"}
                                    ]},
      avro_util:is_compatible(
        mkschema([ record_type("record0", [field("field0", <<"string">>)])
@@ -290,7 +290,7 @@ avro_schema_compatible_union_test() ->
                 , <<"string">>])
       )),
   ?assertMatch(
-     {not_compatible, [<<"union">>], [{record, <<"record0">>}]},
+     {not_compatible, [<<"union">>], [<<"record0">>]},
      avro_util:is_compatible(
        mkschema([ record_type("record0", [field("field0", <<"string">>)])
                 , <<"string">>
@@ -307,9 +307,7 @@ avro_schema_compatible_record_test() ->
                             [ field("field0", <<"string">>) ]))
       )),
   ?assertMatch(
-     {reader_missing_default_value, [ {record, <<"record0">>}
-                                    , {field,"field0"}
-                                    ]},
+     {reader_missing_default_value, [<<"record0">>, {field,"field0"}]},
      avro_util:is_compatible(
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ])),
@@ -317,8 +315,8 @@ avro_schema_compatible_record_test() ->
                             [ field("field1", <<"string">>) ]))
       )),
   ?assertMatch(
-     {not_compatible, [{record, <<"record0">>}, {field,"field0"}, <<"string">>],
-                      [{record, <<"record0">>}, {field,"field0"}, <<"int">>]},
+     {not_compatible, [<<"record0">>, {field,"field0"}, <<"string">>],
+                      [<<"record0">>, {field,"field0"}, <<"int">>]},
      avro_util:is_compatible(
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ])),
@@ -333,11 +331,11 @@ avro_schema_compatible_record_test() ->
        mkschema(record_type("record0", []))
       )),
   ?assertMatch(
-     {not_compatible, [ {record, <<"record0">>}, {field,"field1"}
-                      , {record, <<"inner_record">>}, {field,"inner_field"}
+     {not_compatible, [ <<"record0">>, {field,"field1"}
+                      , <<"inner_record">>, {field,"inner_field"}
                       , <<"int">>],
-                      [ {record, <<"record0">>}, {field,"field1"}
-                      , {record, <<"inner_record">>}, {field,"inner_field"}
+                      [ <<"record0">>, {field,"field1"}
+                      , <<"inner_record">>, {field,"inner_field"}
                       , <<"string">>]},
      avro_util:is_compatible(
        mkschema(record_type("record0",

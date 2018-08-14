@@ -321,18 +321,13 @@ is_compatible(Reader, Writer) ->
       {reader_missing_default_value, lists:reverse(Path)}
   end.
 
-desc(RecordType) when ?IS_RECORD_TYPE(RecordType) ->
-  {record, avro:get_type_name(RecordType)};
-desc(AvroType) ->
-  avro:get_type_fullname(AvroType).
-
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_RECORD_TYPE(Reader) andalso ?IS_RECORD_TYPE(Writer) ->
   SameType = avro:is_same_type(Reader, Writer),
   ReaderTypes = avro_record:get_all_field_data(Reader),
   WriterTypes = avro_record:get_all_field_data(Writer),
-  NewRPath = [desc(Reader) | RPath],
-  NewWPath = [desc(Writer) | WPath],
+  NewRPath = [avro:get_type_fullname(Reader) | RPath],
+  NewWPath = [avro:get_type_fullname(Writer) | WPath],
   SameType andalso
     lists:all(
       fun({FieldName, FieldType, Default}) ->
@@ -354,20 +349,20 @@ do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_ENUM_TYPE(Reader) andalso ?IS_ENUM_TYPE(Writer) ->
   avro:is_same_type(Reader, Writer) andalso
     Writer#avro_enum_type.symbols -- Reader#avro_enum_type.symbols == [] orelse
-    erlang:throw({ not_compatible, [desc(Reader) | RPath]
-                 , [desc(Writer) | WPath]});
+    erlang:throw({ not_compatible, [avro:get_type_fullname(Reader) | RPath]
+                 , [avro:get_type_fullname(Writer) | WPath]});
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_FIXED_TYPE(Reader) andalso ?IS_FIXED_TYPE(Writer) ->
   avro:is_same_type(Reader, Writer)
     andalso (Reader#avro_fixed_type.size == Writer#avro_fixed_type.size) orelse
-    erlang:throw( {not_compatible, [desc(Reader) | RPath]
-                  , [desc(Writer) | WPath]});
+    erlang:throw( {not_compatible, [avro:get_type_fullname(Reader) | RPath]
+                  , [avro:get_type_fullname(Writer) | WPath]});
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Reader) andalso ?IS_UNION_TYPE(Writer) ->
   ReaderTypes = avro_union:get_types(Reader),
   WriterTypes = avro_union:get_types(Writer),
-  NewRPath = [desc(Reader) | RPath],
-  NewWPath = [desc(Writer) | WPath],
+  NewRPath = [avro:get_type_fullname(Reader) | RPath],
+  NewWPath = [avro:get_type_fullname(Writer) | WPath],
   CheckFun =
     fun F([], _, _) ->
         true;
@@ -384,8 +379,8 @@ do_is_compatible(Reader, Writer, RPath, WPath)
   ReaderTypes = avro_union:get_types(Reader),
   ReaderTypeCount = length(ReaderTypes),
   ReaderTypeIndices = lists:zip(lists:seq(0, ReaderTypeCount - 1), ReaderTypes),
-  NewRPath = [desc(Reader) | RPath],
-  NewWPath = [desc(Writer) | WPath],
+  NewRPath = [avro:get_type_fullname(Reader) | RPath],
+  NewWPath = [avro:get_type_fullname(Writer) | WPath],
   lists:any(
     fun({Index, ReaderType}) ->
         try
@@ -403,7 +398,7 @@ do_is_compatible(Reader, Writer, RPath, WPath)
   WriterTypes = avro_union:get_types(Writer),
   WriterTypeCount = length(WriterTypes),
   WriterTypeIndices = lists:zip(lists:seq(0, WriterTypeCount - 1), WriterTypes),
-  NewWPath = [desc(Writer) | WPath],
+  NewWPath = [avro:get_type_fullname(Writer) | WPath],
   lists:all(
     fun({Index, WriterType}) ->
         do_is_compatible(Reader, WriterType, RPath,
@@ -415,20 +410,22 @@ do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_ARRAY_TYPE(Reader) andalso ?IS_ARRAY_TYPE(Writer) ->
   ReaderType = avro_array:get_items_type(Reader),
   WriterType = avro_array:get_items_type(Writer),
-  do_is_compatible(ReaderType, WriterType, [desc(Reader) | RPath],
-                   [desc(Writer) | WPath]);
+  do_is_compatible(ReaderType, WriterType,
+                   [avro:get_type_fullname(Reader) | RPath],
+                   [avro:get_type_fullname(Writer) | WPath]);
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_MAP_TYPE(Reader) andalso ?IS_MAP_TYPE(Writer) ->
   ReaderType = avro_map:get_items_type(Reader),
   WriterType = avro_map:get_items_type(Writer),
-  do_is_compatible(ReaderType, WriterType, [desc(Reader) | RPath],
-                   [desc(Writer) | WPath]);
+  do_is_compatible(ReaderType, WriterType,
+                   [avro:get_type_fullname(Reader) | RPath],
+                   [avro:get_type_fullname(Writer) | WPath]);
 do_is_compatible(Reader, Writer, RPath, WPath) ->
   promotable(Reader, Writer) orelse
     avro:is_same_type(Reader, Writer) orelse
     erlang:throw({ not_compatible
-                 , [desc(Reader) | RPath]
-                 , [desc(Writer) | WPath]
+                 , [avro:get_type_fullname(Reader) | RPath]
+                 , [avro:get_type_fullname(Writer) | WPath]
                  }).
 
 %%%_* Internal functions =======================================================
