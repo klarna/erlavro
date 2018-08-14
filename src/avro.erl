@@ -519,7 +519,7 @@ is_same_type(T1, T2) ->
 %% An exception in this implementation is the comparison of two unions.
 %% Check considers union member order changes to be incompatible. This
 %% means that in order for a writer union to be compatible with the
-%% reader union, the writer union must only add new members to it.
+%% reader union, the writer union must only append new members to it.
 %% For example
 %% is_compatible([int, string], [int, string]) = TRUE
 %% is_compatible([string, int], [int, string]) = FALSE
