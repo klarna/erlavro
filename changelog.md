@@ -24,3 +24,5 @@
    - Do not conditionally export functions
 * 2.6.5
    - Refine macros for `get_stacktrace` deprecation
+* 2.7.0
+   - Add schema compatibility check `avro:is_compatible/2`

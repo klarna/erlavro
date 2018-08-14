@@ -296,28 +296,15 @@ resolve_duplicated_refs(Type0) ->
   {Type, _Refs} = resolve_duplicated_refs(Type0, []),
   Type.
 
-%% @doc Checks whether two schemas are compatible in sense that data
-%% encoded with the writer schema can be decoded by the reader schema.
-%% Schema compatibility is described here:
-%% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
-%% An exception in this implementation is the comparison of two unions.
-%% Check considers union member order changes to be incompatible. This
-%% means that in order for a writer union to be compatible with the
-%% reader union, the writer union must only add new members to it.
-%% For example
-%% is_compatible([int, string], [int, string]) = TRUE
-%% is_compatible([string, int], [int, string]) = FALSE
-%% is_compatible([string, int], [string]) = TRUE
-%% is_compatible([string, int], [int]) = FALSE
-%% is_compatible([int, string], [int, string, some_record]) = TRUE
-%% @end
+%% @doc Check if writer schema is compatible to reader schema.
 -spec is_compatible(avro_type(), avro_type()) -> true | {not_compatible, _, _}.
 is_compatible(Reader, Writer) ->
   try
     do_is_compatible_next(Reader, Writer, [], [])
-  catch throw:{not_compatible, RPath, WPath} ->
+  catch
+    throw : {not_compatible, RPath, WPath} ->
       {not_compatible, lists:reverse(RPath), lists:reverse(WPath)};
-        throw:{reader_missing_defalut_value, Path} ->
+    throw : {reader_missing_defalut_value, Path} ->
       {reader_missing_default_value, lists:reverse(Path)}
   end.
 
@@ -384,10 +371,8 @@ do_is_compatible(Reader, Writer, RPath, WPath)
           do_is_compatible_next(ReaderType, Writer,
                                  [{member_id, Index} |RPath],
                                  tl(WPath))
-        catch throw:{not_compatible, _, _} ->
-            false;
-              throw:{reader_missing_defalut_value, _} ->
-            false
+        catch throw:{not_compatible, _, _} -> false;
+              throw:{reader_missing_defalut_value, _} -> false
         end
     end, ReaderTypeIndices) orelse
     erlang:throw({not_compatible, RPath, WPath});

@@ -36,6 +36,7 @@
         , get_type_name/1
         , get_type_namespace/1
         , get_type_fullname/1
+        , is_compatible/2
         , is_named_type/1
         , is_same_type/2
         , make_decoder/2
@@ -509,6 +510,25 @@ is_same_type(T1, T2) ->
   %% Named types and primitive types fall into this clause
   %% Should be enough to just compare their names
   get_type_fullname(T1) =:= get_type_fullname(T2).
+
+
+%% @doc Check whether two schemas are compatible in sense that data
+%% encoded with the writer schema can be decoded by the reader schema.
+%% Schema compatibility is described here:
+%% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
+%% An exception in this implementation is the comparison of two unions.
+%% Check considers union member order changes to be incompatible. This
+%% means that in order for a writer union to be compatible with the
+%% reader union, the writer union must only add new members to it.
+%% For example
+%% is_compatible([int, string], [int, string]) = TRUE
+%% is_compatible([string, int], [int, string]) = FALSE
+%% is_compatible([string, int], [string]) = TRUE
+%% is_compatible([string, int], [int]) = FALSE
+%% is_compatible([int, string], [int, string, some_record]) = TRUE
+-spec is_compatible(avro_type(), avro_type()) -> true | {not_compatible, _, _}.
+is_compatible(ReaderSchema, WriterSchema) ->
+  avro_util:is_compatible(ReaderSchema, WriterSchema).
 
 %%%=============================================================================
 %%% API: Checking correctness of names and types specifications
