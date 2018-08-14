@@ -323,12 +323,6 @@ is_compatible(Reader, Writer) ->
 
 desc(RecordType) when ?IS_RECORD_TYPE(RecordType) ->
   {record, avro:get_type_name(RecordType)};
-desc(ArrayType) when ?IS_ARRAY_TYPE(ArrayType) ->
-  {array, desc(avro_array:get_items_type(ArrayType))};
-desc(MapType) when ?IS_MAP_TYPE(MapType) ->
-  {map, desc(avro_map:get_items_type(MapType))};
-desc(UnionType) when ?IS_UNION_TYPE(UnionType) ->
-  union;
 desc(AvroType) ->
   avro:get_type_fullname(AvroType).
 
@@ -417,6 +411,18 @@ do_is_compatible(Reader, Writer, RPath, WPath)
     end,
     WriterTypeIndices
    );
+do_is_compatible(Reader, Writer, RPath, WPath)
+  when ?IS_ARRAY_TYPE(Reader) andalso ?IS_ARRAY_TYPE(Writer) ->
+  ReaderType = avro_array:get_items_type(Reader),
+  WriterType = avro_array:get_items_type(Writer),
+  do_is_compatible(ReaderType, WriterType, [desc(Reader) | RPath],
+                   [desc(Writer) | WPath]);
+do_is_compatible(Reader, Writer, RPath, WPath)
+  when ?IS_MAP_TYPE(Reader) andalso ?IS_MAP_TYPE(Writer) ->
+  ReaderType = avro_map:get_items_type(Reader),
+  WriterType = avro_map:get_items_type(Writer),
+  do_is_compatible(ReaderType, WriterType, [desc(Reader) | RPath],
+                   [desc(Writer) | WPath]);
 do_is_compatible(Reader, Writer, RPath, WPath) ->
   promotable(Reader, Writer) orelse
     avro:is_same_type(Reader, Writer) orelse
