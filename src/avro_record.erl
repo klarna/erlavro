@@ -27,8 +27,8 @@
         , define_field/3
         , encode/3
         , encode_defaults/2
-        , get_all_field_types/1
         , get_all_field_data/1
+        , get_all_field_types/1
         , get_field_type/2
         , get_value/2
         , new/2

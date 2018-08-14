@@ -123,12 +123,14 @@ avro_schema_compatible_array_test() ->
   Writer2 = mkschema(array_type(int)),
   ?assert(avro_util:is_compatible(Reader, Writer)),
   ?assertMatch(
-     {not_compatible, [{<<"array">>, <<"string">>}],
-      [{<<"array">>, <<"int">>}]},
+     { not_compatible, [{<<"array">>, <<"string">>}]
+     , [{<<"array">>, <<"int">>}]
+     },
      avro_util:is_compatible(Reader, Writer2)),
   ?assertMatch(
-     {not_compatible, [{<<"array">>, <<"int">>}],
-      [{<<"array">>, {<<"map">>, <<"int">>}}]},
+     { not_compatible, [{<<"array">>, <<"int">>}]
+     , [{<<"array">>, {<<"map">>, <<"int">>}}]
+     },
      avro_util:is_compatible(
        mkschema(array_type(int)),
        mkschema(array_type(map_type(int)))
@@ -140,8 +142,8 @@ avro_schema_compatible_maps_test() ->
   Writer = mkschema(map_type(string)),
   ?assert(avro_util:is_compatible(Reader, Writer)),
   ?assertMatch(
-     {not_compatible, [{<<"map">>, <<"string">>}],
-      [{<<"map">>, <<"int">>}]},
+     { not_compatible, [{<<"map">>, <<"string">>}]
+     , [{<<"map">>, <<"int">>}]},
      avro_util:is_compatible(
        mkschema(map_type(string)),
        mkschema(map_type(int))
@@ -155,7 +157,7 @@ avro_schema_compatible_enums_test() ->
        mkschema(enum_type("Suit", Suits))
       )),
   ?assertMatch(
-     {not_compatible, [{enum, <<"Suit">>}], [{enum, <<"Cars">>}]},
+     {not_compatible, [<<"Suit">>], [<<"Cars">>]},
      avro_util:is_compatible(
        mkschema(enum_type("Suit", Suits)),
        mkschema(enum_type("Cars", Suits))
@@ -166,7 +168,7 @@ avro_schema_compatible_enums_test() ->
       mkschema(enum_type("Suit", ["SPADES"]))
      )),
   ?assertMatch(
-     {not_compatible, [{enum, <<"Suit">>}], [{enum, <<"Suit">>}]},
+     {not_compatible, [<<"Suit">>], [<<"Suit">>]},
      avro_util:is_compatible(
        mkschema(enum_type("Suit", ["SPADES"])),
        mkschema(enum_type("Suit", Suits))
@@ -179,13 +181,13 @@ avro_schema_compatible_fixed_test() ->
       mkschema(fixed_type("name", 16))
      )),
   ?assertMatch(
-     {not_compatible, [{fixed, <<"name">>}], [{fixed, <<"name1">>}]},
+     {not_compatible, [<<"name">>], [<<"name1">>]},
      avro_util:is_compatible(
        mkschema(fixed_type("name", 16)),
        mkschema(fixed_type("name1", 16))
       )),
   ?assertMatch(
-     {not_compatible, [{fixed, <<"name">>}], [{fixed, <<"name">>}]},
+     {not_compatible, [<<"name">>], [<<"name">>]},
      avro_util:is_compatible(
        mkschema(fixed_type("name", 16)),
        mkschema(fixed_type("name", 14))
@@ -203,8 +205,8 @@ avro_schema_compatible_union_test() ->
        mkschema([<<"int">>])
       )),
   ?assertMatch(
-     {not_compatible, [{union,<<"union">>}, <<"int">>],
-      [{union,<<"union">>},<<"string">>]},
+     { not_compatible, [{union,<<"union">>}, {member_id, 0}, <<"int">>]
+     , [{union,<<"union">>}, {member_id, 0}, <<"string">>]},
      avro_util:is_compatible(
        mkschema([<<"int">>, <<"string">>]),
        mkschema([<<"string">>, <<"int">>])
@@ -225,8 +227,8 @@ avro_schema_compatible_union_test() ->
        mkschema([<<"string">>])
       )),
   ?assertMatch(
-     {not_compatible, [{union,<<"union">>}, <<"string">>],
-      [{union,<<"union">>}, <<"int">>]},
+     { not_compatible, [{union, <<"union">>}, {member_id, 0}, <<"string">>]
+     , [{union,<<"union">>}, {member_id, 0}, <<"int">>]},
      avro_util:is_compatible(
        mkschema([<<"string">>, <<"int">>]),
        mkschema([<<"int">>])
@@ -238,13 +240,15 @@ avro_schema_compatible_union_test() ->
        mkschema([<<"string">>])
       )),
   ?assertMatch(
-     {not_compatible, [{union,<<"union">>}, <<"int">>],
-      [{union,<<"union">>}, <<"bytes">>]},
+     { not_compatible, [{union,<<"union">>}, {member_id, 1}, <<"int">>]
+     , [{union,<<"union">>}, {member_id, 1}, <<"bytes">>]},
      avro_util:is_compatible(
        mkschema([<<"string">>, <<"int">>]),
        mkschema([<<"string">>, <<"bytes">>]))),
   ?assertMatch(
-     {not_compatible, [<<"string">>], [{union,<<"union">>}, <<"int">>]},
+     {not_compatible, [<<"string">>], [ {union,<<"union">>}
+                                      , {member_id, 1}, <<"int">>
+                                      ]},
      avro_util:is_compatible(
        mkschema(<<"string">>),
        mkschema([<<"string">>, <<"int">>])
@@ -263,11 +267,29 @@ avro_schema_compatible_union_test() ->
        avro:decode_schema(<<"[", FixedType1/binary, "]">>)
       )),
   ?assertMatch(
-     {not_compatible, [{union,<<"union">>}],  [<<"string">>]},
+     {not_compatible, [{union,<<"union">>}], [<<"string">>]},
      avro_util:is_compatible(
        mkschema([<<"int">>, <<"double">>]),
-       mkschema(<<"string">>))).
-
+       mkschema(<<"string">>))),
+  ?assertMatch(
+     {reader_missing_default_value,[ {union, <<"union">>}, {member_id, 0}
+                                   , {record, <<"record0">>}, {field, "field0"}
+                                   ]},
+     avro_util:is_compatible(
+       mkschema([ record_type("record0", [field("field0", <<"string">>)])
+                , <<"string">>
+                ]),
+       mkschema([ record_type("record0", [field("field1", <<"string">>)])
+                , <<"string">>])
+      )),
+  ?assertMatch(
+     {not_compatible, [{union, <<"union">>}], [{record, <<"record0">>}]},
+     avro_util:is_compatible(
+       mkschema([ record_type("record0", [field("field0", <<"string">>)])
+                , <<"string">>
+                ]),
+       mkschema(record_type("record0", [field("field1", <<"string">>)]))
+      )).
 
 avro_schema_compatible_record_test() ->
   ?assert(
@@ -278,7 +300,9 @@ avro_schema_compatible_record_test() ->
                             [ field("field0", <<"string">>) ]))
       )),
   ?assertMatch(
-     {not_compatible, [{record, <<"record0">>}], [{record, <<"record0">>}]},
+     {reader_missing_default_value, [ {record, <<"record0">>}
+                                    , {field,"field0"}
+                                    ]},
      avro_util:is_compatible(
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ])),
@@ -286,8 +310,8 @@ avro_schema_compatible_record_test() ->
                             [ field("field1", <<"string">>) ]))
       )),
   ?assertMatch(
-     {not_compatible, [{record, <<"record0">>}, <<"string">>],
-                      [{record, <<"record0">>}, <<"int">>]},
+     {not_compatible, [{record, <<"record0">>}, {field,"field0"}, <<"string">>],
+                      [{record, <<"record0">>}, {field,"field0"}, <<"int">>]},
      avro_util:is_compatible(
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ])),
@@ -302,9 +326,11 @@ avro_schema_compatible_record_test() ->
        mkschema(record_type("record0", []))
       )),
   ?assertMatch(
-     {not_compatible, [ {record, <<"record0">>}, {record, <<"inner_record">>}
+     {not_compatible, [ {record, <<"record0">>}, {field,"field1"}
+                      , {record, <<"inner_record">>}, {field,"inner_field"}
                       , <<"int">>],
-                      [ {record, <<"record0">>}, {record, <<"inner_record">>}
+                      [ {record, <<"record0">>}, {field,"field1"}
+                      , {record, <<"inner_record">>}, {field,"inner_field"}
                       , <<"string">>]},
      avro_util:is_compatible(
        mkschema(record_type("record0",

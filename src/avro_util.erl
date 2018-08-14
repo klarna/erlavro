@@ -296,7 +296,7 @@ resolve_duplicated_refs(Type0) ->
   {Type, _Refs} = resolve_duplicated_refs(Type0, []),
   Type.
 
-%% @doc Checks whether two schemas are compatible in sense that an event
+%% @doc Checks whether two schemas are compatible in sense that data
 %% encoded with the writer schema can be decoded by the reader schema.
 %% Schema compatibility is described here:
 %% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
@@ -304,7 +304,7 @@ resolve_duplicated_refs(Type0) ->
 %% Check considers union member order changes to be incompatible. This
 %% means that in order for a writer union to be compatible with the
 %% reader union, the writer union must only add new members to it.
-%% For exampl
+%% For example
 %% is_compatible([int, string], [int, string]) = TRUE
 %% is_compatible([string, int], [int, string]) = FALSE
 %% is_compatible([string, int], [string]) = TRUE
@@ -316,7 +316,9 @@ is_compatible(Reader, Writer) ->
   try
     do_is_compatible(Reader, Writer, [], [])
   catch throw:{not_compatible, RPath, WPath} ->
-      {not_compatible, lists:reverse(RPath), lists:reverse(WPath)}
+      {not_compatible, lists:reverse(RPath), lists:reverse(WPath)};
+        throw:{reader_missing_defalut_value, Path} ->
+      {reader_missing_default_value, lists:reverse(Path)}
   end.
 
 desc(RecordType) when ?IS_RECORD_TYPE(RecordType) ->
@@ -325,14 +327,10 @@ desc(ArrayType) when ?IS_ARRAY_TYPE(ArrayType) ->
   {avro:get_type_name(ArrayType), desc(avro_array:get_items_type(ArrayType))};
 desc(MapType) when ?IS_MAP_TYPE(MapType) ->
   {avro:get_type_name(MapType), desc(avro_map:get_items_type(MapType))};
-desc(EnumType) when ?IS_ENUM_TYPE(EnumType) ->
-  {enum, avro:get_type_name(EnumType)};
-desc(FixedType) when ?IS_FIXED_TYPE(FixedType) ->
-  {fixed, avro:get_type_name(FixedType)};
 desc(UnionType) when ?IS_UNION_TYPE(UnionType) ->
   {union, avro:get_type_name(UnionType)};
 desc(AvroType) ->
-  avro:get_type_name(AvroType).
+  avro:get_type_fullname(AvroType).
 
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_RECORD_TYPE(Reader) andalso ?IS_RECORD_TYPE(Writer) ->
@@ -347,9 +345,14 @@ do_is_compatible(Reader, Writer, RPath, WPath)
           case lists:keysearch(FieldName, 1, WriterTypes) of
             false ->
               Default =/= ?NO_VALUE orelse
-                erlang:throw({not_compatible, NewRPath, NewWPath});
+                erlang:throw({ reader_missing_defalut_value
+                             , [{field, FieldName} |  NewWPath]
+                             });
             {value, {_, WriterType, _}} ->
-              do_is_compatible(FieldType, WriterType, NewRPath, NewWPath)
+              FieldDesc = {field, FieldName},
+              do_is_compatible(FieldType, WriterType,
+                               [FieldDesc | NewRPath],
+                               [FieldDesc | NewWPath])
           end
       end,
       ReaderTypes);
@@ -372,42 +375,55 @@ do_is_compatible(Reader, Writer, RPath, WPath)
   NewRPath = [desc(Reader) | RPath],
   NewWPath = [desc(Writer) | WPath],
   CheckFun =
-    fun F([], _) ->
+    fun F([], _, _) ->
         true;
-        F([WriterType | WT], [ReaderType | RT]) ->
-        do_is_compatible(ReaderType, WriterType, NewRPath, NewWPath)
-          andalso F(WT, RT)
+        F([WriterType | WT], [ReaderType | RT], Index) ->
+        MemberIndex = {member_id, Index},
+        do_is_compatible(ReaderType, WriterType,
+                         [MemberIndex | NewRPath],
+                         [MemberIndex | NewWPath])
+          andalso F(WT, RT, Index + 1)
     end,
-  CheckFun(WriterTypes, ReaderTypes);
+  CheckFun(WriterTypes, ReaderTypes, 0);
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Reader) ->
   ReaderTypes = avro_union:get_types(Reader),
+  ReaderTypeCount = length(ReaderTypes),
+  ReaderTypeIndices = lists:zip(lists:seq(0, ReaderTypeCount - 1), ReaderTypes),
   NewRPath = [desc(Reader) | RPath],
   NewWPath = [desc(Writer) | WPath],
   lists:any(
-    fun(ReaderType) ->
+    fun({Index, ReaderType}) ->
         try
-          do_is_compatible(ReaderType, Writer, NewRPath, WPath)
+          do_is_compatible(ReaderType, Writer, [{member_id, Index} |NewRPath],
+                           WPath)
         catch throw:{not_compatible, _, _} ->
+            false;
+              throw:{reader_missing_defalut_value, _} ->
             false
         end
-    end, ReaderTypes) orelse
+    end, ReaderTypeIndices) orelse
     erlang:throw({not_compatible, NewRPath, NewWPath});
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Writer) ->
   WriterTypes = avro_union:get_types(Writer),
+  WriterTypeCount = length(WriterTypes),
+  WriterTypeIndices = lists:zip(lists:seq(0, WriterTypeCount - 1), WriterTypes),
   NewWPath = [desc(Writer) | WPath],
   lists:all(
-    fun(WriterType) ->
-        do_is_compatible(Reader, WriterType, RPath, NewWPath)
+    fun({Index, WriterType}) ->
+        do_is_compatible(Reader, WriterType, RPath,
+                         [{member_id, Index} | NewWPath])
     end,
-    WriterTypes
+    WriterTypeIndices
    );
 do_is_compatible(Reader, Writer, RPath, WPath) ->
   promotable(Reader, Writer) orelse
     avro:is_same_type(Reader, Writer) orelse
-    erlang:throw({ not_compatible, [desc(Reader) | RPath]
-                 , [desc(Writer) | WPath]}).
+    erlang:throw({ not_compatible
+                 , [desc(Reader) | RPath]
+                 , [desc(Writer) | WPath]
+                 }).
 
 %%%_* Internal functions =======================================================
 
