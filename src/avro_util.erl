@@ -350,10 +350,10 @@ do_is_compatible(Reader, Writer, RPath, WPath)
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Reader) andalso ?IS_UNION_TYPE(Writer) ->
   WriterTypes = avro_union:get_types(Writer),
-    lists:all(
-      fun(WriterType) ->
-          do_is_compatible_next(Reader, WriterType, tl(RPath), WPath)
-      end, WriterTypes);
+  lists:all(
+    fun(WriterType) ->
+        do_is_compatible_next(Reader, WriterType, tl(RPath), WPath)
+    end, WriterTypes);
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Reader) ->
   ReaderTypes = avro_union:get_types(Reader),
