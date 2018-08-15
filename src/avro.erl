@@ -516,16 +516,6 @@ is_same_type(T1, T2) ->
 %% encoded with the writer schema can be decoded by the reader schema.
 %% Schema compatibility is described here:
 %% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
-%% An exception in this implementation is the comparison of two unions.
-%% Check considers union member order changes to be incompatible. This
-%% means that in order for a writer union to be compatible with the
-%% reader union, the writer union must only append new members to it.
-%% For example
-%% is_compatible([int, string], [int, string]) = TRUE
-%% is_compatible([string, int], [int, string]) = FALSE
-%% is_compatible([string, int], [string]) = TRUE
-%% is_compatible([string, int], [int]) = FALSE
-%% is_compatible([int, string], [int, string, some_record]) = TRUE
 -spec is_compatible(avro_type(), avro_type()) -> true | {not_compatible, _, _}.
 is_compatible(ReaderSchema, WriterSchema) ->
   avro_util:is_compatible(ReaderSchema, WriterSchema).

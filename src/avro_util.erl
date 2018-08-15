@@ -347,19 +347,11 @@ do_is_compatible(Reader, Writer, RPath, WPath)
     erlang:throw({not_compatible, RPath, WPath});
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Reader) andalso ?IS_UNION_TYPE(Writer) ->
-  ReaderTypes = avro_union:get_types(Reader),
   WriterTypes = avro_union:get_types(Writer),
-  CheckFun =
-    fun F([], _, _) ->
-        true;
-        F([WriterType | WT], [ReaderType | RT], Index) ->
-        MemberIndex = {member_id, Index},
-        do_is_compatible_next(ReaderType, WriterType,
-                         [MemberIndex | RPath],
-                         [MemberIndex | WPath])
-          andalso F(WT, RT, Index + 1)
-    end,
-  CheckFun(WriterTypes, ReaderTypes, 0);
+    lists:all(
+      fun(WriterType) ->
+          do_is_compatible_next(Reader, WriterType, tl(RPath), WPath)
+      end, WriterTypes);
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Reader) ->
   ReaderTypes = avro_union:get_types(Reader),

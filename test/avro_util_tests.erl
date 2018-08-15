@@ -213,9 +213,7 @@ avro_schema_compatible_union_test() ->
        mkschema([<<"int">>, <<"string">>]),
        mkschema([<<"int">>])
       )),
-  ?assertMatch(
-     { not_compatible, [<<"union">>, {member_id, 0}, <<"int">>]
-     , [<<"union">>, {member_id, 0}, <<"string">>]},
+  ?assert(
      is_compatible(
        mkschema([<<"int">>, <<"string">>]),
        mkschema([<<"string">>, <<"int">>])
@@ -235,22 +233,17 @@ avro_schema_compatible_union_test() ->
        mkschema([<<"string">>, <<"int">>]),
        mkschema([<<"string">>])
       )),
-  ?assertMatch(
-     { not_compatible, [<<"union">>, {member_id, 0}, <<"string">>]
-     , [<<"union">>, {member_id, 0}, <<"int">>]},
+  ?assert(
      is_compatible(
        mkschema([<<"string">>, <<"int">>]),
        mkschema([<<"int">>])
       )),
-
   ?assert(
      is_compatible(
        mkschema(<<"string">>),
        mkschema([<<"string">>])
       )),
-  ?assertMatch(
-     { not_compatible, [<<"union">>, {member_id, 1}, <<"int">>]
-     , [<<"union">>, {member_id, 1}, <<"bytes">>]},
+  ?assert(
      is_compatible(
        mkschema([<<"string">>, <<"int">>]),
        mkschema([<<"string">>, <<"bytes">>]))),
@@ -279,9 +272,7 @@ avro_schema_compatible_union_test() ->
        mkschema([<<"int">>, <<"double">>]),
        mkschema(<<"string">>))),
   ?assertMatch(
-     {reader_missing_default_value,[ <<"union">>, {member_id, 0}
-                                   , <<"record0">>, {field, "field0"}
-                                   ]},
+     {not_compatible,[<<"union">>], [<<"union">>, <<"record0">>]},
      is_compatible(
        mkschema([ record_type("record0", [field("field0", <<"string">>)])
                 , <<"string">>
