@@ -516,7 +516,9 @@ is_same_type(T1, T2) ->
 %% encoded with the writer schema can be decoded by the reader schema.
 %% Schema compatibility is described here:
 %% https://avro.apache.org/docs/1.8.1/spec.html#Schema+Resolution
--spec is_compatible(avro_type(), avro_type()) -> true | {not_compatible, _, _}.
+-spec is_compatible(avro_type(), avro_type()) ->
+                       true | {false, {not_compatible, _, _}} |
+                       {false, {reader_missing_defalut_value, _}}.
 is_compatible(ReaderSchema, WriterSchema) ->
   avro_util:is_compatible(ReaderSchema, WriterSchema).
 

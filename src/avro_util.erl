@@ -298,16 +298,16 @@ resolve_duplicated_refs(Type0) ->
 
 %% @doc Check if writer schema is compatible to reader schema.
 -spec is_compatible(avro_type(), avro_type()) ->
-                       true | {not_compatible, _, _} |
-                       {reader_missing_defalut_value, [{field, _} | _]}.
+                       true | {false, {not_compatible, _, _}} |
+                       {false, {reader_missing_defalut_value, _}}.
 is_compatible(Reader, Writer) ->
   try
     do_is_compatible_next(Reader, Writer, [], [])
   catch
     throw : {not_compatible, RPath, WPath} ->
-      {not_compatible, lists:reverse(RPath), lists:reverse(WPath)};
+      {false, {not_compatible, lists:reverse(RPath), lists:reverse(WPath)}};
     throw : {reader_missing_defalut_value, Path} ->
-      {reader_missing_default_value, lists:reverse(Path)}
+      {false, {reader_missing_default_value, lists:reverse(Path)}}
   end.
 
 do_is_compatible_next(Reader, Writer, RPath, WPath) ->
@@ -357,31 +357,23 @@ do_is_compatible(Reader, Writer, RPath, WPath)
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Reader) ->
   ReaderTypes = avro_union:get_types(Reader),
-  ReaderTypeCount = length(ReaderTypes),
-  ReaderTypeIndices = lists:zip(lists:seq(0, ReaderTypeCount - 1), ReaderTypes),
   lists:any(
-    fun({Index, ReaderType}) ->
+    fun(ReaderType) ->
         try
-          do_is_compatible_next(ReaderType, Writer,
-                                 [{member_id, Index} |RPath],
-                                 tl(WPath))
+          do_is_compatible_next(ReaderType, Writer, RPath, tl(WPath))
         catch throw:{not_compatible, _, _} -> false;
               throw:{reader_missing_defalut_value, _} -> false
         end
-    end, ReaderTypeIndices) orelse
+    end, ReaderTypes) orelse
     erlang:throw({not_compatible, RPath, WPath});
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_UNION_TYPE(Writer) ->
   WriterTypes = avro_union:get_types(Writer),
-  WriterTypeCount = length(WriterTypes),
-  WriterTypeIndices = lists:zip(lists:seq(0, WriterTypeCount - 1), WriterTypes),
   lists:all(
-    fun({Index, WriterType}) ->
-        do_is_compatible_next(Reader, WriterType, tl(RPath),
-                         [{member_id, Index} | WPath])
+    fun(WriterType) ->
+        do_is_compatible_next(Reader, WriterType, tl(RPath), WPath)
     end,
-    WriterTypeIndices
-   );
+    WriterTypes);
 do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_ARRAY_TYPE(Reader) andalso ?IS_ARRAY_TYPE(Writer) ->
   ReaderType = avro_array:get_items_type(Reader),
