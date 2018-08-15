@@ -297,7 +297,9 @@ resolve_duplicated_refs(Type0) ->
   Type.
 
 %% @doc Check if writer schema is compatible to reader schema.
--spec is_compatible(avro_type(), avro_type()) -> true | {not_compatible, _, _}.
+-spec is_compatible(avro_type(), avro_type()) ->
+                       true | {not_compatible, _, _} |
+                       {reader_missing_defalut_value, [{field, _} | _]}.
 is_compatible(Reader, Writer) ->
   try
     do_is_compatible_next(Reader, Writer, [], [])
