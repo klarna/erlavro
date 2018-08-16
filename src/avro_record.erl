@@ -27,6 +27,7 @@
         , define_field/3
         , encode/3
         , encode_defaults/2
+        , get_all_field_data/1
         , get_all_field_types/1
         , get_field_type/2
         , get_value/2
@@ -152,6 +153,22 @@ get_all_field_types(Type) when ?IS_RECORD_TYPE(Type) ->
                           , type = FieldTypeOrName
                           }) ->
       {FieldName, FieldTypeOrName}
+    end, Fields).
+
+%% @doc Get all field types, together with their defaults
+%% in a triple list.
+%% @end
+-spec get_all_field_data(avro_type()) -> [ {field_name()
+                                         , type_or_name()
+                                         , ?NO_VALUE | avro:in() | avro_value()
+                                         }].
+get_all_field_data(#avro_record_type{fields = Fields}) ->
+  lists:map(
+    fun(#avro_record_field{ name = FieldName
+                          , type = FieldTypeOrName
+                          , default = Default
+                          }) ->
+        {FieldName, FieldTypeOrName, Default}
     end, Fields).
 
 %% @doc Parse fields' default values.
