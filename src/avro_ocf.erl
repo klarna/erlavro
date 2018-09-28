@@ -259,6 +259,8 @@ ocf_schema() ->
 -spec get_codec([{binary(), binary()}]) -> avro_codec().
 get_codec(Meta) ->
   case lists:keyfind(<<"avro.codec">>, 1, Meta) of
+    false ->
+      null;
     {_, <<"null">>} ->
       null;
     {_, <<"deflate">>} ->

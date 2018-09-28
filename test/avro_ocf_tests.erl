@@ -56,6 +56,15 @@ decode_deflate_file_test() ->
   ?assertEqual(<<"hey">>, 
                proplists:get_value(<<"stringField">>, hd(Objects))).
 
+decode_no_codec_file_test() ->
+  PrivDir = priv_dir(),
+  InteropOcfFile = filename:join([PrivDir, "interop_no_codec.ocf"]),
+  {Header, _Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
+  ?assertEqual(undefined,
+               proplists:get_value(<<"avro.codec">>, Header#header.meta)),
+  ?assertEqual(<<"hey">>, 
+               proplists:get_value(<<"stringField">>, hd(Objects))).
+
 write_file_test() ->
   OcfFile = filename:join([priv_dir(), "my.ocf.test"]),
   Store = undefined, %% should not require lookup
