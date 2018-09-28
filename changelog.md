@@ -26,3 +26,5 @@
    - Refine macros for `get_stacktrace` deprecation
 * 2.7.0
    - Add schema compatibility check `avro:is_compatible/2`
+* 2.7.1
+   - Issue #81 allow missing codec in ocf
