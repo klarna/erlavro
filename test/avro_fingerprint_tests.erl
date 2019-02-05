@@ -120,6 +120,9 @@ java_033_test() ->
             "{\"name\":\"value\",\"type\":["
             "\"null\",\"int\",\"long\",\"PigValue\"]}]}">>)).
 
+for_coverage_test() ->
+  lists:foreach(fun(I) -> crc64(integer_to_binary(I)) end, lists:seq(1, 10000)).
+
 %%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
