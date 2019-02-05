@@ -209,22 +209,16 @@ string(String) when is_binary(String) ->
 
 %% ZigZag encode/decode
 %% https://developers.google.com/protocol-buffers/docs/encoding?&csw=1#types
-%% @end
+-compile({inline, [zigzag/2]}).
 -spec zigzag(int | long, integer()) -> integer().
 zigzag(int, Int)  -> (Int bsl 1) bxor (Int bsr 31);
 zigzag(long, Int) -> (Int bsl 1) bxor (Int bsr 63).
 
 %% Variable-length format
 %% http://lucene.apache.org/core/3_5_0/fileformats.html#VInt
-%% @end
 -spec varint(integer()) -> iodata().
-varint(I) ->
-  H = I bsr 7,
-  L = I band 127,
-  case H =:= 0 of
-    true  -> [L];
-    false -> [128 + L | varint(H)]
-  end.
+varint(I) when I =< 127 -> [I];
+varint(I) -> [128 + (I band 127) | varint(I bsr 7)].
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

@@ -11,3 +11,4 @@ erlavro.iml
 out/
 _build
 rebar.lock
+*.crashdump
