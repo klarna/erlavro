@@ -117,7 +117,10 @@ enc(Lkup, Type, Value) when ?IS_ARRAY_TYPE(Type) ->
 enc(Lkup, Type, Value) when ?IS_MAP_TYPE(Type) ->
   Encoded = avro_map:encode(Type, Value,
     fun(IType, K, V) -> [string(K), encode(Lkup, IType, V)] end),
-  Count = length(Value),
+  Count = case is_map(Value) of
+    true -> maps:size(Value);
+    false -> length(Value)
+  end,
   block(Count, Encoded);
 enc(_Lkup, Type, Value) when ?IS_FIXED_TYPE(Type) ->
   %% force binary size check for the value

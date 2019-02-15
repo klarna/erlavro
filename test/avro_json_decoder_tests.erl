@@ -20,6 +20,7 @@
 -module(avro_json_decoder_tests).
 
 -import(avro_json_decoder, [ parse/5
+                           , parse/6
                            , parse_schema/1
                            ]).
 
@@ -254,7 +255,13 @@ parse_record_value_test() ->
                               , avro_primitive:string("CLOSED")]),
                avro_record:get_value("array", Value)),
   ?assertEqual(avro_primitive:boolean(true),
-               avro_union:get_value(avro_record:get_value("union", Value))).
+               avro_union:get_value(avro_record:get_value("union", Value))),
+
+  ExpectedWithMapType = #{<<"array">> => [<<"ACTIVE">>, <<"CLOSED">>],
+                          <<"invno">> => 100,
+                          <<"union">> => true},
+  ?assertEqual(ExpectedWithMapType, parse_value_with_map_type(Json, TestRecord, none)).
+
 
 parse_record_value_missing_field_test() ->
   %% This test also tests parsing other types inside the record
@@ -322,7 +329,10 @@ parse_map_value_test() ->
   Type = avro_map:type(avro_primitive:int_type()),
   Json = ?JSON_OBJ([ {<<"v1">>, 1}, {<<"v2">>, 2} ]),
   Expected = avro_map:new(Type, [{"v1", 1}, {"v2", 2}]),
-  ?assertEqual(Expected, parse_value(Json, Type, none)).
+  ?assertEqual(Expected, parse_value(Json, Type, none)),
+
+  ExpectedWithMapType = #{<<"v1">> => 1, <<"v2">> => 2},
+  ?assertEqual(ExpectedWithMapType, parse_value_with_map_type(Json, Type, none)).
 
 parse_fixed_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
@@ -349,7 +359,12 @@ parse_value_with_lkup_fun_test() ->
   [Rec] = avro_array:get_items(Value),
   ?assertEqual(<<"name.space.Test">>,
                avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
-  ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).
+  ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)),
+
+  ExpectedWithMapType = [#{<<"array">> => [<<"ACTIVE">>, <<"CLOSED">>],
+                           <<"invno">> => 100,
+                           <<"union">> => true}],
+  ?assertEqual(ExpectedWithMapType, parse_value_with_map_type(ValueJson, Type, ExtractTypeFun)).
 
 decode_schema_test() ->
   _ = avro:decode_schema(<<"{\"type\":\"int\"}">>),
@@ -400,6 +415,9 @@ get_test_record() ->
 %% @private
 parse_value(Value, Type, Lkup) ->
   parse(Value, Type, Lkup, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
+
+parse_value_with_map_type(Value, Type, Lkup) ->
+  parse(Value, Type, Lkup, _IsWrapped = false, ?DEFAULT_DECODER_HOOK, avro:make_decoder_options([{map_type, map}, {record_type, map}])).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

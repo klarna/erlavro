@@ -339,6 +339,8 @@ to_term(Record) when ?IS_RECORD_VALUE(Record) ->
 -spec encode(record_type(), [{field_name_raw(), avro:in()}],
              fun((field_name(), avro_type(), avro:in()) -> avro:out())) ->
         [avro:out()].
+encode(Record, Map, EncodeFun) when is_map(Map) ->
+  encode(Record, maps:to_list(Map), EncodeFun);
 encode(#avro_record_type{ fields = FieldDefs
                         , fullname = FullName
                         }, FieldValues0, EncodeFun) ->
@@ -429,7 +431,9 @@ do_cast(Type, KvList0) when is_list(KvList0) ->
   case cast_fields(Type#avro_record_type.fields, KvList, []) of
     {error, _} = Err -> Err;
     FieldsWithValues -> {ok, ?AVRO_VALUE(Type, FieldsWithValues)}
-  end.
+  end;
+do_cast(Type, Map) when is_map(Map) ->
+  do_cast(Type, maps:to_list(Map)).
 
 %% @private
 -spec get_field_def(field_name_raw(), record_type()) ->

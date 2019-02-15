@@ -29,6 +29,7 @@
         , decode_value/4
         , decode_value/5
         , parse/5
+        , parse/6
         ]).
 
 -export_type([ default_parse_fun/0
@@ -41,6 +42,7 @@
 
 -type option_name() :: is_wrapped.
 
+-type decoder_options() :: map().
 -type options() :: [{option_name(), term()}].
 -type hook() :: decoder_hook_fun().
 -type json_value() :: jsone:json_value().
@@ -119,15 +121,18 @@ decode_schema(JSON, Opts) when is_list(Opts) ->
 %%       record: [{FieldName() :: binary(), FieldValue :: avro:out()}]}
 %% @end
 -spec decode_value(binary(), type_or_name(), avro:schema_all(),
-                   options(), hook()) -> avro_value() | avro:out().
+                   options() | decoder_options(), hook()) ->
+                      avro_value() | avro:out().
+decode_value(JsonValue, Schema, MaybeLkup, Options, Hook)
+  when is_list(Options) ->
+  decode_value(JsonValue, Schema, MaybeLkup,
+               avro:make_decoder_options(Options), Hook);
 decode_value(JsonValue, Schema, MaybeLkup, Options, Hook) ->
   Lkup = avro_util:ensure_lkup_fun(MaybeLkup),
   DecodedJson = decode_json(JsonValue),
-  IsWrapped = case lists:keyfind(is_wrapped, 1, Options) of
-                {is_wrapped, V} -> V;
-                false           -> true %% parse to wrapped value by default
-              end,
-  parse(DecodedJson, Schema, Lkup, IsWrapped, Hook).
+  %% parse to wrapped value by default
+  IsWrapped = maps:get(is_wrapped, Options, true),
+  parse(DecodedJson, Schema, Lkup, IsWrapped, Hook, Options).
 
 %% @doc Decode value with default options and default hook.
 -spec decode_value(binary(), type_or_name(),
@@ -307,11 +312,18 @@ parse_aliases(AliasesArray) when is_list(AliasesArray) ->
 
 -spec parse(json_value(), type_or_name(), lkup_fun(), boolean(), hook()) ->
         avro_value() | avro:out() | no_return().
-parse(Value, TypeName, Lkup, IsWrapped, Hook) when ?IS_NAME_RAW(TypeName) ->
+parse(Value, TypeName, Lkup, IsWrapped, Hook) ->
+  parse(Value, TypeName, Lkup, IsWrapped, Hook, avro:make_decoder_options([])).
+
+-spec parse(json_value(), type_or_name(), lkup_fun(), boolean(), hook(),
+            decoder_options()) -> avro_value() | avro:out() | no_return().
+parse(Value, TypeName, Lkup, IsWrapped, Hook, Options)
+  when ?IS_NAME_RAW(TypeName) ->
   %% Type is defined by its name
   Type = Lkup(?NAME(TypeName)),
-  parse(Value, Type, Lkup, IsWrapped, Hook);
-parse(Value, Type, _Lkup, IsWrapped, Hook) when ?IS_PRIMITIVE_TYPE(Type) ->
+  parse(Value, Type, Lkup, IsWrapped, Hook, Options);
+parse(Value, Type, _Lkup, IsWrapped, Hook, _Options)
+  when ?IS_PRIMITIVE_TYPE(Type) ->
  Hook(Type, <<>>, Value,
       fun(JsonV) ->
         WrappedValue = parse_prim(JsonV, Type),
@@ -320,7 +332,7 @@ parse(Value, Type, _Lkup, IsWrapped, Hook) when ?IS_PRIMITIVE_TYPE(Type) ->
           false -> avro_primitive:get_value(WrappedValue)
         end
       end);
-parse(V, Type, _Lkup, IsWrapped, Hook) when ?IS_ENUM_TYPE(Type),
+parse(V, Type, _Lkup, IsWrapped, Hook, _Options) when ?IS_ENUM_TYPE(Type),
                                             is_binary(V) ->
   Hook(Type, <<>>, V,
        fun(JsonV) ->
@@ -329,7 +341,7 @@ parse(V, Type, _Lkup, IsWrapped, Hook) when ?IS_ENUM_TYPE(Type),
            false -> JsonV
          end
        end);
-parse(V, Type, _Lkup, IsWrapped, Hook) when ?IS_FIXED_TYPE(Type) ->
+parse(V, Type, _Lkup, IsWrapped, Hook, _Options) when ?IS_FIXED_TYPE(Type) ->
   Hook(Type, <<>>, V,
        fun(JsonV) ->
          case IsWrapped of
@@ -337,14 +349,14 @@ parse(V, Type, _Lkup, IsWrapped, Hook) when ?IS_FIXED_TYPE(Type) ->
            false -> parse_bytes(JsonV)
          end
        end);
-parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_RECORD_TYPE(Type) ->
-  parse_record(V, Type, Lkup, IsWrapped, Hook);
-parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_ARRAY_TYPE(Type) ->
-  parse_array(V, Type, Lkup, IsWrapped, Hook);
-parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_MAP_TYPE(Type) ->
-  parse_map(V, Type, Lkup, IsWrapped, Hook);
-parse(V, Type, Lkup, IsWrapped, Hook) when ?IS_UNION_TYPE(Type) ->
-  parse_union(V, Type, Lkup, IsWrapped, Hook).
+parse(V, Type, Lkup, IsWrapped, Hook, Options) when ?IS_RECORD_TYPE(Type) ->
+  parse_record(V, Type, Lkup, IsWrapped, Hook, Options);
+parse(V, Type, Lkup, IsWrapped, Hook, Options) when ?IS_ARRAY_TYPE(Type) ->
+  parse_array(V, Type, Lkup, IsWrapped, Hook, Options);
+parse(V, Type, Lkup, IsWrapped, Hook, Options) when ?IS_MAP_TYPE(Type) ->
+  parse_map(V, Type, Lkup, IsWrapped, Hook, Options);
+parse(V, Type, Lkup, IsWrapped, Hook, Options) when ?IS_UNION_TYPE(Type) ->
+  parse_union(V, Type, Lkup, IsWrapped, Hook, Options).
 
 %% Parse primitive values, return wrapped (boxed) value.
 -spec parse_prim(json_value(), avro_type()) -> avro_value().
@@ -390,48 +402,50 @@ parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
   parse_bytes(Rest, [Byte | Acc]).
 
 -spec parse_record(json_value(), record_type(),
-                   lkup_fun(), boolean(), hook()) ->
+                   lkup_fun(), boolean(), hook(), decoder_options()) ->
         avro_value() | avro:out().
-parse_record(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
+parse_record(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook,
+             #{record_type := RecordType} = Options) ->
   Hook(Type, none, Attrs,
        fun(JsonValues) ->
          Fields = convert_attrs_to_record_fields(JsonValues, Type, Lkup,
-                                                 IsWrapped, Hook),
-         case IsWrapped of
-           true  -> avro_record:new(Type, Fields);
-           false -> Fields
+                                                 IsWrapped, Hook, Options),
+         case {IsWrapped, RecordType} of
+           {true, _}  -> avro_record:new(Type, Fields);
+           {false, proplist} -> Fields;
+           {false, map} -> maps:from_list(Fields)
          end
        end).
 
 -spec convert_attrs_to_record_fields(json_value(), record_type(), lkup_fun(),
-                                     boolean(), hook()) ->
+                                     boolean(), hook(), decoder_options()) ->
         [{name(), avro_value() | avro:out()}] | no_return().
-convert_attrs_to_record_fields(Attrs, Type, Lkup, IsWrapped, Hook) ->
+convert_attrs_to_record_fields(Attrs, Type, Lkup, IsWrapped, Hook, Options) ->
   lists:map(
     fun({FieldName, Value}) ->
         FieldType = avro_record:get_field_type(FieldName, Type),
         FieldValue =
           Hook(Type, FieldName, Value,
                fun(JsonV) ->
-                 parse(JsonV, FieldType, Lkup, IsWrapped, Hook)
+                 parse(JsonV, FieldType, Lkup, IsWrapped, Hook, Options)
                end),
         {FieldName, FieldValue}
     end,
     Attrs).
 
 -spec parse_array([json_value()], array_type(),
-                  lkup_fun(), boolean(), hook()) ->
+                  lkup_fun(), boolean(), hook(), decoder_options()) ->
         [avro_value() | avro:out()].
-parse_array(V, Type, Lkup, IsWrapped, Hook) when is_list(V) ->
+parse_array(V, Type, Lkup, IsWrapped, Hook, Options) when is_list(V) ->
   ItemsType = avro_array:get_items_type(Type),
   {_Index, ParsedArray} =
     lists:foldl(
       fun(Item, {Index, Acc}) ->
-        ParsedItem = Hook(Type, Index, Item,
-                          fun(JsonV) ->
-                            parse(JsonV, ItemsType, Lkup, IsWrapped, Hook)
-                          end),
-        {Index + 1, [ParsedItem | Acc]}
+          Callback = fun(JsonV) ->
+                         parse(JsonV, ItemsType, Lkup, IsWrapped, Hook, Options)
+                     end,
+          ParsedItem = Hook(Type, Index, Item, Callback),
+          {Index + 1, [ParsedItem | Acc]}
       end,
       {_ZeroBasedIndexInitialValue = 0, []}, V),
   Items = lists:reverse(ParsedArray),
@@ -444,52 +458,58 @@ parse_array(V, Type, Lkup, IsWrapped, Hook) when is_list(V) ->
       Items
   end.
 
--spec parse_map(json_value(), map_type(), lkup_fun(), boolean(), hook()) ->
-        avro_value() | avro:out().
-parse_map(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook) ->
+-spec parse_map(json_value(), map_type(), lkup_fun(), boolean(),
+                hook(), decoder_options()) -> avro_value() | avro:out().
+parse_map(?JSON_OBJ(Attrs), Type, Lkup, IsWrapped, Hook,
+          #{map_type := MapType} = Options) ->
   ItemsType = avro_map:get_items_type(Type),
   L = lists:map(
         fun({KeyBin, Value}) ->
-            V = Hook(Type, KeyBin, Value,
-                     fun(JsonV) ->
-                       parse(JsonV, ItemsType, Lkup, IsWrapped, Hook)
-                     end),
+            Callback = fun(JsonV) ->
+                       parse(JsonV, ItemsType, Lkup, IsWrapped, Hook, Options)
+                     end,
+            V = Hook(Type, KeyBin, Value, Callback),
             {KeyBin, V}
         end, Attrs),
   case IsWrapped of
     true  -> avro_map:new(Type, L);
-    false -> L
+    false ->
+      case MapType of
+        proplist -> L;
+        map -> maps:from_list(L)
+      end
   end.
 
 -spec parse_union(json_value(), union_type(),
-                  lkup_fun(), boolean(), hook()) ->
+                  lkup_fun(), boolean(), hook(), decoder_options()) ->
         avro_value() | avro:out() | no_return().
-parse_union(null = Value, Type, Lkup, IsWrapped, Hook) ->
+parse_union(null = Value, Type, Lkup, IsWrapped, Hook, Options) ->
   %% Union values specified as null
-  parse_union_ex(?AVRO_NULL, Value, Type, Lkup, IsWrapped, Hook);
+  parse_union_ex(?AVRO_NULL, Value, Type, Lkup, IsWrapped, Hook, Options);
 parse_union(?JSON_OBJ([{ValueTypeName, Value}]),
-            Type, Lkup, IsWrapped, Hook) ->
+            Type, Lkup, IsWrapped, Hook, Options) ->
   %% Union value specified as {"type": <value>}
-  parse_union_ex(ValueTypeName, Value, Type, Lkup, IsWrapped, Hook).
+  parse_union_ex(ValueTypeName, Value, Type, Lkup, IsWrapped, Hook, Options).
 
 -spec parse_union_ex(name(), json_value(), union_type(),
-                     lkup_fun(), boolean(), hook()) ->
+                     lkup_fun(), boolean(), hook(), decoder_options()) ->
         avro_value() | avro:out() | no_return().
-parse_union_ex(ValueTypeName, Value, UnionType, Lkup, IsWrapped, Hook) ->
+parse_union_ex(ValueTypeName, Value, UnionType, Lkup, IsWrapped,
+               Hook, Options) ->
   Hook(UnionType, ValueTypeName, Value,
        fun(In) ->
           do_parse_union_ex(ValueTypeName, In, UnionType,
-                            Lkup, IsWrapped, Hook)
+                            Lkup, IsWrapped, Hook, Options)
        end).
 
 -spec do_parse_union_ex(name(), json_value(), union_type(),
-                        lkup_fun(), boolean(), hook()) ->
+                        lkup_fun(), boolean(), hook(), decoder_options()) ->
         avro_value() | avro:out() | no_return().
 do_parse_union_ex(ValueTypeName, Value, UnionType,
-                  Lkup, IsWrapped, Hook) ->
+                  Lkup, IsWrapped, Hook, Options) ->
   case avro_union:lookup_type(ValueTypeName, UnionType) of
     {ok, ValueType} ->
-      ParsedValue = parse(Value, ValueType, Lkup, IsWrapped, Hook),
+      ParsedValue = parse(Value, ValueType, Lkup, IsWrapped, Hook, Options),
       case IsWrapped of
         true ->
           %% Here we can create the value directly because we know that

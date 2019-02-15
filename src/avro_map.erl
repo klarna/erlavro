@@ -49,7 +49,8 @@
 
 -type input_key() :: avro:name_raw().
 -type input_value() :: avro:in().
--type input_data() :: [{input_key(), input_value()}].
+-type input_data() :: [{input_key(), input_value()}] |
+                      #{input_key() => input_value()}.
 
 %%%_* APIs =====================================================================
 
@@ -110,6 +111,8 @@ cast(Type, Value) when ?IS_MAP_TYPE(Type) ->
 
 %% @hidden
 -spec encode(type_or_name(), input_data(), fun()) -> iolist().
+encode(Type, Value, EncodeFun) when is_map(Value) ->
+  encode(Type, maps:to_list(Value), EncodeFun);
 encode(Type, Value, EncodeFun) ->
   ItemsType = avro_map:get_items_type(Type),
   lists:map(fun({K, V}) ->
@@ -144,7 +147,9 @@ do_cast(Type, KvList0) when is_list(KvList0) ->
   catch
     throw : {?MODULE, Reason} ->
       {error, Reason}
-  end.
+  end;
+do_cast(Type, Map) when is_map(Map) ->
+  do_cast(Type, maps:to_list(Map)).
 
 %% @private
 -spec from_list(input_data()) -> data().
