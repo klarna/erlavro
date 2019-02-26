@@ -28,5 +28,8 @@
    - Add schema compatibility check `avro:is_compatible/2`
 * 2.7.1
    - Issue #81 allow missing codec in ocf
-* 2.?.?
+* 2.8.0
    - Improve varint encoding performance
+   - Support erlang map for avro record and map type in encoder
+   - Allow decoder to decode avro record and map type as erlang map
+     based on `record_type` and `map_type` options.

@@ -239,6 +239,10 @@ make_simple_encoder(Type, Options) when ?IS_TYPE_RECORD(Type) ->
 %% Supported codec options:
 %% * `{encoding, avro_binary | avro_json}', default = avro_binary
 %%   To get a decoder function for JSON or binary encoded data
+%% * `{map_type, proplist | map}', default = proplist
+%%   Whether map should be decoded as proplist or map
+%% * `{record_type, proplist | map}', default = proplist
+%%   Whether record should be decoded as proplist or map
 %% * hook, default = ?DEFAULT_DECODER_HOOK
 %%   The default hook is a dummy one (does nothing).
 %%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
@@ -254,6 +258,10 @@ make_decoder(Schema, Options) ->
 %% Supported codec options:
 %% * `{encoding, avro_binary | avro_json}', default = avro_binary
 %%   To get a decoder function for JSON or binary encoded data
+%% * `{map_type, proplist | map}', default = proplist
+%%   Whether map should be decoded as proplist or map
+%% * `{record_type, proplist | map}', default = proplist
+%%   Whether record should be decoded as proplist or map
 %% * hook, default = ?DEFAULT_DECODER_HOOK
 %%   The default hook is a dummy one (does nothing).
 %%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
