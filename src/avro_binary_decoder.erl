@@ -160,10 +160,9 @@ dec_record(Bin, T, Lkup, Hook, #{record_type := RecordType} = Options) ->
                                    BinIn, Lkup, Hook, Options),
         {[{FieldName, Value} | Values], BinOut}
       end, {[], Bin}, FieldTypes),
-  FieldValues0 = lists:reverse(FieldValuesReversed),
   FieldValues1 = case RecordType of
-    proplist -> FieldValues0;
-    map -> maps:from_list(FieldValues0)
+    proplist -> lists:reverse(FieldValuesReversed);
+    map -> maps:from_list(FieldValuesReversed)
   end,
   {FieldValues1, Tail}.
 
