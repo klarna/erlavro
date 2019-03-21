@@ -322,14 +322,13 @@ decode(Encoding, JSON, TypeOrName, StoreOrLkup, Hook) ->
              Data :: binary(),
              type_or_name(),
              schema_store() | lkup_fun()) -> term().
-decode(#{encoding := avro_json, hook := Hook} = Options,
+decode(#{encoding := avro_json} = Options,
        JSON, TypeOrName, StoreOrLkup) ->
   avro_json_decoder:decode_value(JSON, TypeOrName, StoreOrLkup,
-                                 maps:merge(Options, #{is_wrapped => false}),
-                                 Hook);
-decode(#{encoding := avro_binary, hook := Hook} = Options,
+                                 maps:merge(Options, #{is_wrapped => false}));
+decode(#{encoding := avro_binary} = Options,
        Bin, TypeOrName, StoreOrLkup) ->
-  avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Hook, Options).
+  avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Options).
 
 %% @doc Build decoder options with default values.
 -spec make_decoder_options(codec_options()) -> decoder_options().
@@ -337,7 +336,8 @@ make_decoder_options(Options) ->
   DefaultOptions = [{encoding, avro_binary},
                     {map_type, proplist},
                     {record_type, proplist},
-                    {hook, ?DEFAULT_DECODER_HOOK}],
+                    {hook, ?DEFAULT_DECODER_HOOK},
+                    {is_wrapped, true}],
   maps:from_list(DefaultOptions ++ Options).
 
 %% @doc Recursively resolve children type's fullname with enclosing

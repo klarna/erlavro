@@ -308,7 +308,7 @@ check_json_encode_map_properly_test() ->
   JSON2 = encode(fun(_) -> MapType end, "some_map", Value),
   DecodeF = fun(JSON) ->
               avro_json_decoder:decode_value(JSON, MapType, none,
-                                             [{is_wrapped, false}])
+                                             avro:make_decoder_options([{is_wrapped, false}]))
             end,
   ?assertEqual(Value, lists:keysort(1, DecodeF(JSON1))),
   ?assertEqual(Value, lists:keysort(1, DecodeF(JSON2))).

@@ -191,7 +191,7 @@ decode_with_hook_test() ->
   Schema = sample_record_type(),
   Lkup = fun(_) -> exit(error) end,
   Hook = avro_decoder_hooks:pretty_print_hist(),
-  Fields = decode(Binary, Schema, Lkup, Hook),
+  Fields = decode(Binary, Schema, Lkup, avro:make_decoder_options([{hook, Hook}])),
   ?assertMatch([ {<<"bool">>,   true}
                , {<<"int">>,    100}
                , {<<"long">>,   123456789123456789}

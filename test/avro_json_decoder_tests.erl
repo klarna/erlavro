@@ -19,8 +19,7 @@
 %%%-------------------------------------------------------------------
 -module(avro_json_decoder_tests).
 
--import(avro_json_decoder, [ parse/5
-                           , parse/6
+-import(avro_json_decoder, [ parse/4
                            , parse_schema/1
                            ]).
 
@@ -208,8 +207,7 @@ parse_enum_unwrapped_test() ->
     ]),
   LkupFun = fun(_) -> Type end,
   ?assertEqual(<<"A">>,
-               avro_json_decoder:parse(<<"A">>, "TestEnum", LkupFun, false,
-                                       ?DEFAULT_DECODER_HOOK)).
+               avro_json_decoder:parse(<<"A">>, "TestEnum", LkupFun, avro:make_decoder_options([{is_wrapped, false}]))).
 
 parse_map_type_test() ->
   Schema = ?JSON_OBJ(
@@ -340,7 +338,7 @@ parse_fixed_value_test() ->
   ExpectedValue = avro_fixed:new(Type, <<1,127>>),
   ?assertEqual(ExpectedValue, parse_value(Json, Type, none)),
   ?assertEqual(<<1,127>>,
-               parse(Json, Type, none, false, ?DEFAULT_DECODER_HOOK)).
+               parse(Json, Type, none, avro:make_decoder_options([{is_wrapped, false}]))).
 
 parse_value_with_lkup_fun_test() ->
   Hook = avro_decoder_hooks:pretty_print_hist(),
@@ -355,7 +353,7 @@ parse_value_with_lkup_fun_test() ->
   Type = parse_schema(Schema),
   ExpectedType = avro_array:type("name.space.Test"),
   ?assertEqual(ExpectedType, Type),
-  Value = parse(ValueJson, Type, ExtractTypeFun, true, Hook),
+  Value = parse(ValueJson, Type, ExtractTypeFun, avro:make_decoder_options([{hook, Hook}])),
   [Rec] = avro_array:get_items(Value),
   ?assertEqual(<<"name.space.Test">>,
                avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
@@ -414,10 +412,10 @@ get_test_record() ->
 
 %% @private
 parse_value(Value, Type, Lkup) ->
-  parse(Value, Type, Lkup, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
+  parse(Value, Type, Lkup, avro:make_decoder_options([])).
 
 parse_value_with_map_type(Value, Type, Lkup) ->
-  parse(Value, Type, Lkup, _IsWrapped = false, ?DEFAULT_DECODER_HOOK, avro:make_decoder_options([{map_type, map}, {record_type, map}])).
+  parse(Value, Type, Lkup, avro:make_decoder_options([{map_type, map}, {record_type, map}, {is_wrapped, false}])).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
