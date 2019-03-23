@@ -18,7 +18,7 @@
 %%%
 %%% @author Ilya Staheev <ilya.staheev@klarna.com>
 %%% @doc Handling of Avro maps.
-%%% Data are kept internally as a gb_trees:: binary() -> avro_value()
+%%% Data are kept internally as a #{binary() -> avro_value()}
 %%% @end
 %%%-----------------------------------------------------------------------------
 
@@ -45,7 +45,7 @@
 
 -type key() :: binary().
 -type value() :: avro_value().
--type data() :: gb_trees:tree(key(), value()).
+-type data() :: #{key() => value()}.
 
 -type input_key() :: avro:name_raw().
 -type input_value() :: avro:in().
@@ -102,7 +102,7 @@ to_term(Map) ->
 %% @end
 -spec to_list(avro_value()) -> [{key(), avro_value()}].
 to_list(Value) when ?IS_MAP_VALUE(Value) ->
-  lists:keysort(1, gb_trees:to_list(?AVRO_VALUE_DATA(Value))).
+  lists:keysort(1, maps:to_list(?AVRO_VALUE_DATA(Value))).
 
 %% @hidden Value is other Avro map value or a kv-list with iolist keys.
 -spec cast(avro_type(), input_data()) -> {ok, avro_value()} | {error, term()}.
@@ -143,23 +143,13 @@ do_cast(Type, KvList0) when is_list(KvList0) ->
     end,
   try
     KvList = lists:map(MapFun, KvList0),
-    {ok, ?AVRO_VALUE(Type, from_list(KvList))}
+    {ok, ?AVRO_VALUE(Type, maps:from_list(KvList))}
   catch
     throw : {?MODULE, Reason} ->
       {error, Reason}
   end;
 do_cast(Type, Map) when is_map(Map) ->
   do_cast(Type, maps:to_list(Map)).
-
-%% @private
--spec from_list(input_data()) -> data().
-from_list(KvL) -> from_list(gb_trees:empty(), KvL).
-
-%% @private
--spec from_list(data(), input_data()) -> data().
-from_list(Tree, []) -> Tree;
-from_list(Tree, [{K, V} | Rest]) ->
-  from_list(gb_trees:enter(K, V, Tree), Rest).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

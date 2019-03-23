@@ -57,6 +57,9 @@
 -type record_opts() :: [{record_opt_name(), term()}].
 -type field_opts() :: [{field_opt_name(), term()}].
 
+-type input_data() :: [{field_name_raw(), avro:in()}] |
+                      #{field_name_raw() => avro:in()}.
+
 %%%_* Type APIs ================================================================
 
 %% @doc Declare a record type with pre-defined record fields
@@ -253,7 +256,7 @@ resolve_default_type(T) ->
   T.
 
 %% @private
--spec cast(avro_type(), [{field_name_raw(), avro:in()}]) ->
+-spec cast(avro_type(), input_data()) ->
         {ok, avro_value()} | {error, any()}.
 cast(Type, Value) when ?IS_RECORD_TYPE(Type) ->
   do_cast(Type, Value).
@@ -336,18 +339,16 @@ to_term(Record) when ?IS_RECORD_VALUE(Record) ->
   lists:map(fun({N, V}) -> {N, avro:to_term(V)} end, to_list(Record)).
 
 %% @hidden Help function for JSON/binary encoder.
--spec encode(record_type(), [{field_name_raw(), avro:in()}],
+-spec encode(record_type(), input_data(),
              fun((field_name(), avro_type(), avro:in()) -> avro:out())) ->
         [avro:out()].
-encode(Record, Map, EncodeFun) when is_map(Map) ->
-  encode(Record, maps:to_list(Map), EncodeFun);
 encode(#avro_record_type{ fields = FieldDefs
                         , fullname = FullName
                         }, FieldValues0, EncodeFun) ->
-  FieldValues = [{?NAME(N), V} || {N, V} <- FieldValues0],
+  FieldValues = canonicalize_names(FieldValues0),
   lists:map(
     fun(#avro_record_field{name = FieldName, type = FieldType} = FieldDef) ->
-        Value = lookup_value_from_list(FieldDef, FieldValues),
+        Value = lookup_value_from_map(FieldDef, FieldValues),
         try
           Value =:= ?NO_VALUE andalso erlang:error(required_field_missed),
           EncodeFun(FieldName, FieldType, Value)
@@ -375,20 +376,20 @@ resolve_field_type_fullnames(Fields, Ns) ->
 %% @private Try to find a value for a field specified by list of its names
 %% (including direct name and aliases)
 %% @end
--spec lookup_value_by_name([field_name()], [{field_name(), avro:in()}]) ->
+-spec lookup_value_by_name([field_name()], #{field_name() => avro:in()}) ->
         {ok, avro:in()} | false.
 lookup_value_by_name([], _Values) ->
   false;
 lookup_value_by_name([FieldName|Rest], Values) ->
-  case lists:keyfind(FieldName, 1, Values) of
-    {_, Value} -> {ok, Value};
-    false      -> lookup_value_by_name(Rest, Values)
+  case maps:find(FieldName, Values) of
+    {ok, Value} -> {ok, Value};
+    error -> lookup_value_by_name(Rest, Values)
   end.
 
 %% @private
--spec lookup_value_from_list(record_field(), [{field_name(), avro:in()}]) ->
+-spec lookup_value_from_map(record_field(), #{field_name() => avro:in()}) ->
         ?NO_VALUE | avro:in().
-lookup_value_from_list(FieldDef, Values) ->
+lookup_value_from_map(FieldDef, Values) ->
   #avro_record_field
   { name = FieldName
   , default = Default
@@ -400,7 +401,7 @@ lookup_value_from_list(FieldDef, Values) ->
   end.
 
 %% @private
--spec cast_fields([record_field()], [{field_name(), avro:in()}],
+-spec cast_fields([record_field()], #{field_name() => avro:in()},
                   [{field_name(), avro_value()}]) ->
         [{field_name(), avro_value()}] | {error, any()}.
 cast_fields([], _Values, Acc) ->
@@ -410,7 +411,7 @@ cast_fields([FieldDef | Rest], Values, Acc) ->
   { name = FieldName
   , type = FieldType
   } = FieldDef,
-  case lookup_value_from_list(FieldDef, Values) of
+  case lookup_value_from_map(FieldDef, Values) of
     ?NO_VALUE ->
       {error, {required_field_missed, FieldName}};
     Value ->
@@ -423,17 +424,15 @@ cast_fields([FieldDef | Rest], Values, Acc) ->
   end.
 
 %% @private
--spec do_cast(record_type(), [{field_name_raw(), avro:in()}]) ->
+-spec do_cast(record_type(), input_data()) ->
         {ok, avro_value()} | {error, any()}.
-do_cast(Type, KvList0) when is_list(KvList0) ->
+do_cast(Type, Value0) ->
   %% unify field names to binary
-  KvList = lists:map(fun({K, V}) -> {?NAME(K), V} end, KvList0),
-  case cast_fields(Type#avro_record_type.fields, KvList, []) of
+  Value = canonicalize_names(Value0),
+  case cast_fields(Type#avro_record_type.fields, Value, []) of
     {error, _} = Err -> Err;
     FieldsWithValues -> {ok, ?AVRO_VALUE(Type, FieldsWithValues)}
-  end;
-do_cast(Type, Map) when is_map(Map) ->
-  do_cast(Type, maps:to_list(Map)).
+  end.
 
 %% @private
 -spec get_field_def(field_name_raw(), record_type()) ->
@@ -458,6 +457,14 @@ get_field_def_by_alias(Alias, [FieldDef | Rest]) ->
     true  -> {ok, FieldDef};
     false -> get_field_def_by_alias(Alias, Rest)
   end.
+
+%% @private
+-spec canonicalize_names(input_data()) -> map().
+canonicalize_names(KvList0) when is_list(KvList0) ->
+  KvList = lists:map(fun({K, V}) -> {?NAME(K), V} end, KvList0),
+  maps:from_list(KvList);
+canonicalize_names(Map) when is_map(Map) ->
+  canonicalize_names(maps:to_list(Map)).
 
 %%%_* Emacs ============================================================
 %%% Local Variables:
