@@ -44,7 +44,6 @@
 -type index() :: pos_integer().
 -type block_item_decode_fun() ::
         fun((index(), binary()) -> {avro:out(), binary()}).
--type decoder_options() :: map().
 
 %%%_* APIs =====================================================================
 

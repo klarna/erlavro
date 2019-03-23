@@ -133,7 +133,6 @@
              | [{name(), avro:out()}].
 
 -type codec_options() :: [proplists:property()].
--type decoder_options() :: map().
 -type encode_fun() :: fun((type_or_name(), in()) -> iodata() | avro_value()).
 -type simple_encoder() :: fun((in()) -> iodata()).
 -type decode_fun() :: fun((type_or_name(), binary()) -> out()).

@@ -38,7 +38,6 @@
 %% Exported for test
 -export([ parse_schema/1 ]).
 
--type decoder_options() :: map().
 -type json_value() :: jsone:json_value().
 -type sc_opts() :: avro:schema_opts().
 -type default_parse_fun() :: fun((type_or_name(), json_value()) -> avro:out()).

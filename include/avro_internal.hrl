@@ -163,6 +163,13 @@
 %% By default, the hook fun does nothing else but calling the decode function.
 -define(DEFAULT_DECODER_HOOK, ?AVRO_DEFAULT_DECODER_HOOK).
 
+-type decoder_options() :: #{ encoding := avro_binary | avro_json
+                            , map_type := proplist | map
+                            , record_type := proplist | map
+                            , is_wrapped := boolean()
+                            , hook := decoder_hook_fun()
+                            }.
+
 %% Throw an exception in case the value is already encoded.
 -define(ASSERT_AVRO_VALUE(VALUE),
         case VALUE of
