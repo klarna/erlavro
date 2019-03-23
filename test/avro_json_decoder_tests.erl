@@ -206,8 +206,9 @@ parse_enum_unwrapped_test() ->
     , {aliases,      []}
     ]),
   LkupFun = fun(_) -> Type end,
+  Options = avro:make_decoder_options([{is_wrapped, false}]),
   ?assertEqual(<<"A">>,
-               avro_json_decoder:parse(<<"A">>, "TestEnum", LkupFun, avro:make_decoder_options([{is_wrapped, false}]))).
+               avro_json_decoder:parse(<<"A">>, "TestEnum", LkupFun, Options)).
 
 parse_map_type_test() ->
   Schema = ?JSON_OBJ(
@@ -258,7 +259,8 @@ parse_record_value_test() ->
   ExpectedWithMapType = #{<<"array">> => [<<"ACTIVE">>, <<"CLOSED">>],
                           <<"invno">> => 100,
                           <<"union">> => true},
-  ?assertEqual(ExpectedWithMapType, parse_value_with_map_type(Json, TestRecord, none)).
+  ?assertEqual(ExpectedWithMapType,
+               parse_value_with_map_type(Json, TestRecord, none)).
 
 
 parse_record_value_missing_field_test() ->
@@ -330,7 +332,8 @@ parse_map_value_test() ->
   ?assertEqual(Expected, parse_value(Json, Type, none)),
 
   ExpectedWithMapType = #{<<"v1">> => 1, <<"v2">> => 2},
-  ?assertEqual(ExpectedWithMapType, parse_value_with_map_type(Json, Type, none)).
+  ?assertEqual(ExpectedWithMapType,
+               parse_value_with_map_type(Json, Type, none)).
 
 parse_fixed_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
@@ -338,7 +341,8 @@ parse_fixed_value_test() ->
   ExpectedValue = avro_fixed:new(Type, <<1,127>>),
   ?assertEqual(ExpectedValue, parse_value(Json, Type, none)),
   ?assertEqual(<<1,127>>,
-               parse(Json, Type, none, avro:make_decoder_options([{is_wrapped, false}]))).
+               parse(Json, Type, none,
+                     avro:make_decoder_options([{is_wrapped, false}]))).
 
 parse_value_with_lkup_fun_test() ->
   Hook = avro_decoder_hooks:pretty_print_hist(),
@@ -353,7 +357,8 @@ parse_value_with_lkup_fun_test() ->
   Type = parse_schema(Schema),
   ExpectedType = avro_array:type("name.space.Test"),
   ?assertEqual(ExpectedType, Type),
-  Value = parse(ValueJson, Type, ExtractTypeFun, avro:make_decoder_options([{hook, Hook}])),
+  Value = parse(ValueJson, Type, ExtractTypeFun,
+                avro:make_decoder_options([{hook, Hook}])),
   [Rec] = avro_array:get_items(Value),
   ?assertEqual(<<"name.space.Test">>,
                avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
@@ -362,7 +367,8 @@ parse_value_with_lkup_fun_test() ->
   ExpectedWithMapType = [#{<<"array">> => [<<"ACTIVE">>, <<"CLOSED">>],
                            <<"invno">> => 100,
                            <<"union">> => true}],
-  ?assertEqual(ExpectedWithMapType, parse_value_with_map_type(ValueJson, Type, ExtractTypeFun)).
+  ?assertEqual(ExpectedWithMapType,
+               parse_value_with_map_type(ValueJson, Type, ExtractTypeFun)).
 
 decode_schema_test() ->
   _ = avro:decode_schema(<<"{\"type\":\"int\"}">>),
@@ -415,7 +421,10 @@ parse_value(Value, Type, Lkup) ->
   parse(Value, Type, Lkup, avro:make_decoder_options([])).
 
 parse_value_with_map_type(Value, Type, Lkup) ->
-  parse(Value, Type, Lkup, avro:make_decoder_options([{map_type, map}, {record_type, map}, {is_wrapped, false}])).
+  Options = avro:make_decoder_options([{map_type, map},
+                                       {record_type, map},
+                                       {is_wrapped, false}]),
+  parse(Value, Type, Lkup, Options).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

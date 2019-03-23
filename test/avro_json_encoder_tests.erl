@@ -241,11 +241,13 @@ encode_map_test() ->
   MapType = avro_map:type(avro_union:type([int, null])),
   MapValue0 = avro_map:new(MapType, [{v1, 1}, {"v2", null}, {<<"v3">>, 2}]),
   Json0 = encode_value(MapValue0),
-  ?assertEqual(<<"{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}">>, Json0),
+  ?assertEqual(<<"{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}">>,
+               Json0),
 
   MapValue1 = avro_map:new(MapType, #{v1 => 1, "v2" => null, <<"v3">> => 2}),
   Json1 = encode_value(MapValue1),
-  ?assertEqual(<<"{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}">>, Json1).
+  ?assertEqual(<<"{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}">>,
+               Json1).
 
 encode_fixed_type_test() ->
   Type = avro_fixed:type("FooBar", 2,
@@ -306,9 +308,9 @@ check_json_encode_map_properly_test() ->
   MapValue = avro_map:new(MapType, Value),
   JSON1 = encode_value(MapValue),
   JSON2 = encode(fun(_) -> MapType end, "some_map", Value),
+  Options = avro:make_decoder_options([{is_wrapped, false}]),
   DecodeF = fun(JSON) ->
-              avro_json_decoder:decode_value(JSON, MapType, none,
-                                             avro:make_decoder_options([{is_wrapped, false}]))
+                avro_json_decoder:decode_value(JSON, MapType, none, Options)
             end,
   ?assertEqual(Value, lists:keysort(1, DecodeF(JSON1))),
   ?assertEqual(Value, lists:keysort(1, DecodeF(JSON2))).
