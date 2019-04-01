@@ -58,6 +58,8 @@
         ]).
 
 -export([ decode/5
+        , do_decode/4
+        , make_decoder_options/1
         , encode/4
         , encode_wrapped/4
         ]).
@@ -118,6 +120,7 @@
             | float()
             | binary()
             | iolist()
+            | map()
             | [avro:in()]
             | [{name_raw(), avro:in()}].
 
@@ -235,22 +238,29 @@ make_simple_encoder(Type, Options) when ?IS_TYPE_RECORD(Type) ->
 %% Supported codec options:
 %% * `{encoding, avro_binary | avro_json}', default = avro_binary
 %%   To get a decoder function for JSON or binary encoded data
+%% * `{map_type, proplist | map}', default = proplist
+%%   Whether map should be decoded as proplist or map
+%% * `{record_type, proplist | map}', default = proplist
+%%   Whether record should be decoded as proplist or map
 %% * hook, default = ?DEFAULT_DECODER_HOOK
 %%   The default hook is a dummy one (does nothing).
 %%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
 -spec make_decoder(schema_all(), codec_options()) -> decode_fun().
 make_decoder(Schema, Options) ->
   Lkup = avro_util:ensure_lkup_fun(Schema),
-  Encoding = proplists:get_value(encoding, Options, avro_binary),
-  Hook = proplists:get_value(hook, Options, ?DEFAULT_DECODER_HOOK),
+  DecoderOptions = make_decoder_options(Options),
   fun(TypeOrName, Bin) ->
-    ?MODULE:decode(Encoding, Bin, TypeOrName, Lkup, Hook)
+    ?MODULE:do_decode(DecoderOptions, Bin, TypeOrName, Lkup)
   end.
 
 %% @doc Make a decoder function.
 %% Supported codec options:
 %% * `{encoding, avro_binary | avro_json}', default = avro_binary
 %%   To get a decoder function for JSON or binary encoded data
+%% * `{map_type, proplist | map}', default = proplist
+%%   Whether map should be decoded as proplist or map
+%% * `{record_type, proplist | map}', default = proplist
+%%   Whether record should be decoded as proplist or map
 %% * hook, default = ?DEFAULT_DECODER_HOOK
 %%   The default hook is a dummy one (does nothing).
 %%   see `avro_decoder_hooks.erl' for details and examples of decoder hooks.
@@ -263,9 +273,8 @@ make_simple_decoder(JSON, Options) when is_binary(JSON) ->
   make_simple_decoder(decode_schema(JSON), Options);
 make_simple_decoder(Type, Options) when ?IS_TYPE_RECORD(Type) ->
   Lkup = make_lkup_fun(Type),
-  Encoding = proplists:get_value(encoding, Options, avro_binary),
-  Hook = proplists:get_value(hook, Options, ?DEFAULT_DECODER_HOOK),
-  fun(Bin) -> ?MODULE:decode(Encoding, Bin, Type, Lkup, Hook) end.
+  DecoderOptions = make_decoder_options(Options),
+  fun(Bin) -> ?MODULE:do_decode(DecoderOptions, Bin, Type, Lkup) end.
 
 %% @doc Encode value to json or binary format.
 -spec encode(schema_store() | lkup_fun(), type_or_name(),
@@ -304,11 +313,19 @@ encode_wrapped(Lkup, Type0, Value, Encoding) when ?IS_TYPE_RECORD(Type0) ->
              type_or_name(),
              schema_store() | lkup_fun(),
              decoder_hook_fun()) -> term().
-decode(avro_json, JSON, TypeOrName, StoreOrLkup, Hook) ->
-  avro_json_decoder:decode_value(JSON, TypeOrName, StoreOrLkup,
-                                 [{is_wrapped, false}], Hook);
-decode(avro_binary, Bin, TypeOrName, StoreOrLkup, Hook) ->
-  avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Hook).
+decode(Encoding, JSON, TypeOrName, StoreOrLkup, Hook) ->
+  DecoderOptions = make_decoder_options([{encoding, Encoding}, {hook, Hook}]),
+  do_decode(DecoderOptions, JSON, TypeOrName, StoreOrLkup).
+
+%% @doc Build decoder options with default values.
+-spec make_decoder_options(codec_options()) -> decoder_options().
+make_decoder_options(Options) ->
+  DefaultOptions = [{encoding, avro_binary},
+                    {map_type, proplist},
+                    {record_type, proplist},
+                    {hook, ?DEFAULT_DECODER_HOOK},
+                    {is_wrapped, true}],
+  maps:from_list(DefaultOptions ++ Options).
 
 %% @doc Recursively resolve children type's fullname with enclosing
 %% namespace passed down from ancestor types.
@@ -584,6 +601,20 @@ do_cast(#avro_array_type{} = T,     V) -> avro_array:cast(T, V);
 do_cast(#avro_map_type{} = T,       V) -> avro_map:cast(T, V);
 do_cast(#avro_union_type{} = T,     V) -> avro_union:cast(T, V);
 do_cast(#avro_fixed_type{} = T,     V) -> avro_fixed:cast(T, V).
+
+%% @private
+-spec do_decode(decoder_options(),
+             Data :: binary(),
+             type_or_name(),
+             schema_store() | lkup_fun()) -> term().
+do_decode(#{encoding := avro_json} = Options,
+       JSON, TypeOrName, StoreOrLkup) ->
+  avro_json_decoder:decode_value(JSON, TypeOrName, StoreOrLkup,
+                                 maps:merge(Options, #{is_wrapped => false}));
+do_decode(#{encoding := avro_binary} = Options,
+       Bin, TypeOrName, StoreOrLkup) ->
+  avro_binary_decoder:decode(Bin, TypeOrName, StoreOrLkup, Options).
+
 
 %% @private Splits FullName to {Name, Namespace} or returns false
 %% if the given name is a short name (no dots).

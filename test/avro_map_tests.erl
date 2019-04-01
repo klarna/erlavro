@@ -30,14 +30,24 @@ cast_test() ->
              , {<<"v2">>, avro_primitive:int(2)}
              , {<<"v3">>, avro_primitive:int(3)}
              ],
-  ?assertEqual(Expected, List).
+  ?assertEqual(Expected, List),
+
+  {ok, MapValue} = avro_map:cast(Type, #{v1 => 1, "v2" => 2, "v3" => 3}),
+  MapList = avro_map:to_list(MapValue),
+  ?assertEqual(Expected, MapList).
 
 new_test() ->
   Type = avro_map:type(avro_primitive:long_type()),
   Value = avro_map:new(Type, [{"a", 1}, {"b", 2}]),
   ?assertMatch(#avro_value{}, Value),
   ?assertException(error, {type_mismatch, _, _},
-                   avro_map:new(Type, [{"a", "x"}])).
+                   avro_map:new(Type, [{"a", "x"}])),
+
+  MapValue = avro_map:new(Type, #{"a" => 1, "b" => 2}),
+  ?assertMatch(#avro_value{}, MapValue),
+  ?assertException(error, {type_mismatch, _, _},
+                   avro_map:new(Type, #{"a" => "x"})).
+
 
 to_term_test() ->
   Type = avro_map:type(avro_primitive:int_type()),

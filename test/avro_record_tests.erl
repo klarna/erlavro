@@ -132,7 +132,11 @@ cast_test() ->
                     [ {namespace, "name.space"} ]),
   {ok, Record} = cast(RecordType, [{"b", 1}, {"a", "foo"}]),
   ?assertEqual(avro_primitive:string("foo"), get_value("a", Record)),
-  ?assertEqual(avro_primitive:int(1), get_value("b", Record)).
+  ?assertEqual(avro_primitive:int(1), get_value("b", Record)),
+
+  {ok, Record1} = cast(RecordType, #{"b" => 1, "a" => "foo"}),
+  ?assertEqual(avro_primitive:string("foo"), get_value("a", Record1)),
+  ?assertEqual(avro_primitive:int(1), get_value("b", Record1)).
 
 cast_error_test() ->
   RecordType = type("Record",

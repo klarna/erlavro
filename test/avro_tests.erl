@@ -103,6 +103,27 @@ encode_wrapped_test() ->
     Decoder("com.example.MyRecord", Bin),
   ok.
 
+decode_with_map_type_option_test() ->
+  Map = avro_map:type(int),
+  MyRecordType =
+    avro_record:type(
+      <<"MyRecord">>,
+      [avro_record:define_field(map, Map)],
+      [{namespace, 'com.example'}]),
+  Lkup = avro:make_lkup_fun(MyRecordType),
+  Term = #{<<"map">> => #{<<"a">> => 1, <<"b">> => 2}},
+  ?AVRO_VALUE(_, {binary, Bin}) =
+    avro:encode_wrapped(Lkup, "com.example.MyRecord", Term, avro_binary),
+
+  Decoder = avro:make_decoder(Lkup, []),
+  [{<<"map">>,[{<<"a">>,1},{<<"b">>,2}]}] =
+    Decoder("com.example.MyRecord", Bin),
+
+  MapDecoder = avro:make_decoder(Lkup, [{map_type, map}, {record_type, map}]),
+  #{<<"map">> := #{<<"a">> := 1, <<"b">> := 2}} =
+    MapDecoder("com.example.MyRecord", Bin),
+  ok.
+
 interop_schema_decode_test() ->
   SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
   {ok, JSON} = file:read_file(SchemaFilename),
@@ -389,6 +410,53 @@ default_values_test() ->
   TestFun([{encoding, avro_binary}]),
   TestFun([{encoding, avro_json}]),
   ok.
+
+default_values_with_map_type_test() ->
+  File = filename:join(priv_dir(), "test.avsc"),
+  {ok, JSON} = file:read_file(File),
+  Type = avro:decode_schema(JSON),
+  Lkup = avro:make_lkup_fun(Type),
+  NodeTypeFullName = <<"org.apache.avro.Node">>,
+  ?assertMatch(
+    #avro_record_type{
+      name = <<"Node">>,
+      fullname = NodeTypeFullName,
+      fields =
+        [#avro_record_field{ name = <<"label">>
+                           , type = #avro_primitive_type{name = <<"string">>}
+                           },
+         #avro_record_field{ name = <<"children">>
+                           , type = #avro_array_type{type = NodeTypeFullName}
+                           , default = [[{<<"label">>, <<"default-label">>},
+                                         {<<"children">>, []}]]
+                           }]},
+    Lkup(NodeTypeFullName)),
+  %% Encode input has no 'children' field, default value should be used
+  Input = #{"f1" => #{"label" => "x"}},
+  Expect = #{<<"f1">> =>
+               #{
+                 <<"label">> => <<"x">>,
+                 <<"children">> =>
+                   [
+                    #{<<"label">> => <<"default-label">>,
+                      <<"children">> => []}
+                   ]
+                },
+             <<"f2">> => null,
+             <<"f3">> => null},
+  TestFun =
+    fun(Opts) ->
+      RootType = "org.apache.avro.test",
+      Encoder = avro:make_encoder(Lkup, Opts),
+      Decoder = avro:make_decoder(Lkup, Opts),
+      Encoded = Encoder(RootType, Input),
+      Decoded = Decoder(RootType, Encoded),
+      ?assertEqual(Expect, Decoded)
+    end,
+  TestFun([{encoding, avro_binary}, {map_type, map}, {record_type, map}]),
+  TestFun([{encoding, avro_json}, {map_type, map}, {record_type, map}]),
+  ok.
+
 
 %% @private
 priv_dir() ->

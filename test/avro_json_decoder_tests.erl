@@ -19,7 +19,7 @@
 %%%-------------------------------------------------------------------
 -module(avro_json_decoder_tests).
 
--import(avro_json_decoder, [ parse/5
+-import(avro_json_decoder, [ parse/4
                            , parse_schema/1
                            ]).
 
@@ -206,9 +206,9 @@ parse_enum_unwrapped_test() ->
     , {aliases,      []}
     ]),
   LkupFun = fun(_) -> Type end,
+  Options = avro:make_decoder_options([{is_wrapped, false}]),
   ?assertEqual(<<"A">>,
-               avro_json_decoder:parse(<<"A">>, "TestEnum", LkupFun, false,
-                                       ?DEFAULT_DECODER_HOOK)).
+               avro_json_decoder:parse(<<"A">>, "TestEnum", LkupFun, Options)).
 
 parse_map_type_test() ->
   Schema = ?JSON_OBJ(
@@ -254,7 +254,14 @@ parse_record_value_test() ->
                               , avro_primitive:string("CLOSED")]),
                avro_record:get_value("array", Value)),
   ?assertEqual(avro_primitive:boolean(true),
-               avro_union:get_value(avro_record:get_value("union", Value))).
+               avro_union:get_value(avro_record:get_value("union", Value))),
+
+  ExpectedWithMapType = #{<<"array">> => [<<"ACTIVE">>, <<"CLOSED">>],
+                          <<"invno">> => 100,
+                          <<"union">> => true},
+  ?assertEqual(ExpectedWithMapType,
+               parse_value_with_map_type(Json, TestRecord, none)).
+
 
 parse_record_value_missing_field_test() ->
   %% This test also tests parsing other types inside the record
@@ -322,7 +329,11 @@ parse_map_value_test() ->
   Type = avro_map:type(avro_primitive:int_type()),
   Json = ?JSON_OBJ([ {<<"v1">>, 1}, {<<"v2">>, 2} ]),
   Expected = avro_map:new(Type, [{"v1", 1}, {"v2", 2}]),
-  ?assertEqual(Expected, parse_value(Json, Type, none)).
+  ?assertEqual(Expected, parse_value(Json, Type, none)),
+
+  ExpectedWithMapType = #{<<"v1">> => 1, <<"v2">> => 2},
+  ?assertEqual(ExpectedWithMapType,
+               parse_value_with_map_type(Json, Type, none)).
 
 parse_fixed_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
@@ -330,7 +341,8 @@ parse_fixed_value_test() ->
   ExpectedValue = avro_fixed:new(Type, <<1,127>>),
   ?assertEqual(ExpectedValue, parse_value(Json, Type, none)),
   ?assertEqual(<<1,127>>,
-               parse(Json, Type, none, false, ?DEFAULT_DECODER_HOOK)).
+               parse(Json, Type, none,
+                     avro:make_decoder_options([{is_wrapped, false}]))).
 
 parse_value_with_lkup_fun_test() ->
   Hook = avro_decoder_hooks:pretty_print_hist(),
@@ -345,11 +357,18 @@ parse_value_with_lkup_fun_test() ->
   Type = parse_schema(Schema),
   ExpectedType = avro_array:type("name.space.Test"),
   ?assertEqual(ExpectedType, Type),
-  Value = parse(ValueJson, Type, ExtractTypeFun, true, Hook),
+  Value = parse(ValueJson, Type, ExtractTypeFun,
+                avro:make_decoder_options([{hook, Hook}])),
   [Rec] = avro_array:get_items(Value),
   ?assertEqual(<<"name.space.Test">>,
                avro:get_type_fullname(?AVRO_VALUE_TYPE(Rec))),
-  ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)).
+  ?assertEqual(avro_primitive:long(100), avro_record:get_value("invno", Rec)),
+
+  ExpectedWithMapType = [#{<<"array">> => [<<"ACTIVE">>, <<"CLOSED">>],
+                           <<"invno">> => 100,
+                           <<"union">> => true}],
+  ?assertEqual(ExpectedWithMapType,
+               parse_value_with_map_type(ValueJson, Type, ExtractTypeFun)).
 
 decode_schema_test() ->
   _ = avro:decode_schema(<<"{\"type\":\"int\"}">>),
@@ -399,7 +418,13 @@ get_test_record() ->
 
 %% @private
 parse_value(Value, Type, Lkup) ->
-  parse(Value, Type, Lkup, _IsWrapped = true, ?DEFAULT_DECODER_HOOK).
+  parse(Value, Type, Lkup, avro:make_decoder_options([])).
+
+parse_value_with_map_type(Value, Type, Lkup) ->
+  Options = avro:make_decoder_options([{map_type, map},
+                                       {record_type, map},
+                                       {is_wrapped, false}]),
+  parse(Value, Type, Lkup, Options).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
