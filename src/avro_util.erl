@@ -217,9 +217,10 @@ canonicalize_name(Name) -> ensure_binary(Name).
 
 %% @doc Covert atom() | string() binary().
 -spec ensure_binary(name_raw()) -> binary().
-ensure_binary(A) when is_atom(A)   -> atom_to_binary(A, utf8);
-ensure_binary(L) when is_list(L)   -> iolist_to_binary(L);
-ensure_binary(B) when is_binary(B) -> B.
+ensure_binary(A) when is_atom(A)        -> atom_to_binary(A, utf8);
+ensure_binary(L) when is_list(L)        -> iolist_to_binary(L);
+ensure_binary({[T]}) when is_tuple(T)   -> iolist_to_binary(tuple_to_list(T));
+ensure_binary(B) when is_binary(B)      -> B.
 
 %% @doc Canonicalize name if it is not a type.
 -spec canonicalize_type_or_name(type_or_name()) -> type_or_name().
