@@ -33,3 +33,5 @@
    - Support erlang map for avro record and map type in encoder
    - Allow decoder to decode avro record and map type as erlang map
      based on `record_type` and `map_type` options.
+* 2.8.1
+   - Support 'object' as custom type properties
