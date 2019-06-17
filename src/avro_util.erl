@@ -153,25 +153,13 @@ delete_opts(KvList, Keys) ->
 -spec canonicalize_custom_props([{KeyIn, ValueIn}]) -> [{KeyOut, ValueOut}]
         when KeyIn :: name_raw(),
              KeyOut :: name(),
-             ValueIn :: atom() | number() | string() | binary()
-                      | [atom() | string() | binary()],
-             ValueOut :: number() | binary() |  [number() | binary()].
+             ValueIn :: custom_prop_value(),
+             ValueOut :: custom_prop_value().
 canonicalize_custom_props(Props0) ->
   %% Filter out all type_prop_name() keys first
   Props = delete_opts(Props0, [namespace, doc, aliases]),
-  CanonicalizeValue = fun(V) when is_number(V)  -> V;
-                         (V) when is_boolean(V) -> V;
-                         (V)                    -> ensure_binary(V)
-                      end,
-  F = fun({K, V}) ->
-          Key = ensure_binary(K),
-          Val = case is_array(V) of
-                  true  -> lists:map(CanonicalizeValue, V);
-                  false -> CanonicalizeValue(V)
-                end,
-          {Key, Val}
-      end,
-  lists:map(F, Props).
+  JSON = jsone:encode(make_jsone_input(Props)),
+  jsone:decode(JSON, [{object_format, proplist}]).
 
 %% @doc Assert validity of a list of names.
 -spec verify_names([name_raw()]) -> ok | no_return().
@@ -603,10 +591,6 @@ tokens_ex([C|Rest], Delimiter) ->
   [Token|Tail] = tokens_ex(Rest, Delimiter),
   [[C|Token]|Tail].
 
-%% @private Best-effort of arrary recognition.
-is_array([H | _]) -> not is_integer(H); %% a string
-is_array(_)       -> false.
-
 %% @private
 validate(T, AllowBadRefs, AllowTypeRedef) ->
   Dummy = fun(_T, _Hist) -> ok end,
@@ -681,7 +665,6 @@ sub_types(T) when ?IS_MAP_TYPE(T) -> [avro_map:get_items_type(T)];
 sub_types(T) when ?IS_ARRAY_TYPE(T) -> [avro_array:get_items_type(T)];
 sub_types(_) -> [].
 
-
 promotable(Reader, Writer) when ?IS_INT_TYPE(Writer) ->
    ?IS_LONG_TYPE(Reader) orelse ?IS_FLOAT_TYPE(Reader) orelse
     ?IS_DOUBLE_TYPE(Reader);
@@ -695,6 +678,30 @@ promotable(Reader, Writer) when ?IS_BYTES_TYPE(Writer) ->
   ?IS_STRING_TYPE(Reader);
 promotable(_, _) ->
   false.
+
+%% Allow string() and atom() as proplist value.
+%% This is to keep backward compatible.
+make_jsone_input([]) -> [];
+make_jsone_input([H | T]) when is_tuple(H) ->
+  {K, V} = H,
+  Key = ensure_binary(K),
+  Val = case V of
+          N when is_number(N) -> N;
+          B when is_boolean(B) -> B;
+          B when is_binary(B) -> B;
+          A when is_atom(A) -> atom_to_binary(A, utf8);
+          {L} when is_list(L) -> make_jsone_input(L); %% json object
+          L when is_list(L) ->
+            case io_lib:printable_unicode_list(L) of
+              true -> unicode:characters_to_binary(L, utf8, utf8);
+              false -> make_jsone_input(L)
+            end
+      end,
+  [{Key, Val} | make_jsone_input(T)];
+make_jsone_input([A | L]) when is_atom(A) ->
+  [atom_to_binary(A, utf8) | make_jsone_input(L)];
+make_jsone_input([H | T]) -> %% number or binary
+  [H | make_jsone_input(T)].
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

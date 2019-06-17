@@ -194,7 +194,7 @@ primitive_cast_error_test() ->
                    avro_primitive:int("foo")).
 
 get_custom_props_test() ->
-  Date = avro_primitive:type(int, [{logicalType, "Date"}, {"p", "v"}]),
+  Date = avro_primitive:type(int, [{logicalType, "Date"}, {"p", [{"x", "y"}]}]),
   Union = avro_union:type([null, int]),
   Array = avro_array:type(int, [{"p", "v"}, {tag, true}]),
   Enum = avro_enum:type("abc", ["a", "b", "c"], [{"p", "v"}]),
@@ -224,7 +224,7 @@ get_custom_props_test() ->
   ?assertEqual([], FieldTypeProps(k1)),
   ?assertEqual([], FieldTypeProps(k2)),
   ?assertEqual([{<<"logicalType">>, <<"Date">>},
-                {<<"p">>, <<"v">>}],
+                {<<"p">>, [{<<"x">>, <<"y">>}]}],
                FieldTypeProps(date)),
   ?assertEqual([{<<"p">>, <<"v">>}, {<<"tag">>, true}], FieldTypeProps(array)),
   ?assertEqual([{<<"p">>, <<"v">>}], FieldTypeProps(enum)),

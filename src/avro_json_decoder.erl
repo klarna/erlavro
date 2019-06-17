@@ -507,7 +507,10 @@ do_parse_union_ex(ValueTypeName, Value, UnionType,
       erlang:error({unknown_union_member, ValueTypeName})
   end.
 
-%% Always use tuple as object foramt.
+%% Always use 'tuple' as object format.
+%% 'map' is a better option, but we have to keep it backward compatible.
+%% 'proplist' is not an option because otherwise there is no way to tell
+%% apart 'object' and 'array'.
 -spec decode_json(binary()) -> json_value().
 decode_json(JSON) -> jsone:decode(JSON, [{object_format, tuple}]).
 
