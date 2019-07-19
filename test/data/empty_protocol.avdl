@@ -1,0 +1,6 @@
+@deco1("wasd")
+@deco2(["abc", "def"])
+@deco3([])
+protocol MyProto {
+
+}
