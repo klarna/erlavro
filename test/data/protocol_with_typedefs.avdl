@@ -1,0 +1,26 @@
+
+protocol MyProto {
+   import idl "foo.avdl";
+   import protocol "bar.avpr";
+   import schema "baz.avsc";
+
+   enum MyEnum1 {
+       VAR11,
+       VAR12,
+       VAR13
+   }
+   enum MyEnum2 {
+       VAR21,
+       VAR22,
+       VAR23
+   }
+
+   int my_int;
+   string my_string = "wasd";
+   float my_float = 12.34;
+   boolean my_bool = false;
+
+   array<int> my_int_array;
+   array<int> my_int_array_def = [1, 2, 3];
+   array<string> my_str_array_def = ["123", "456", "cdf"];
+}
