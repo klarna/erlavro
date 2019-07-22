@@ -1,4 +1,4 @@
-
+@namespace("org.erlang.www")
 protocol MyProto {
    import idl "foo.avdl";
    import protocol "bar.avpr";
@@ -14,13 +14,37 @@ protocol MyProto {
        VAR22,
        VAR23
    }
+   fixed MyFix(10);
+   record MyRec {
+      int my_int;
+      string my_string = "wasd";
+      float my_float = 12.34;
+      boolean my_bool = false;
+      MyFix my_custom;
+      union {boolean, null} my_union = null;
+      date my_date = 123456;
+      decimal(5, 2) my_decimal = 1222;
 
-   int my_int;
-   string my_string = "wasd";
-   float my_float = 12.34;
-   boolean my_bool = false;
+      array<int> my_int_array;
+      array<int> my_int_array_def = [1, 2, 3];
+      array<string> my_str_array_def = ["123", "456", "cdf"];
 
-   array<int> my_int_array;
-   array<int> my_int_array_def = [1, 2, 3];
-   array<string> my_str_array_def = ["123", "456", "cdf"];
+      map<float> my_map = {"a": 1.23, "b": 45.67};
+   }
+   @namespace("org.erlang.ftp")
+   record MyAnnotated {
+       org.erlang.www.MyError `error`;
+   }
+   error MyError {
+      MyEnum2 code;
+      string description;
+   }
+
+   float mul(int arg1, float arg2 = 1.0);
+
+   MyFix append(bytes arg1, string arg2 = "tail") throws MyError;
+
+   void gen_server_cast(map<float> opts) oneway;
+
+   MyEnum1 ping();
 }
