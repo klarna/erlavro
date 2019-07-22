@@ -59,9 +59,9 @@ error|throws|oneway|void|import|idl|protocol|schema : {token, {list_to_atom(Toke
 
 @[a-zA-Z0-9_-]+ : {token, {annotation_v, TokenLine, unescape_annotation(TokenChars)}}.
 
-[A-Za-z_][A-Za-z_0-9]* : {token, {id, TokenLine, TokenChars}}.
+[A-Za-z_][A-Za-z0-9_]* : {token, {id, TokenLine, TokenChars}}.
 %% namespaced will only be allowed in data type spec
-[A-Za-z_][A-Za-z_0-9\.]+[A-Za-z_0-9] : {token, {ns_id, TokenLine, TokenChars}}.
+[A-Za-z_][A-Za-z0-9_]+(\.[A-Za-z_][A-Za-z0-9_]+)+ : {token, {ns_id, TokenLine, TokenChars}}.
 
 Erlang code.
 
