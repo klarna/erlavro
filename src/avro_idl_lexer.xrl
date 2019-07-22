@@ -7,12 +7,15 @@ Rules.
 
 [\s\t\n\r]+ : skip_token.
 
+%% TODO: escaped double quotes inside strings
 "[^\"]+" : {token, {string_v, TokenLine, unescape(TokenChars, $\")}}.
 
 `[^\`]+` : {token, {id, TokenLine, unescape(TokenChars, $`)}}.
 
 //[^\r\n]* : {token, {comment_v, TokenLine, unescape_line_comment(TokenChars)}}.
 
+%% `/**` is a docstring for the following object
+/\*\*(.|[\r\n])*\*/ : {token, {doc_v, TokenLine, unescape_multiline_comment(TokenChars)}}.
 /\*(.|[\r\n])*\*/ : {token, {comment_v, TokenLine, unescape_multiline_comment(TokenChars)}}.
 
 \{ : {token, {'{', TokenLine}}.
@@ -26,26 +29,29 @@ Rules.
 ;  : {token, {';', TokenLine}}.
 \, : {token, {',', TokenLine}}.
 
+%% Null can be in both values and primitive types
+null : {token, {null, TokenLine}}.
 
 %% Default values (json)
 = : {token, {'=', TokenLine}}.
-%% TODO: better float regexp
+%% TODO: better float regexp;
+%% XXX: is it safe to use list_to_float? seems float syntax is used for decimal defaults as well
 [+-]?[0-9]+\.[0-9]+ : {token, {float_v, TokenLine, list_to_float(TokenChars)}}.
 [+-]?[0-9]+         : {token, {integer_v, TokenLine, list_to_integer(TokenChars)}}.
 true|false          : {token, {bool_v, TokenLine, list_to_atom(TokenChars)}}.
-%% TODO: null?/:(for maps)/???...
+\:                  : {token, {':', TokenLine}}.
 
 %% === Datatype IDs ===
 
-%% primitive; FIXME: 'null' can be used in both primitive and data!
-int|long|string|boolean|float|double|bytes|null : {token, {primitive_t, TokenLine, list_to_atom(TokenChars)}}.
+%% primitive
+int|long|string|boolean|float|double|bytes : {token, {primitive_t, TokenLine, list_to_atom(TokenChars)}}.
 
 %% complex
 record|enum|array|map|fixed|union : {token, {list_to_atom(TokenChars ++ "_t"), TokenLine}}.
 
 %% Logical
-decimal|date|time_ms|timestamp_ms : {token, {logical_t, TokenLine, list_to_atom(TokenChars)}}.
-
+date|time_ms|timestamp_ms : {token, {logical_t, TokenLine, list_to_atom(TokenChars)}}.
+decimal : {token, {decimal_t, TokenLine}}.
 %% keywords
 error|throws|oneway|void|import|idl|protocol|schema : {token, {list_to_atom(TokenChars ++ "_k"), TokenLine}}.
 
@@ -54,6 +60,8 @@ error|throws|oneway|void|import|idl|protocol|schema : {token, {list_to_atom(Toke
 @[a-zA-Z0-9_-]+ : {token, {annotation_v, TokenLine, unescape_annotation(TokenChars)}}.
 
 [A-Za-z_][A-Za-z_0-9]* : {token, {id, TokenLine, TokenChars}}.
+%% namespaced will only be allowed in data type spec
+[A-Za-z_][A-Za-z_0-9\.]+[A-Za-z_0-9] : {token, {ns_id, TokenLine, TokenChars}}.
 
 Erlang code.
 
