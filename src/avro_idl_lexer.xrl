@@ -67,7 +67,7 @@ Erlang code.
 
 
 unescape(Token, Char) ->
-    string:trim(Token, both, [Char]).
+    string:strip(Token, both, Char).
 
 unescape_line_comment("//" ++ Comment) ->
     Comment.
