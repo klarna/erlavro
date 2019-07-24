@@ -187,7 +187,7 @@ map ->
 
 function ->
     fun_return id '(' fun_arguments ')' fun_extra ';' :
-        {function, value_of('$2'), '$4', '$6'}.
+        {function, value_of('$2'), '$4', '$1', '$6'}.
 
 fun_return -> type : '$1'.
 fun_return -> void_k : void.
