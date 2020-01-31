@@ -89,6 +89,7 @@ string_type()  -> type(?AVRO_STRING, []).
 -spec cast(avro_type(), term()) -> {ok, avro_value()} | {error, term()}.
 cast(Type, null) when ?IS_NULL_TYPE(Type) ->
   {ok, ?AVRO_VALUE(Type, null)};
+% For Elixir compatibility
 cast(Type, nil) when ?IS_NULL_TYPE(Type) ->
   {ok, ?AVRO_VALUE(Type, null)};
 cast(Type, Value) when ?IS_BOOLEAN_TYPE(Type) andalso
