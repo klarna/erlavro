@@ -35,3 +35,5 @@
      based on `record_type` and `map_type` options.
 * 2.8.1
    - Support 'object' as custom type properties
+* 2.8.2
+   - Encode atom `nil` as "null" for Elixir consumers
