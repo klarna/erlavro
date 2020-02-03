@@ -64,9 +64,9 @@
 
 -type type_or_name() :: avro_type() | name_raw().
 
--type custom_prop_name() :: binary().
+-type custom_prop_name() :: binary() | atom().
 %% No plan to support recursive definition
--type custom_prop_value() :: number() | binary() | [binary()].
+-type custom_prop_value() :: number() | binary() | [binary()] | atom().
 -type custom_prop() :: {custom_prop_name(), custom_prop_value()}.
 
 -define(ASSIGNED_NAME, <<"_erlavro_assigned">>).
