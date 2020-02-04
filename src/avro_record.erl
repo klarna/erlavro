@@ -52,7 +52,7 @@
 -type field_name_raw() :: atom() | string() | binary().
 
 -type field_opt_name() :: doc | order | default | aliases.
--type record_opt_name() :: doc | namespace | aliases.
+-type record_opt_name() :: atom().
 
 -type record_opts() :: [{record_opt_name(), term()}].
 -type field_opts() :: [{field_opt_name(), term()}].
