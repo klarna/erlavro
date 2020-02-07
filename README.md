@@ -173,7 +173,7 @@ Some hook use cases for example:
 
 * Tag union value with type name. e.g. `avro_decoder_hooks:tag_unions/0`.
 * Apply `string_to_atom/1` on record field names or map keys.
-* Debugging. e.g. `avro_decoer_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure.
+* Debugging. e.g. `avro_decoder_hooks:print_debug_trace/2` gives you a hook which can print decode history and stack upon failure.
 * For JSON decoder, fast-skip undesired data fields in records or keys in maps.
 * Monkey patching corrupted data.
 
