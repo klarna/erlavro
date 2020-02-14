@@ -121,6 +121,9 @@ cast(Type, Value) when ?IS_BYTES_TYPE(Type) andalso
 cast(Type, Value) when ?IS_STRING_TYPE(Type) andalso
                        (is_list(Value) orelse is_binary(Value)) ->
   {ok, ?AVRO_VALUE(Type, erlang:iolist_to_binary(Value))};
+cast(Type, Value) when ?IS_STRING_TYPE(Type) andalso
+                       is_atom(Value) ->
+  {ok, ?AVRO_VALUE(Type, erlang:atom_to_binary(Value, utf8))};
 cast(Type, Value) -> {error, {type_mismatch, Type, Value}}.
 
 %%%===================================================================

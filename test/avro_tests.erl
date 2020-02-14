@@ -440,6 +440,37 @@ nil_values_test() ->
   TestFun([{encoding, avro_json}]),
   ok.
 
+atoms_as_strings_test() ->
+  File = filename:join(priv_dir(), "test.avsc"),
+  {ok, JSON} = file:read_file(File),
+  Type = avro:decode_schema(JSON),
+  Lkup = avro:make_lkup_fun(Type),
+  %% Encode input has no 'children' field, default value should be used
+  Input = [{"f1", [{"label", x}]}, {"f2", y}, {"f3", z}],
+  Expect = [{<<"f1">>, [ {<<"label">>, <<"x">>}
+                       , {<<"children">>,
+                          [ [ {<<"label">>, <<"default-label">>}
+                            , {<<"children">>, []}
+                            ]
+                          ]}
+                       ]},
+            {<<"f2">>, <<"y">>},
+            {<<"f3">>, <<"z">>}],
+  TestFun =
+    fun(Opts) ->
+      RootType = "org.apache.avro.test",
+      Encoder = avro:make_encoder(Lkup, Opts),
+      Decoder = avro:make_decoder(Lkup, Opts),
+      Encoded = Encoder(RootType, Input),
+      Decoded = Decoder(RootType, Encoded),
+      ?assertEqual(Expect, Decoded)
+    end,
+  TestFun([{encoding, avro_binary}]),
+  TestFun([{encoding, avro_json}]),
+  ok.
+
+
+
 default_values_with_map_type_test() ->
   File = filename:join(priv_dir(), "test.avsc"),
   {ok, JSON} = file:read_file(File),
