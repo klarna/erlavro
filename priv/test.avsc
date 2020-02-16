@@ -12,5 +12,6 @@
                   "default": [{"label": "default-label", "children": []}]}
                 ]}},
     {"name": "f2", "type": ["null", "string"], "default": null},
-    {"name": "f3", "type": ["null", "string"], "default": "null"}
+    {"name": "f3", "type": ["null", "string"], "default": "null"},
+    {"name": "f4", "type": ["string", "null"]}
    ]}

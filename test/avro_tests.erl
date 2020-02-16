@@ -388,7 +388,7 @@ default_values_test() ->
                            }]},
     Lkup(NodeTypeFullName)),
   %% Encode input has no 'children' field, default value should be used
-  Input = [{"f1", [{"label", "x"}]}],
+  Input = [{"f1", [{"label", "x"}]}, {"f4", "four"}],
   Expect = [{<<"f1">>, [ {<<"label">>, <<"x">>}
                        , {<<"children">>,
                           [ [ {<<"label">>, <<"default-label">>}
@@ -397,7 +397,8 @@ default_values_test() ->
                           ]}
                        ]},
             {<<"f2">>, null},
-            {<<"f3">>, null}],
+            {<<"f3">>, null},
+            {<<"f4">>, <<"four">>}],
   TestFun =
     fun(Opts) ->
       RootType = "org.apache.avro.test",
@@ -417,7 +418,7 @@ nil_values_test() ->
   Type = avro:decode_schema(JSON),
   Lkup = avro:make_lkup_fun(Type),
   %% Encode input has no 'children' field, default value should be used
-  Input = [{"f1", [{"label", "x"}]}, {"f2", nil}, {"f3", nil}],
+  Input = [{"f1", [{"label", "x"}]}, {"f2", nil}, {"f3", nil}, {"f4", nil}],
   Expect = [{<<"f1">>, [ {<<"label">>, <<"x">>}
                        , {<<"children">>,
                           [ [ {<<"label">>, <<"default-label">>}
@@ -426,7 +427,8 @@ nil_values_test() ->
                           ]}
                        ]},
             {<<"f2">>, null},
-            {<<"f3">>, null}],
+            {<<"f3">>, null},
+            {<<"f4">>, null}],
   TestFun =
     fun(Opts) ->
       RootType = "org.apache.avro.test",
@@ -446,7 +448,7 @@ atoms_as_strings_test() ->
   Type = avro:decode_schema(JSON),
   Lkup = avro:make_lkup_fun(Type),
   %% Encode input has no 'children' field, default value should be used
-  Input = [{"f1", [{"label", x}]}, {"f2", y}, {"f3", z}],
+  Input = [{"f1", [{"label", x}]}, {"f2", y}, {"f3", null}, {"f4", atom_value}],
   Expect = [{<<"f1">>, [ {<<"label">>, <<"x">>}
                        , {<<"children">>,
                           [ [ {<<"label">>, <<"default-label">>}
@@ -455,7 +457,8 @@ atoms_as_strings_test() ->
                           ]}
                        ]},
             {<<"f2">>, <<"y">>},
-            {<<"f3">>, <<"z">>}],
+            {<<"f3">>, null},
+            {<<"f4">>, <<"atom_value">>}],
   TestFun =
     fun(Opts) ->
       RootType = "org.apache.avro.test",
@@ -492,7 +495,7 @@ default_values_with_map_type_test() ->
                            }]},
     Lkup(NodeTypeFullName)),
   %% Encode input has no 'children' field, default value should be used
-  Input = #{"f1" => #{"label" => "x"}},
+  Input = #{"f1" => #{"label" => "x"}, "f4" => "four"},
   Expect = #{<<"f1">> =>
                #{
                  <<"label">> => <<"x">>,
@@ -503,7 +506,8 @@ default_values_with_map_type_test() ->
                    ]
                 },
              <<"f2">> => null,
-             <<"f3">> => null},
+             <<"f3">> => null,
+             <<"f4">> => <<"four">>},
   TestFun =
     fun(Opts) ->
       RootType = "org.apache.avro.test",

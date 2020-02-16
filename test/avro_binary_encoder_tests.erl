@@ -212,6 +212,18 @@ encode_enum_properly_test() ->
   ?assertEqual(EncodedValue1, Encoded1),
   ?assertEqual(EncodedValue2, Encoded2).
 
+encode_enum_null_first_properly_test() ->
+  UnionType = avro_union:type([null, string]),
+  Value1 = avro_union:new(UnionType, avro_primitive:null()),
+  Value2 = avro_union:new(UnionType, avro_primitive:string("bar")),
+  EncodedValue1 = encode_value(Value1),
+  EncodedValue2 = encode_value(Value2),
+  Encoded1 = encode(fun(_) -> UnionType end, "some_union", null),
+  Encoded2 = encode(fun(_) -> UnionType end, "some_union", "bar"),
+  ?assertEqual(EncodedValue1, Encoded1),
+  ?assertEqual(EncodedValue2, Encoded2).
+
+
 encode_map_properly_test() ->
   Type = avro_map:type(int),
   TypedValue = avro_map:new(Type, [{"a", 3}, {"b", 27}]),
