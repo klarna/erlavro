@@ -37,3 +37,8 @@
    - Support 'object' as custom type properties
 * 2.8.2
    - Encode atom `nil` as "null" for Elixir consumers
+* 2.8.3
+   - Allow arbitrary atoms in record_opt_name()
+* 2.8.4
+   - Encode atom values for string types
+
