@@ -121,6 +121,7 @@ cast(Type, Value) when ?IS_BYTES_TYPE(Type) andalso
 cast(Type, Value) when ?IS_STRING_TYPE(Type) andalso
                        (is_list(Value) orelse is_binary(Value)) ->
   {ok, ?AVRO_VALUE(Type, erlang:iolist_to_binary(Value))};
+% Encode atom values for string types when not null or nil
 cast(Type, Value) when ?IS_STRING_TYPE(Type) andalso
                        (is_atom(Value) andalso
                        (Value =/= null andalso Value =/= nil)) ->
