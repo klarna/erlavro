@@ -14,10 +14,10 @@ Terminals id ns_id null string_v doc_v float_v integer_v bool_v annotation_v
 
 Nonterminals
     protocol
-    annotation annotation_value string array_of_strings array_of_strings_tail
+    annotations annotation annotation_value string array_of_strings array_of_strings_tail
     declaration declaration_tail
     import import_file_type
-    record record_field record_tail
+    record record_field record_field_name record_tail
     type error
     decimal
     enum enum_variants
@@ -33,19 +33,26 @@ Rootsymbol protocol.
 
 protocol ->
     protocol_k id '{' '}' :
-        {protocol, value_of('$2'), []}.
+        #protocol{name = value_of('$2')}.
 protocol ->
     protocol_k id '{' declaration declaration_tail :
-        {protocol, value_of('$2'), ['$4' | '$5']}.
+        #protocol{name = value_of('$2'), definitions = ['$4' | '$5']}.
 protocol ->
-    annotation protocol :
-        {annotated, '$1', '$2'}.
+    annotations protocol :
+        ('$2')#protocol{annotations = '$1'}.
 
 
 %% == Annotation ==
+annotations ->
+    annotation :
+        ['$1'].
+annotations ->
+    annotation annotations :
+        ['$1' | '$2'].
+
 annotation ->
     annotation_v '(' annotation_value ')' :
-        {annotation, value_of('$1'), '$3'}.
+        #annotation{name = value_of('$1'), value = '$3'}.
 
 %% Maybe can just use `data` instead of `decorator_value`?
 annotation_value ->
@@ -104,7 +111,10 @@ import_file_type -> schema_k : schema.
 %% -- Enum typedef
 enum ->
     enum_t id '{' id enum_variants :
-        {enum, value_of('$2'), [value_of('$4') | '$5']}.
+        #enum{name = value_of('$2'), variants = [value_of('$4') | '$5']}.
+enum ->
+    annotations enum :
+        ('$2')#enum{annotations = '$1'}.
 
 enum_variants ->
     '}' :
@@ -115,22 +125,27 @@ enum_variants ->
 %% -- Fixed typedef
 fixed ->
     fixed_t id '(' integer_v ')' ';':
-        {fixed, value_of('$2'), value_of('$4')}.
+        #fixed{name = value_of('$2'), size = value_of('$4')}.
+fixed ->
+    annotations fixed :
+        ('$2')#fixed{annotations = '$1'}.
 
 %% -- Error typedef
 error ->
     error_k id '{' record_field record_tail :
-        {error, value_of('$2'), ['$4' | '$5']}.
-
+        #error{name = value_of('$2'), fields = ['$4' | '$5']}.
+error ->
+    annotations error :
+        ('$2')#error{annotations = '$1'}.
 
 %% -- Record
 
 record ->
     record_t id '{' record_field record_tail :
-        {record, value_of('$2'), ['$4' | '$5']}.
+        #record{name = value_of('$2'), fields = ['$4' | '$5']}.
 record ->
-    annotation record :
-        {annotated, '$1', '$2'}.
+    annotations record :
+        ('$2')#record{annotations = '$1'}.
 
 record_tail ->
     '}' :
@@ -140,11 +155,22 @@ record_tail ->
         ['$1' | '$2'].
 
 record_field ->
-    type id ';' :
-        {field, value_of('$2'), '$1', undefined}.
+    type record_field_name ';' :
+        #field{name = element(1, '$2'), annotations = element(2, '$2'), type = '$1'}.
 record_field ->
-    type id '=' data ';' :
-        {field, value_of('$2'), '$1', '$4'}.
+    type record_field_name '=' data ';' :
+        #field{name = element(1, '$2'), annotations = element(2, '$2'),
+               type = '$1', default = '$4'}.
+record_field ->
+    annotations record_field :
+        ('$2')#field{annotations = '$1' ++ ('$2')#field.annotations}.
+
+record_field_name ->
+    id :
+        {value_of('$1'), []}.
+record_field_name ->
+    annotations id :
+        {value_of('$2'), '$1'}.
 
 type -> primitive_t : value_of('$1').
 type -> logical_t : value_of('$1').
@@ -187,7 +213,7 @@ map ->
 
 function ->
     fun_return id '(' fun_arguments ')' fun_extra ';' :
-        {function, value_of('$2'), '$4', '$1', '$6'}.
+        #function{name = value_of('$2'), arguments = '$4', return = '$1', extra = '$6'}.
 
 fun_return -> type : '$1'.
 fun_return -> void_k : void.
@@ -257,6 +283,7 @@ map_of_data_tail ->
         ('$5')#{value_of('$2') => '$4'}.
 
 Erlang code.
+-include("idl.hrl").
 
 value_of(Token) ->
     try element(3, Token)

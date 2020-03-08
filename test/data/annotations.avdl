@@ -1,0 +1,23 @@
+@version("1.0")
+@aliases(["ns.Proto1", "ns.Proto2"])
+protocol MyProto {
+    @namespace("enums")
+    enum MyEnum {
+        A, B, C
+    }
+
+    @namespace("fixeds")
+    fixed MyFixed(16);
+
+    @namespace("errors")
+    error MyError {
+        @order("ignore")
+        string my_err_field;
+    }
+
+    @namespace("records")
+    record MyRecord {
+        @order("ignore")
+        string @aliases(["my_alias"]) my_record_field;
+    }
+}
