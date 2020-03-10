@@ -14,10 +14,6 @@ Rules.
 
 //[^\r\n]* : {token, {comment_v, TokenLine, unescape_line_comment(TokenChars)}}.
 
-%% `/**` is a docstring for the following object
-/\*\*(.|[\r\n])*\*/ : {token, {doc_v, TokenLine, unescape_multiline_comment(TokenChars)}}.
-/\*(.|[\r\n])*\*/ : {token, {comment_v, TokenLine, unescape_multiline_comment(TokenChars)}}.
-
 \{ : {token, {'{', TokenLine}}.
 \} : {token, {'}', TokenLine}}.
 \( : {token, {'(', TokenLine}}.
@@ -63,8 +59,40 @@ error|throws|oneway|void|import|idl|protocol|schema : {token, {list_to_atom(Toke
 %% namespaced will only be allowed in data type spec
 [A-Za-z_][A-Za-z0-9_]+(\.[A-Za-z_][A-Za-z0-9_]+)+ : {token, {ns_id, TokenLine, TokenChars}}.
 
-Erlang code.
+%% https://blog.ostermiller.org/finding-comments-in-source-code-using-regular-expressions/
+%% `/** .. */` is a docstring for the following object
+(/\*\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/)  : {token, {doc_v, TokenLine, unescape_multiline_comment(TokenChars)}}.
+%% `/* .. */` is just a comment
+(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/) : {token, {comment_v, TokenLine, unescape_multiline_comment(TokenChars)}}.
 
+
+Erlang code.
+-export([preprocess/2]).
+
+%% Api helpers
+
+-spec preprocess(Tokens, [drop_comments | trim_doc]) -> Tokens when
+      Tokens :: [tuple()].
+preprocess(Tokens, Actions) ->
+    lists:foldl(fun do_preprocess/2, Tokens, Actions).
+
+do_preprocess(drop_comments, T) ->
+    lists:filter(
+      fun({comment_v, _, _}) -> false;
+         (_) -> true
+      end, T);
+do_preprocess(trim_doc, T) ->
+    lists:map(
+      fun({doc_v, Loc, Val}) ->
+              {doc_v, Loc, trim_doc(Val)};
+         (Tok) -> Tok
+      end, T).
+
+trim_doc(Doc) ->
+    re:replace(Doc, "^[\\s\\*]*((?U).*)[\\s]*$", "\\1",
+               [global, multiline, {return, list}]).
+
+%% Lexer internal helpers
 
 unescape(Token, Char) ->
     string:strip(Token, both, Char).

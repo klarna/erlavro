@@ -1,23 +1,36 @@
+/** My protocol */
+/** No, really
+ * It's some multiline doc
+ *
+ * * bullet points will be stripped
+ * * so no unordered lists
+ */
 @version("1.0")
 @aliases(["ns.Proto1", "ns.Proto2"])
 protocol MyProto {
+    /** My enum */
     @namespace("enums")
     enum MyEnum {
         A, B, C
     }
 
+    /** My Fixed */
     @namespace("fixeds")
     fixed MyFixed(16);
 
+    /** My Error */
     @namespace("errors")
     error MyError {
+        /** My Err Field */
         @order("ignore")
         string my_err_field;
     }
 
+    /** My Record */
     @namespace("records")
     record MyRecord {
+        /** My Rec Field Type */
         @order("ignore")
-        string @aliases(["my_alias"]) my_record_field;
+        string /** My Rec Field */@aliases(["my_alias"]) my_record_field;
     }
 }
