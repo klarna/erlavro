@@ -1,8 +1,6 @@
 %% @doc Avro IDL parser
-%% https://avro.apache.org/docs/current/idl.html
-%% XXX: all `comment_v` tockens should be filtered-out before parsing!
-%% TODO: docstrings
-%% TODO: better annotations support
+%% https://avro.apache.org/docs/1.9.2/idl.html
+%% XXX: all `comment_v` tokens should be filtered-out before parsing!
 
 Header "%% Hello".
 
@@ -14,7 +12,7 @@ Terminals id ns_id null string_v doc_v float_v integer_v bool_v annotation_v
 
 Nonterminals
     protocol
-    annotations annotation annotation_value string array_of_strings array_of_strings_tail
+    meta meta_item annotation annotation_value string array_of_strings array_of_strings_tail
     declaration declaration_tail
     import import_file_type
     record record_field record_field_name record_tail
@@ -30,6 +28,10 @@ Nonterminals
 
 Rootsymbol protocol.
 
+%% There are 2 shift/reduce conflicts expected due to ambiguity in
+%% meta / meta_item that is automatically correctly resolved with shift.
+%% See https://www.gnu.org/software/bison/manual/html_node/Shift_002fReduce.html
+Expect 2.
 
 protocol ->
     protocol_k id '{' '}' :
@@ -38,17 +40,24 @@ protocol ->
     protocol_k id '{' declaration declaration_tail :
         #protocol{name = value_of('$2'), definitions = ['$4' | '$5']}.
 protocol ->
-    annotations protocol :
-        ('$2')#protocol{annotations = '$1'}.
+    meta protocol :
+        ('$2')#protocol{meta = '$1'}.
 
 
 %% == Annotation ==
-annotations ->
-    annotation :
+meta ->
+    meta_item :
         ['$1'].
-annotations ->
-    annotation annotations :
+meta ->
+    meta_item meta :
         ['$1' | '$2'].
+
+meta_item ->
+    annotation :
+        '$1'.
+meta_item ->
+    doc_v :
+        {doc, value_of('$1')}.
 
 annotation ->
     annotation_v '(' annotation_value ')' :
@@ -113,8 +122,8 @@ enum ->
     enum_t id '{' id enum_variants :
         #enum{name = value_of('$2'), variants = [value_of('$4') | '$5']}.
 enum ->
-    annotations enum :
-        ('$2')#enum{annotations = '$1'}.
+    meta enum :
+        ('$2')#enum{meta = '$1'}.
 
 enum_variants ->
     '}' :
@@ -127,16 +136,16 @@ fixed ->
     fixed_t id '(' integer_v ')' ';':
         #fixed{name = value_of('$2'), size = value_of('$4')}.
 fixed ->
-    annotations fixed :
-        ('$2')#fixed{annotations = '$1'}.
+    meta fixed :
+        ('$2')#fixed{meta = '$1'}.
 
 %% -- Error typedef
 error ->
     error_k id '{' record_field record_tail :
         #error{name = value_of('$2'), fields = ['$4' | '$5']}.
 error ->
-    annotations error :
-        ('$2')#error{annotations = '$1'}.
+    meta error :
+        ('$2')#error{meta = '$1'}.
 
 %% -- Record
 
@@ -144,8 +153,8 @@ record ->
     record_t id '{' record_field record_tail :
         #record{name = value_of('$2'), fields = ['$4' | '$5']}.
 record ->
-    annotations record :
-        ('$2')#record{annotations = '$1'}.
+    meta record :
+        ('$2')#record{meta = '$1'}.
 
 record_tail ->
     '}' :
@@ -156,20 +165,20 @@ record_tail ->
 
 record_field ->
     type record_field_name ';' :
-        #field{name = element(1, '$2'), annotations = element(2, '$2'), type = '$1'}.
+        #field{name = element(1, '$2'), meta = element(2, '$2'), type = '$1'}.
 record_field ->
     type record_field_name '=' data ';' :
-        #field{name = element(1, '$2'), annotations = element(2, '$2'),
+        #field{name = element(1, '$2'), meta = element(2, '$2'),
                type = '$1', default = '$4'}.
 record_field ->
-    annotations record_field :
-        ('$2')#field{annotations = '$1' ++ ('$2')#field.annotations}.
+    meta record_field :
+        ('$2')#field{meta = '$1' ++ ('$2')#field.meta}.
 
 record_field_name ->
     id :
         {value_of('$1'), []}.
 record_field_name ->
-    annotations id :
+    meta id :
         {value_of('$2'), '$1'}.
 
 type -> primitive_t : value_of('$1').

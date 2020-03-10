@@ -31,42 +31,52 @@ parse_annotations_test() ->
     ?assertEqual(
        #protocol{
           name = "MyProto",
-          annotations =
-              [#annotation{name = "version",
+          meta =
+              [{doc, "My protocol"},
+               {doc, "No, really\nIt's some multiline doc\n"
+                "bullet points will be stripped\nso no unordered lists"},
+               #annotation{name = "version",
                            value = "1.0"},
                #annotation{name = "aliases",
                            value = ["ns.Proto1", "ns.Proto2"]}
               ],
           definitions =
               [#enum{name = "MyEnum",
-                     annotations =
-                         [#annotation{name = "namespace",
+                     meta =
+                         [{doc, "My enum"},
+                          #annotation{name = "namespace",
                                       value = "enums"}],
                      variants = ["A", "B", "C"]},
                #fixed{name = "MyFixed",
-                      annotations =
-                          [#annotation{name = "namespace",
+                      meta =
+                          [{doc, "My Fixed"},
+                           #annotation{name = "namespace",
                                        value = "fixeds"}],
                      size = 16},
                #error{name = "MyError",
-                      annotations =
-                          [#annotation{name = "namespace",
+                      meta =
+                          [{doc, "My Error"},
+                           #annotation{name = "namespace",
                                        value = "errors"}],
                       fields =
                           [#field{name = "my_err_field",
-                                  annotations =
-                                      [#annotation{name = "order",
+                                  meta =
+                                      [{doc, "My Err Field"},
+                                       #annotation{name = "order",
                                                    value = "ignore"}],
                                   type = string}]},
                #record{name = "MyRecord",
-                       annotations =
-                           [#annotation{name = "namespace",
+                       meta =
+                           [{doc, "My Record"},
+                            #annotation{name = "namespace",
                                         value = "records"}],
                        fields =
                            [#field{name = "my_record_field",
-                                   annotations =
-                                       [#annotation{name = "order",
+                                   meta =
+                                       [{doc, "My Rec Field Type"},
+                                        #annotation{name = "order",
                                                     value = "ignore"},
+                                        {doc, "My Rec Field"},
                                         #annotation{name = "aliases",
                                                     value = ["my_alias"]}],
                                    type = string}]}]
@@ -76,6 +86,9 @@ parse_annotations_test() ->
 full_protocol_test() ->
     ?assertMatch(
       #protocol{name = "Simple",
+                meta =
+                    [{doc, "An example protocol in Avro IDL"},
+                     #annotation{}],
                 definitions =
                     [#enum{name = "Kind"},
                      #fixed{name = "MD5"},
@@ -111,11 +124,8 @@ protocol_with_typedeffs_test() ->
 parse_idl(Name) ->
     File = "test/data/" ++ Name ++ ".avdl",
     {ok, B} = file:read_file(File),
-    {ok, T, _} =  avro_idl_lexer:string(binary_to_list(B)),
-    NoComments = lists:filter(
-                  fun({doc_v, _, _}) -> false;
-                     ({comment_v, _, _}) -> false;
-                     (_) -> true
-                  end, T),
-    {ok, Tree} = avro_idl_parser:parse(NoComments),
+    {ok, T0, _} =  avro_idl_lexer:string(binary_to_list(B)),
+    %% ?debugFmt("Name: ~p~nTokens:~n~p", [Name, T0]),
+    T = avro_idl_lexer:preprocess(T0, [drop_comments, trim_doc]),
+    {ok, Tree} = avro_idl_parser:parse(T),
     Tree.

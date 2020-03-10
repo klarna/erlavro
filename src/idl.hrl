@@ -1,6 +1,6 @@
 -record(protocol,
         {name,
-         annotations = [],
+         meta = [],
          definitions = []}).
 
 -record(annotation,
@@ -9,33 +9,33 @@
 
 -record(enum,
         {name,
-         annotations = [],
+         meta = [],
          variants = []}).
 
 -record(fixed,
         {name,
-         annotations = [],
+         meta = [],
          size}).
 
 -record(error,
         {name,
-         annotations = [],
+         meta = [],
          fields = []}).
 
 -record(record,
         {name,
-         annotations = [],
+         meta = [],
          fields = []}).
 
 -record(field,
         {name,
-         annotations = [],
+         meta = [],
          type,
          default}).
 
 -record(function,
         {name,
-         %% annotations = [],
+         %% meta = [],
          arguments = [],
          return,
          extra}).
