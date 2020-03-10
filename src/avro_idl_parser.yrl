@@ -23,7 +23,7 @@ Nonterminals
     fixed
     array
     map
-    function fun_return fun_arguments fun_argument fun_extra
+    function fun_return fun_arguments fun_argument fun_extra throws
     data array_of_data array_of_data_tail map_of_data map_of_data_tail.
 
 Rootsymbol protocol.
@@ -111,7 +111,7 @@ declaration -> function : '$1'.
 
 import ->
     import_k import_file_type string_v ';' :
-        {import, '$2', value_of('$3')}.
+        #import{type = '$2', file_path = value_of('$3')}.
 
 import_file_type -> idl_k : idl.
 import_file_type -> protocol_k : protocol.
@@ -223,6 +223,9 @@ map ->
 function ->
     fun_return id '(' fun_arguments ')' fun_extra ';' :
         #function{name = value_of('$2'), arguments = '$4', return = '$1', extra = '$6'}.
+function ->
+    doc_v function :
+        ('$2')#function{meta = [{doc, value_of('$1')}]}.
 
 fun_return -> type : '$1'.
 fun_return -> void_k : void.
@@ -247,12 +250,18 @@ fun_argument ->
 fun_extra ->
     '$empty' : undefined.
 fun_extra ->
-    throws_k id :
-        {throws, value_of('$2')}.
+    throws_k id throws :
+        {throws, [value_of('$2') | '$3']}.
 fun_extra ->
     oneway_k :
         oneway.
 
+throws ->
+    '$empty' :
+        [].
+throws ->
+    ',' id throws:
+        [value_of('$2') | '$3'].
 
 %% == Data (JSON) for default values
 data -> string_v : value_of('$1').

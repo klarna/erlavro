@@ -7,6 +7,10 @@
         {name,
          value}).
 
+-record(import,
+        {type,
+         file_path}).
+
 -record(enum,
         {name,
          meta = [],
@@ -35,7 +39,7 @@
 
 -record(function,
         {name,
-         %% meta = [],
+         meta = [],
          arguments = [],
          return,
          extra}).

@@ -40,9 +40,9 @@ protocol MyProto {
       string description;
    }
 
-   float mul(int arg1, float arg2 = 1.0);
+   float div(int arg1, float arg2 = 1.0) throws DivisionByZero;
 
-   MyFix append(bytes arg1, string arg2 = "tail") throws MyError;
+   MyFix append(bytes arg1, string arg2 = "tail") throws MyError, TheirError;
 
    void gen_server_cast(map<float> opts) oneway;
 

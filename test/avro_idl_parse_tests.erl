@@ -1,22 +1,4 @@
-%% coding: latin-1
-%%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2018 Klarna AB
-%%%
-%%% This file is provided to you under the Apache License,
-%%% Version 2.0 (the "License"); you may not use this file
-%%% except in compliance with the License.  You may obtain
-%%% a copy of the License at
-%%%
-%%%   http://www.apache.org/licenses/LICENSE-2.0
-%%%
-%%% Unless required by applicable law or agreed to in writing,
-%%% software distributed under the License is distributed on an
-%%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-%%% KIND, either express or implied.  See the License for the
-%%% specific language governing permissions and limitations
-%%% under the License.
-%%%
-%%%-------------------------------------------------------------------
+%% @doc Tests for IDL lexer + parser
 -module(avro_idl_parse_tests).
 
 -include("../src/idl.hrl").
@@ -79,7 +61,12 @@ parse_annotations_test() ->
                                         {doc, "My Rec Field"},
                                         #annotation{name = "aliases",
                                                     value = ["my_alias"]}],
-                                   type = string}]}]
+                                   type = string}]},
+              #function{name = "hello",
+                        meta = [{doc, "My Fun"}],
+                        arguments = [],
+                        return = string,
+                        extra = undefined}]
          },
        parse_idl("annotations")).
 
@@ -102,23 +89,53 @@ full_protocol_test() ->
                      #function{name = "ping"}]},
       parse_idl("full_protocol")).
 
-protocol_with_typedeffs_test() ->
+protocol_with_typedefs_test() ->
     ?assertMatch(
       #protocol{name = "MyProto",
                 definitions =
-                    [{import, idl, "foo.avdl"},
-                     {import, protocol, "bar.avpr"},
-                     {import, schema, "baz.avsc"},
+                    [#import{type = idl, file_path = "foo.avdl"},
+                     #import{type = protocol, file_path = "bar.avpr"},
+                     #import{type = schema, file_path = "baz.avsc"},
                      #enum{name = "MyEnum1"},
                      #enum{name = "MyEnum2"},
                      #fixed{name = "MyFix"},
-                     #record{name = "MyRec"},
-                     #record{name = "MyAnnotated"},
+                     #record{name = "MyRec",
+                             fields =
+                                 [#field{name = "my_int", type = int},
+                                  #field{name = "my_string", type = string},
+                                  #field{name = "my_float", type = float},
+                                  #field{name = "my_bool", type = boolean,
+                                         default = false},
+                                  #field{name = "my_custom",
+                                         type = {custom, "MyFix"}},
+                                  #field{name = "my_union",
+                                         type = {union, [boolean, null]},
+                                         default = null},
+                                  #field{name = "my_date",
+                                         type = date},
+                                  #field{name = "my_decimal",
+                                         type = {decimal, 5, 2}},
+                                  #field{name = "my_int_array",
+                                         type = {array, int}},
+                                  #field{},
+                                  #field{},
+                                  #field{name = "my_map",
+                                         type = {map, float}}
+                                 ]},
+                     #record{name = "MyAnnotated",
+                             fields =
+                                 [#field{
+                                     name = "error",
+                                     type = {custom,
+                                             "org.erlang.www.MyError"}}
+                                 ]},
                      #error{name = "MyError"},
-                     #function{name = "mul"},
-                     #function{name = "append"},
-                     #function{name = "gen_server_cast"},
-                     #function{name = "ping"}]},
+                     #function{name = "div",
+                               extra = {throws, ["DivisionByZero"]}},
+                     #function{name = "append",
+                               extra = {throws, ["MyError", "TheirError"]}},
+                     #function{name = "gen_server_cast", extra = oneway},
+                     #function{name = "ping", extra = undefined}]},
        parse_idl("protocol_with_typedefs")).
 
 parse_idl(Name) ->

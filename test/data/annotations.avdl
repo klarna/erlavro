@@ -33,4 +33,7 @@ protocol MyProto {
         @order("ignore")
         string /** My Rec Field */@aliases(["my_alias"]) my_record_field;
     }
+
+    /** My Fun */
+    string hello();
 }
