@@ -86,6 +86,9 @@ protocol_with_typedefs_avpr_test() ->
                     #{type := "MyFix"},
                     #{type := [boolean, null]},
                     #{type := #{type := int, 'logicalType' := "date"}},
+                    #{type := #{type := int, 'logicalType' := "time-millis"}},
+                    #{type := #{type := long,
+                                'logicalType' := "timestamp-millis"}},
                     #{type := #{type := bytes, precision := 5, scale := 2}},
                     #{type := #{type := array, items := int}},
                     #{type := #{type := array, items := int}},
@@ -108,18 +111,17 @@ protocol_with_typedefs_avpr_test() ->
              #{name := "ping"}]},
        idl_to_avpr("protocol_with_typedefs")).
 
+
+duplicate_annotation_test() ->
+    ?assertError(
+       {duplicate_annotation, "my_decorator", _, _},
+       avro_idl:str_to_avpr(
+         "@my_decorator(\"a\") @my_decorator(\"b\") protocol MyProto{}", "")
+      ).
+
 %% Helpers
 
 idl_to_avpr(Name) ->
-    ProtocolTree = parse_idl(Name),
-    avro_idl:protocol_to_avpr(ProtocolTree,
-                             avro_idl:new_context("")).
-
-parse_idl(Name) ->
     File = "test/data/" ++ Name ++ ".avdl",
     {ok, B} = file:read_file(File),
-    {ok, T0, _} =  avro_idl_lexer:string(binary_to_list(B)),
-    %% ?debugFmt("Name: ~p~nTokens:~n~p", [Name, T0]),
-    T = avro_idl_lexer:preprocess(T0, [drop_comments, trim_doc]),
-    {ok, Tree} = avro_idl_parser:parse(T),
-    Tree.
+    avro_idl:str_to_avpr(binary_to_list(B), "").

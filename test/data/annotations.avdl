@@ -10,10 +10,12 @@
 protocol MyProto {
     /** My enum */
     @namespace("enums")
-    enum MyEnum {
+    enum MyEnum {               // my inline comment
         A, B, C
     }
-
+    /*
+     * My multiline comment
+     */
     /** My Fixed */
     @namespace("fixeds")
     fixed MyFixed(16);
@@ -23,14 +25,14 @@ protocol MyProto {
     error MyError {
         /** My Err Field */
         @order("ignore")
-        string my_err_field;
+        string my_err_field;    // other inline
     }
 
     /** My Record */
     @namespace("records")
     record MyRecord {
         /** My Rec Field Type */
-        @order("ignore")
+        @order("ignore") /* other multiline */
         string /** My Rec Field */@aliases(["my_alias"]) my_record_field;
     }
 

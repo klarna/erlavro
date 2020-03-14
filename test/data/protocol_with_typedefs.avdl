@@ -23,6 +23,8 @@ protocol MyProto {
       MyFix my_custom;
       union {boolean, null} my_union = null;
       date my_date = 123456;
+      time_ms my_time = 23456;
+      timestamp_ms my_timestamp = 3456;
       decimal(5, 2) my_decimal = 1222;
 
       array<int> my_int_array;
