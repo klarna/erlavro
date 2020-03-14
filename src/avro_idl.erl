@@ -1,3 +1,6 @@
+%%% @doc APIs to work with Avro IDL format
+%%%
+%%% See [https://avro.apache.org/docs/1.9.2/idl.html]
 -module(avro_idl).
 
 -export([new_context/1,
@@ -45,6 +48,9 @@ protocol_to_avpr(#protocol{name = Name,
 
 process_imports(Defs, _St) ->
     %% TODO
+    %% https://avro.apache.org/docs/1.9.2/spec.html#names
+    %% when importing definitions from avdl or avpr, copy namespaces from
+    %% protocol to definitions, if not specified
     lists:filter(fun({import, _, _}) -> false;
                     (_) -> true
                  end, Defs).

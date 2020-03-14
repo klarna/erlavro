@@ -82,15 +82,14 @@ do_preprocess(drop_comments, T) ->
          (_) -> true
       end, T);
 do_preprocess(trim_doc, T) ->
+    {ok, Re} = re:compile("^[\\s\\*]*((?U).*)[\\s]*$", [multiline]),
     lists:map(
       fun({doc_v, Loc, Val}) ->
-              {doc_v, Loc, trim_doc(Val)};
+              Stripped = re:replace(Val, Re, "\\1",
+                                    [global, {return, list}]),
+              {doc_v, Loc, Stripped};
          (Tok) -> Tok
       end, T).
-
-trim_doc(Doc) ->
-    re:replace(Doc, "^[\\s\\*]*((?U).*)[\\s]*$", "\\1",
-               [global, multiline, {return, list}]).
 
 %% Lexer internal helpers
 
