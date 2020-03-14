@@ -210,13 +210,13 @@ union_tail ->
 
 %% -- Array typedef
 array ->
-    array_t '<' primitive_t '>' :
-        {array, value_of('$3')}.         %FIXME: not just primitives!
+    array_t '<' type '>' :
+        {array, '$3'}.
 
 %% -- Map typedef
 map ->
-    map_t '<' primitive_t '>' :
-        {map, value_of('$3')}.           %FIXME: not just primitives!
+    map_t '<' type '>' :
+        {map, '$3'}.
 
 %% == Function (message) definitions
 

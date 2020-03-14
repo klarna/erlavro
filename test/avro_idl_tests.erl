@@ -119,6 +119,27 @@ duplicate_annotation_test() ->
          "@my_decorator(\"a\") @my_decorator(\"b\") protocol MyProto{}", "")
       ).
 
+nested_complex_types_test() ->
+    ?assertEqual(
+       #{protocol => "P",
+         messages => [],
+         types =>
+             [#{type => record,
+                name => "R",
+                fields =>
+                    [#{name => "f",
+                       type =>
+                           #{type => array,
+                             items =>
+                                 #{type => map,
+                                   values => [null, "ns.T"]}
+                            }
+                      }
+                    ]}]},
+       avro_idl:str_to_avpr(
+         "protocol P { record R { array<map<union{null, ns.T}>> f; }}", "")
+      ).
+
 %% Helpers
 
 idl_to_avpr(Name) ->

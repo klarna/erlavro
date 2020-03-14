@@ -142,10 +142,54 @@ protocol_with_typedefs_test() ->
                      #function{name = "ping", extra = undefined}]},
        parse_idl("protocol_with_typedefs")).
 
+array_types_test() ->
+    Probes =
+        [{int, "int"},
+         {{decimal, 1, 2}, "decimal(1, 2)"},
+         {null, "null"},
+         {{custom, "MyType"}, "MyType"},
+         {{custom, "my_ns.MyType"}, "my_ns.MyType"},
+         {{union, [int, null]}, "union{int, null}"},
+         {{array, int}, "array<int>"},
+         {{map, int}, "map<int>"}],
+    lists:foreach(
+     fun({ExpectType, IdlType}) ->
+             test_field_type({array, ExpectType}, "array<" ++ IdlType ++ ">")
+     end, Probes).
+
+map_types_test() ->
+    Probes =
+        [{int, "int"},
+         {{custom, "MyType"}, "MyType"},
+         {{array, int}, "array<int>"},
+         {{map, int}, "map<int>"}],
+    lists:foreach(
+     fun({ExpectType, IdlType}) ->
+             test_field_type({map, ExpectType}, "map<" ++ IdlType ++ ">")
+     end, Probes).
+
+%% Helpers
+
+test_field_type(ExpectType, IdlType) ->
+    Idl = ("protocol P {"
+           " record R { " ++ IdlType ++ " f; }"
+           "}"),
+    #protocol{
+       definitions =
+           [#record{
+               fields =
+                   [#field{type = Type}]}]} = parse_str(Idl),
+    ?assertEqual(ExpectType, Type).%% ,  % ?assertEqual/3 only OTP-20+
+                 %% #{proto => Idl,
+                 %%   type => IdlType}).
+
 parse_idl(Name) ->
     File = "test/data/" ++ Name ++ ".avdl",
     {ok, B} = file:read_file(File),
-    {ok, T0, _} =  avro_idl_lexer:string(binary_to_list(B)),
+    parse_str(binary_to_list(B)).
+
+parse_str(Str) ->
+    {ok, T0, _} =  avro_idl_lexer:string(Str),
     %% ?debugFmt("Name: ~p~nTokens:~n~p", [Name, T0]),
     T = avro_idl_lexer:preprocess(T0, [drop_comments, trim_doc]),
     {ok, Tree} = avro_idl_parser:parse(T),
