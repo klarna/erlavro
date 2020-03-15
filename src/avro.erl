@@ -154,7 +154,8 @@ set_json_provider(Module) -> avro_json_compat:set_provider(Module).
 get_json_provider() -> avro_json_compat:get_provider().
 
 %% @doc Decode JSON format avro schema into `erlavro' internals.
--spec decode_schema(binary()) -> avro_type().
+%% @param JSON: JSON binary or erlang `map()' json representation
+-spec decode_schema(binary() | map() | [map()]) -> avro_type().
 decode_schema(JSON) -> avro_json_decoder:decode_schema(JSON).
 
 %% @doc Make type lookup function from type definition.
@@ -187,7 +188,8 @@ make_lkup_fun(AssignedName, Type) ->
 %%  * allow_type_redefine: `boolean()'
 %%     This option is to allow one type being defined more than once.
 %% @end
--spec decode_schema(binary(), proplists:proplist()) -> avro_type().
+-spec decode_schema(binary() | map() | [map()], proplists:proplist()) ->
+                       avro_type().
 decode_schema(JSON, Options) ->
   avro_json_decoder:decode_schema(JSON, Options).
 
@@ -280,7 +282,8 @@ make_decoder(Schema, Options) ->
 %% takes only one `binary()' input arg.
 -spec make_simple_decoder(avro_type() | binary(), codec_options()) ->
         simple_decoder().
-make_simple_decoder(JSON, Options) when is_binary(JSON) ->
+make_simple_decoder(JSON, Options) when is_binary(JSON);
+                                        is_map(JSON) ->
   make_simple_decoder(decode_schema(JSON), Options);
 make_simple_decoder(Type, Options) when ?IS_TYPE_RECORD(Type) ->
   Lkup = make_lkup_fun(Type),

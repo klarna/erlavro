@@ -4,9 +4,10 @@
 %%% as create Avro encoders and decoders.
 %%% @end
 %%% @reference See [https://avro.apache.org/docs/current/idl.html]
-%%% @author Sergey Prokhhorov <me@seriyps.ru>
+%%% @author Sergey Prokhorov <me@seriyps.ru>
 -module(avro_idl).
 
+-export([decode_schema/2]).
 -export([new_context/1,
          str_to_avpr/2,
          protocol_to_avpr/2,
@@ -15,6 +16,23 @@
 -include("erlavro.hrl").
 
 -record(st, {cwd}).
+
+decode_schema(SchemaStr, Cwd) ->
+    Protocol = str_to_avpr(SchemaStr, Cwd),
+    #{<<"types">> := Types0} = Protocol,
+    Types1 = lists:filter(
+              fun(#{<<"type">> := TName}) ->TName =/= <<"error">> end, Types0),
+    Ns = maps:get(<<"namespace">>, Protocol, ?AVRO_NS_GLOBAL),
+    Types = lists:map(
+        fun(T) ->
+                case maps:is_key(<<"namespace">>, T) of
+                    false ->
+                        T#{<<"namespace">> => Ns};
+                    true ->
+                        T
+                end
+        end, Types1),
+    avro:decode_schema(Types, [{ignore_bad_default_values, true}]).
 
 new_context(Cwd) ->
     #st{cwd = Cwd}.
@@ -64,7 +82,7 @@ typedecl_to_avsc(#enum{name = Name, meta = Meta, variants = Vars}, _St) ->
     meta(
       #{<<"type">> => ?AVRO_ENUM,
         <<"name">> => b(Name),
-        <<"variants">> => lists:map(fun b/1, Vars)
+        <<"symbols">> => lists:map(fun b/1, Vars)
        },
       Meta);
 typedecl_to_avsc(#fixed{name = Name, meta = Meta, size = Size}, _St) ->

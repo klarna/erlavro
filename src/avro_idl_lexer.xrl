@@ -1,7 +1,7 @@
 %% @doc Avro IDL lexer
 %% @end
 %% @reference See [https://avro.apache.org/docs/current/idl.html]
-%% @author Sergey Prokhhorov <me@seriyps.ru>
+%% @author Sergey Prokhorov <me@seriyps.ru>
 
 Definitions.
 
