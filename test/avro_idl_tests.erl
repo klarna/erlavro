@@ -1,62 +1,71 @@
 %% @doc Tests for IDL converter / loader
+%% @end
+%% @author Sergey Prokhhorov <me@seriyps.ru>
 -module(avro_idl_tests).
 
 -include("../src/idl.hrl").
 -include_lib("eunit/include/eunit.hrl").
-
+-include("erlavro.hrl").
 
 empty_protocol_avpr_test() ->
     ?assertEqual(
-       #{protocol => "MyProto",
-         types => [],
-         messages => []},
+       #{<<"protocol">> => <<"MyProto">>,
+         <<"types">> => [],
+         <<"messages">> => []},
        idl_to_avpr("empty_protocol")).
 
 
 annotations_avpr_test() ->
+    Proto = idl_to_avpr("annotations"),
     ?assertEqual(
-      #{"doc" => ("My protocol\nNo, really\nIt's some multiline doc\n"
-                  "bullet points will be stripped\nso no unordered lists"),
-        "version" => "1.0",
-        "aliases" => ["ns.Proto1", "ns.Proto2"],
-        protocol => "MyProto",
-        types =>
-            [#{"doc" => "My enum",
-               "namespace" => "enums",
-               type => enum,
-               name => "MyEnum",
-               variants => ["A", "B", "C"]},
-             #{"doc" => "My Fixed",
-               "namespace" => "fixeds",
-               type => fixed,
-               name => "MyFixed",
-               size => 16},
-             #{"doc" => "My Error",
-               "namespace" => "errors",
-               type => error,
-               name => "MyError",
-               fields =>
-                   [#{"doc" => "My Err Field",
-                      "order" => "ignore",
-                      type => string,
-                      name => "my_err_field"}]},
-             #{"doc" => "My Record",
-               "namespace" => "records",
-               type => record,
-               name => "MyRecord",
-               fields =>
-                   [#{"doc" => "My Rec Field Type\nMy Rec Field",
-                      "order" => "ignore",
-                      "aliases" => ["my_alias"],
-                      type => string,
-                      name => "my_record_field"}]}],
-        messages =>
-            [#{"doc" => "My Fun",
-               name => "hello",
-               request => [],
-               response => string}]
-       },
-      idl_to_avpr("annotations")).
+       #{<<"doc">> =>
+             <<"My protocol\nNo, really\nIt's some multiline doc\n"
+               "bullet points will be stripped\nso no unordered lists">>,
+         <<"version">> => <<"1.0">>,
+         <<"aliases">> => [<<"ns.Proto1">>, <<"ns.Proto2">>],
+         <<"protocol">> => <<"MyProto">>
+        },
+       maps:without([<<"types">>, <<"messages">>], Proto)
+      ),
+    #{<<"types">> := Types,
+      <<"messages">> := Messages} = Proto,
+    ?assertEqual(
+            [#{<<"doc">> => <<"My enum">>,
+               <<"namespace">> => <<"enums">>,
+               <<"type">> => ?AVRO_ENUM,
+               <<"name">> => <<"MyEnum">>,
+               <<"variants">> => [<<"A">>, <<"B">>, <<"C">>]},
+             #{<<"doc">> => <<"My Fixed">>,
+               <<"namespace">> => <<"fixeds">>,
+               <<"type">> => ?AVRO_FIXED,
+               <<"name">> => <<"MyFixed">>,
+               <<"size">> => 16},
+             #{<<"doc">> => <<"My Error">>,
+               <<"namespace">> => <<"errors">>,
+               <<"type">> => ?AVRO_ERROR,
+               <<"name">> => <<"MyError">>,
+               <<"fields">> =>
+                   [#{<<"doc">> => <<"My Err Field">>,
+                      <<"order">> => <<"ignore">>,
+                      <<"type">> => ?AVRO_STRING,
+                      <<"name">> => <<"my_err_field">>}]},
+             #{<<"doc">> => <<"My Record">>,
+               <<"namespace">> => <<"records">>,
+               <<"type">> => ?AVRO_RECORD,
+               <<"name">> => <<"MyRecord">>,
+               <<"fields">> =>
+                   [#{<<"doc">> => <<"My Rec Field Type\nMy Rec Field">>,
+                      <<"order">> => <<"ignore">>,
+                      <<"aliases">> => [<<"my_alias">>],
+                      <<"type">> => ?AVRO_STRING,
+                      <<"name">> => <<"my_record_field">>}]}],
+       Types),
+    ?assertEqual(
+       [#{<<"doc">> => <<"My Fun">>,
+          <<"name">> => <<"hello">>,
+          <<"request">> => [],
+          <<"response">> => ?AVRO_STRING}],
+       Messages).
 
 
 full_protocol_avpr_test() ->
@@ -66,50 +75,66 @@ full_protocol_avpr_test() ->
 
 
 protocol_with_typedefs_avpr_test() ->
+    Proto = idl_to_avpr("protocol_with_typedefs"),
     ?assertMatch(
-      #{"namespace" := "org.erlang.www",
-        protocol := "MyProto",
-        types :=
-            [#{name := "MyEnum1"},
-             #{name := "MyEnum2",
-               type := enum,
-               variants := ["VAR21", "VAR22", "VAR23"]},
-             #{name := "MyFix",
-               type := fixed,
-               size := 10},
-             #{name := "MyRec",
-               fields :=
-                   [#{type := int},
-                    #{type := string},
-                    #{type := float},
-                    #{type := boolean},
-                    #{type := "MyFix"},
-                    #{type := [boolean, null]},
-                    #{type := #{type := int, 'logicalType' := "date"}},
-                    #{type := #{type := int, 'logicalType' := "time-millis"}},
-                    #{type := #{type := long,
-                                'logicalType' := "timestamp-millis"}},
-                    #{type := #{type := bytes, precision := 5, scale := 2}},
-                    #{type := #{type := array, items := int}},
-                    #{type := #{type := array, items := int}},
-                    #{type := #{type := array, items := string}},
-                    #{type := #{type := map, values := float}}]
-              },
-             #{name := "MyAnnotated",
-               "namespace" := "org.erlang.ftp",
-               fields :=
-                   [#{name := "error",
-                      type := "org.erlang.www.MyError"}]},
-             #{name := "MyError",
-               fields :=
-                   [#{type := "MyEnum2"},
-                    #{type := string}]}],
-        messages :=
-            [#{name := "div"},
-             #{name := "append"},
-             #{name := "gen_server_cast"},
-             #{name := "ping"}]},
-       idl_to_avpr("protocol_with_typedefs")).
+       #{<<"namespace">> := <<"org.erlang.www">>,
+         <<"protocol">> := <<"MyProto">>,
+         <<"types">> := _,
+         <<"messages">> := _},
+       Proto),
+    #{<<"types">> := Types,
+      <<"messages">> := Messages} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"MyEnum1">>},
+        #{<<"name">> := <<"MyEnum2">>,
+          <<"type">> := ?AVRO_ENUM,
+          <<"variants">> := [<<"VAR21">>, <<"VAR22">>, <<"VAR23">>]},
+        #{<<"name">> := <<"MyFix">>,
+          <<"type">> := ?AVRO_FIXED,
+          <<"size">> := 10},
+        #{<<"name">> := <<"MyRec">>,
+          <<"fields">> :=
+              [#{<<"type">> := ?AVRO_INT},
+               #{<<"type">> := ?AVRO_STRING},
+               #{<<"type">> := ?AVRO_FLOAT},
+               #{<<"type">> := ?AVRO_BOOLEAN},
+               #{<<"type">> := <<"MyFix">>},
+               #{<<"type">> := [?AVRO_BOOLEAN, ?AVRO_NULL]},
+               #{<<"type">> := #{<<"type">> := ?AVRO_INT,
+                                 <<"logicalType">> := <<"date">>}},
+               #{<<"type">> := #{<<"type">> := ?AVRO_INT,
+                                 <<"logicalType">> := <<"time-millis">>}},
+               #{<<"type">> := #{<<"type">> := ?AVRO_LONG,
+                                 <<"logicalType">> := <<"timestamp-millis">>}},
+               #{<<"type">> := #{<<"type">> := ?AVRO_BYTES,
+                                 <<"precision">> := 5,
+                                 <<"scale">> := 2}},
+               #{<<"type">> := #{<<"type">> := ?AVRO_ARRAY,
+                                 <<"items">> := ?AVRO_INT}},
+               #{<<"type">> := #{<<"type">> := ?AVRO_ARRAY,
+                                 <<"items">> := ?AVRO_INT}},
+               #{<<"type">> := #{<<"type">> := ?AVRO_ARRAY,
+                                 <<"items">> := ?AVRO_STRING}},
+               #{<<"type">> := #{<<"type">> := ?AVRO_MAP,
+                                 <<"values">> := ?AVRO_FLOAT}}]
+         },
+        #{<<"name">> := <<"MyAnnotated">>,
+          <<"namespace">> := <<"org.erlang.ftp">>,
+          <<"fields">> :=
+              [#{<<"name">> := <<"error">>,
+                 <<"type">> := <<"org.erlang.www.MyError">>}]},
+        #{<<"name">> := <<"MyError">>,
+          <<"fields">> :=
+              [#{<<"type">> := <<"MyEnum2">>},
+               #{<<"type">> := ?AVRO_STRING}]}],
+       Types),
+    ?assertMatch(
+       [#{<<"name">> := <<"div">>},
+        #{<<"name">> := <<"append">>,
+          <<"error">> := [<<"MyError">>, <<"TheirError">>]},
+        #{<<"name">> := <<"gen_server_cast">>, <<"one-way">> := true},
+        #{<<"name">> := <<"ping">>}],
+       Messages).
 
 
 duplicate_annotation_test() ->
@@ -121,18 +146,18 @@ duplicate_annotation_test() ->
 
 nested_complex_types_test() ->
     ?assertEqual(
-       #{protocol => "P",
-         messages => [],
-         types =>
-             [#{type => record,
-                name => "R",
-                fields =>
-                    [#{name => "f",
-                       type =>
-                           #{type => array,
-                             items =>
-                                 #{type => map,
-                                   values => [null, "ns.T"]}
+       #{<<"protocol">> => <<"P">>,
+         <<"messages">> => [],
+         <<"types">> =>
+             [#{<<"type">> => ?AVRO_RECORD,
+                <<"name">> => <<"R">>,
+                <<"fields">> =>
+                    [#{<<"name">> => <<"f">>,
+                       <<"type">> =>
+                           #{<<"type">> => ?AVRO_ARRAY,
+                             <<"items">> =>
+                                 #{<<"type">> => ?AVRO_MAP,
+                                   <<"values">> => [?AVRO_NULL, <<"ns.T">>]}
                             }
                       }
                     ]}]},

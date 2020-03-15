@@ -1,4 +1,6 @@
 %% @doc Tests for IDL lexer + parser
+%% @end
+%% @author Sergey Prokhhorov <me@seriyps.ru>
 -module(avro_idl_parse_tests).
 
 -include("../src/idl.hrl").

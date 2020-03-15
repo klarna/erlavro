@@ -37,6 +37,7 @@
 -define(AVRO_MAP,     <<"map">>).
 -define(AVRO_UNION,   <<"union">>).
 -define(AVRO_FIXED,   <<"fixed">>).
+-define(AVRO_ERROR,   <<"error">>).             % idl
 
 -define(IS_AVRO_PRIMITIVE_NAME(N),
         (N =:= ?AVRO_NULL    orelse
