@@ -1,6 +1,6 @@
 %% @doc Tests for IDL converter / loader
 %% @end
-%% @author Sergey Prokhhorov <me@seriyps.ru>
+%% @author Sergey Prokhorov <me@seriyps.ru>
 -module(avro_idl_tests).
 
 -include("../src/idl.hrl").
@@ -34,7 +34,7 @@ annotations_avpr_test() ->
                <<"namespace">> => <<"enums">>,
                <<"type">> => ?AVRO_ENUM,
                <<"name">> => <<"MyEnum">>,
-               <<"variants">> => [<<"A">>, <<"B">>, <<"C">>]},
+               <<"symbols">> => [<<"A">>, <<"B">>, <<"C">>]},
              #{<<"doc">> => <<"My Fixed">>,
                <<"namespace">> => <<"fixeds">>,
                <<"type">> => ?AVRO_FIXED,
@@ -88,7 +88,7 @@ protocol_with_typedefs_avpr_test() ->
        [#{<<"name">> := <<"MyEnum1">>},
         #{<<"name">> := <<"MyEnum2">>,
           <<"type">> := ?AVRO_ENUM,
-          <<"variants">> := [<<"VAR21">>, <<"VAR22">>, <<"VAR23">>]},
+          <<"symbols">> := [<<"VAR21">>, <<"VAR22">>, <<"VAR23">>]},
         #{<<"name">> := <<"MyFix">>,
           <<"type">> := ?AVRO_FIXED,
           <<"size">> := 10},
@@ -137,14 +137,14 @@ protocol_with_typedefs_avpr_test() ->
        Messages).
 
 
-duplicate_annotation_test() ->
+duplicate_annotation_avpr_test() ->
     ?assertError(
        {duplicate_annotation, "my_decorator", _, _},
        avro_idl:str_to_avpr(
          "@my_decorator(\"a\") @my_decorator(\"b\") protocol MyProto{}", "")
       ).
 
-nested_complex_types_test() ->
+nested_complex_types_avr_test() ->
     ?assertEqual(
        #{<<"protocol">> => <<"P">>,
          <<"messages">> => [],
@@ -165,9 +165,19 @@ nested_complex_types_test() ->
          "protocol P { record R { array<map<union{null, ns.T}>> f; }}", "")
       ).
 
+full_protocol_load_test() ->
+    Schema = read_schema("full_protocol"),
+    DecSchema = avro_idl:decode_schema(Schema, ""),
+    _EncSchema = avro:encode_schema(DecSchema).
+    %% ?debugFmt("~n~p~n~s", [DecSchema, EncSchema]).
+
 %% Helpers
 
-idl_to_avpr(Name) ->
+read_schema(Name) ->
     File = "test/data/" ++ Name ++ ".avdl",
     {ok, B} = file:read_file(File),
-    avro_idl:str_to_avpr(binary_to_list(B), "").
+    binary_to_list(B).
+
+idl_to_avpr(Name) ->
+    Schema = read_schema(Name),
+    avro_idl:str_to_avpr(Schema, "").
