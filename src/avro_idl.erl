@@ -1,6 +1,10 @@
 %%% @doc APIs to work with Avro IDL format
 %%%
-%%% See [https://avro.apache.org/docs/1.9.2/idl.html]
+%%% This module allows to convert .avdl format to .avpr and .avsc as well
+%%% as create Avro encoders and decoders.
+%%% @end
+%%% @reference See [https://avro.apache.org/docs/current/idl.html]
+%%% @author Sergey Prokhhorov <me@seriyps.ru>
 -module(avro_idl).
 
 -export([new_context/1,
@@ -8,6 +12,7 @@
          protocol_to_avpr/2,
          typedecl_to_avsc/2]).
 -include("idl.hrl").
+-include("erlavro.hrl").
 
 -record(st, {cwd}).
 
@@ -32,13 +37,13 @@ protocol_to_avpr(#protocol{name = Name,
                            (_) -> true
                         end, Defs),
     Protocol0 =
-        #{protocol => Name,
-          types =>
+        #{<<"protocol">> => b(Name),
+          <<"types">> =>
               lists:map(
                 fun(Type) ->
                         typedecl_to_avsc(Type, St)
                 end, Types),
-          messages =>
+          <<"messages">> =>
               lists:map(
                 fun(Message) ->
                         message_to_avsc(Message, St)
@@ -57,36 +62,36 @@ process_imports(Defs, _St) ->
 
 typedecl_to_avsc(#enum{name = Name, meta = Meta, variants = Vars}, _St) ->
     meta(
-      #{type => enum,
-        name => Name,
-        variants => Vars
+      #{<<"type">> => ?AVRO_ENUM,
+        <<"name">> => b(Name),
+        <<"variants">> => lists:map(fun b/1, Vars)
        },
       Meta);
 typedecl_to_avsc(#fixed{name = Name, meta = Meta, size = Size}, _St) ->
     meta(
-      #{type => fixed,
-        name => Name,
-        size => Size},
+      #{<<"type">> => ?AVRO_FIXED,
+        <<"name">> => b(Name),
+        <<"size">> => Size},
       Meta);
 typedecl_to_avsc(#error{name = Name, meta = Meta, fields = Fields}, St) ->
     meta(
-      #{type => error,
-        name => Name,
-        fields => [field_to_avsc(Field, St) || Field <- Fields]},
+      #{<<"type">> => ?AVRO_ERROR,
+        <<"name">> => b(Name),
+        <<"fields">> => [field_to_avsc(Field, St) || Field <- Fields]},
       Meta);
 typedecl_to_avsc(#record{name = Name, meta = Meta, fields = Fields}, St) ->
     meta(
-      #{type => record,
-        name => Name,
-        fields => [field_to_avsc(Field, St) || Field <- Fields]},
+      #{<<"type">> => ?AVRO_RECORD,
+        <<"name">> => b(Name),
+        <<"fields">> => [field_to_avsc(Field, St) || Field <- Fields]},
       Meta).
 
 field_to_avsc(#field{name = Name, meta = Meta,
                      type = Type, default = Default}, St) ->
     meta(
       default(
-        #{name => Name,
-          type => type_to_avsc(Type, St)},
+        #{<<"name">> => b(Name),
+          <<"type">> => type_to_avsc(Type, St)},
         Default),         % TODO: maybe validate default matches type
       Meta).
 
@@ -96,30 +101,28 @@ message_to_avsc(#function{name = Name, meta = Meta,
     %% TODO: arguments can just reuse `#field{}`
     ArgsSchema =
         [default(
-           #{name => ArgName,
-             type => type_to_avsc(Type, St)},
+           #{<<"name">> => b(ArgName),
+             <<"type">> => type_to_avsc(Type, St)},
            Default)
          || {arg, ArgName, Type, Default} <- Args],
     Schema0 =
-        #{name => Name,
-          request => ArgsSchema,
-          response => type_to_avsc(Return, St)},
+        #{<<"name">> => b(Name),
+          <<"request">> => ArgsSchema,
+          <<"response">> => type_to_avsc(Return, St)},
     Schema1 = case Extra of
                   undefined -> Schema0;
                   oneway ->
-                      Schema0#{'one-way' => true};
+                      Schema0#{<<"one-way">> => true};
                   {throws, ThrowsTypes} ->
-                      %% Throws = [type_to_avsc(TType, St)
-                      %%           || TType <- ThrowsTypes],
-                      Schema0#{error => ThrowsTypes}
+                      Schema0#{<<"error">> => lists:map(fun b/1, ThrowsTypes)}
               end,
     meta(Schema1, Meta).
 
 
 type_to_avsc(void, _St) ->
-    null;
+    ?AVRO_NULL;
 type_to_avsc(null, _St) ->
-    null;
+    ?AVRO_NULL;
 type_to_avsc(T, _St) when T == int;
                           T == long;
                           T == string;
@@ -127,31 +130,31 @@ type_to_avsc(T, _St) when T == int;
                           T == float;
                           T == double;
                           T == bytes ->
-    T;
+    atom_to_binary(T, utf8);
 type_to_avsc({decimal, Precision, Scale}, _St) ->
-    #{type => bytes,
-      'logicalType' => "decimal",
-      precision => Precision,
-      scale => Scale};
+    #{<<"type">> => ?AVRO_BYTES,
+      <<"logicalType">> => <<"decimal">>,
+      <<"precision">> => Precision,
+      <<"scale">> => Scale};
 type_to_avsc(date, _St) ->
-    #{type => int,
-      'logicalType' => "date"};
+    #{<<"type">> => ?AVRO_INT,
+      <<"logicalType">> => <<"date">>};
 type_to_avsc(time_ms, _St) ->
-    #{type => int,
-      'logicalType' => "time-millis"};
+    #{<<"type">> => ?AVRO_INT,
+      <<"logicalType">> => <<"time-millis">>};
 type_to_avsc(timestamp_ms, _St) ->
-    #{type => long,
-      'logicalType' => "timestamp-millis"};
+    #{<<"type">> => ?AVRO_LONG,
+      <<"logicalType">> => <<"timestamp-millis">>};
 type_to_avsc({custom, Id}, _St) ->
-    Id;
+    b(Id);
 type_to_avsc({union, Types}, St) ->
     [type_to_avsc(Type, St) || Type <- Types];
 type_to_avsc({array, Of}, St) ->
-    #{type => array,
-      items => type_to_avsc(Of, St)};
+    #{<<"type">> => ?AVRO_ARRAY,
+      <<"items">> => type_to_avsc(Of, St)};
 type_to_avsc({map, ValType}, St) ->
-    #{type => map,
-      values => type_to_avsc(ValType, St)}.
+    #{<<"type">> => ?AVRO_MAP,
+      <<"values">> => type_to_avsc(ValType, St)}.
 
 meta(Schema, Meta) ->
     {Docs, Annotations} =
@@ -163,17 +166,27 @@ meta(Schema, Meta) ->
                   [] -> Schema;
                   _ ->
                       DocStrings = [S || {doc, S} <- Docs],
-                      Schema#{"doc" => lists:flatten(lists:join(
-                                                       "\n", DocStrings))}
+                      Schema#{<<"doc">> => b(lists:join(
+                                               "\n", DocStrings))}
               end,
     lists:foldl(
      fun(#annotation{name = Name, value = Value}, Schema2) ->
-             maps:is_key(Name, Schema2) andalso
+             BName = b(Name),
+             BVal = case Value of
+                        [] -> <<>>;
+                        [C | _] when is_integer(C) -> b(Value);
+                        _ ->
+                            [b(Str) || Str <- Value]
+                    end,
+             maps:is_key(BName, Schema2) andalso
                  error({duplicate_annotation, Name, Value, Schema2}),
-             Schema2#{Name => Value}
+             Schema2#{BName => BVal}
      end, Schema1, Annotations).
 
 default(Obj, undefined) ->
     Obj;
 default(Obj, Default) ->
-    Obj#{default => Default}.
+    Obj#{<<"default">> => Default}.
+
+b(Str) when is_list(Str) ->
+    unicode:characters_to_binary(Str).

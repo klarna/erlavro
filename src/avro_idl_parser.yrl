@@ -1,8 +1,9 @@
-%% @doc Avro IDL parser
-%% https://avro.apache.org/docs/1.9.2/idl.html
-%% XXX: all `comment_v` tokens should be filtered-out before parsing!
-
-Header "%% Hello".
+Header "%%% @doc Avro IDL parser
+%%%
+%%% XXX: all `comment_v' tokens should be filtered-out before parsing!
+%%% @end
+%%% @reference See [https://avro.apache.org/docs/current/idl.html]
+%%% @author Sergey Prokhhorov <me@seriyps.ru>".
 
 Terminals id ns_id null string_v doc_v float_v integer_v bool_v annotation_v
     primitive_t logical_t decimal_t
