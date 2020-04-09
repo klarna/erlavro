@@ -40,5 +40,7 @@
 * 2.8.3
    - Allow arbitrary atoms in record_opt_name()
 * 2.9.0
-   - Encode atom values for string types when not nil or null
+   - Encode atom values for string types when not `nil` or `null`
+* 2.9.1
+   - Add `true` and `false` to the atom exceptions when converting to strings
 
