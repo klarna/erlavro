@@ -177,11 +177,17 @@ encode_map_error_test() ->
                encode(fun(_) -> error(unexpected) end, Type, Value)).
 
 encode_union_test() ->
-  Type = avro_union:type([null, string]),
+  Type = avro_union:type([null, string, boolean]),
   Value1 = avro_union:new(Type, null),
-  Value2 = avro_union:new(Type, "a"),
+  Value2 = avro_union:new(Type, nil),
+  Value3 = avro_union:new(Type, "a"),
+  Value4 = avro_union:new(Type, true),
+  Value5 = avro_union:new(Type, false),
   ?assertBinEq([0], encode_value(Value1)),
-  ?assertBinEq([long(1), long(1), 97], encode_value(Value2)).
+  ?assertBinEq([0], encode_value(Value2)),
+  ?assertBinEq([long(1), long(1), 97], encode_value(Value3)),
+  ?assertBinEq([long(2), <<1>>], encode_value(Value4)),
+  ?assertBinEq([long(2), <<0>>], encode_value(Value5)).
 
 encode_fixed_test() ->
   Type = avro_fixed:type("FooBar", 2),
