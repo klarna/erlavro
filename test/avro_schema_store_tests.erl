@@ -87,17 +87,15 @@ lookup(Name, Store) ->
   avro_schema_store:lookup_type(Name, Store).
 
 import_test() ->
-  PrivDir = priv_dir(),
-  AvscFile = filename:join([PrivDir, "interop.avsc"]),
+  AvscFile = test_data("interop.avsc"),
   Store = avro_schema_store:new([{name, ?MODULE}], [AvscFile]),
   ?assertEqual(?MODULE, Store),
   ets:delete(Store),
   ok.
 
 import_unnamed_test() ->
-  PrivDir = priv_dir(),
   UnionName = "com.klarna.test.union",
-  AvscFile = filename:join([PrivDir, UnionName ++ ".avsc"]),
+  AvscFile = test_data(UnionName ++ ".avsc"),
   UnionType = avro_union:type([null, long]),
   UnionJSON = avro_json_encoder:encode_type(UnionType),
   ok = file:write_file(AvscFile, UnionJSON),
@@ -129,8 +127,7 @@ import_failure_test() ->
                    avro_schema_store:import_file(Filename, ignore)).
 
 expand_type_test() ->
-  PrivDir = priv_dir(),
-  AvscFile = filename:join([PrivDir, "interop.avsc"]),
+  AvscFile = test_data("interop.avsc"),
   Store = avro_schema_store:new([], [AvscFile]),
   {ok, FlatType} =
     avro_schema_store:lookup_type("org.apache.avro.Interop", Store),
@@ -214,20 +211,9 @@ flat_test_record() ->
     , {aliases, ["TestRecordAlias1", "TestRecordAlias2"]}
     ]).
 
-%% @private
-priv_dir() ->
-  case code:priv_dir(erlavro) of
-    {error, bad_name} ->
-      %% application is not loaded, try dirty way
-      case filelib:is_dir(filename:join(["..", priv])) of
-        true -> filename:join(["..", priv]);
-        _    -> "./priv"
-      end;
-    Dir ->
-      Dir
-  end.
+test_data(FileName) ->
+  filename:join([code:lib_dir(erlavro, test), "data", FileName]).
 
-%% @private
 define_field(Name, Type) -> avro_record:define_field(Name, Type).
 
 %%%_* Emacs ====================================================================

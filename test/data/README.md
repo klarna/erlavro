@@ -1,4 +1,4 @@
-Files in `priv` are used in tests
+Files in `test/data` are used in tests
 
 Files downloaded from https://cwiki.apache.org/confluence/display/AVRO/Interoperability+Testing
 

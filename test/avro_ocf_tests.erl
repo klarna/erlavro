@@ -28,11 +28,10 @@
                 }).
 
 interop_test() ->
-  PrivDir = priv_dir(),
-  InteropOcfFile = filename:join([PrivDir, "interop.ocf"]),
+  InteropOcfFile = test_data("interop.ocf"),
   {Header, Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
   Lkup = avro:make_lkup_fun(Schema),
-  MyFile = filename:join([PrivDir, "interop.ocf.test"]),
+  MyFile = test_data("interop.ocf.test"),
   {ok, Fd} = file:open(MyFile, [write]),
   try
     ok = avro_ocf:write_header(Fd, Header),
@@ -48,25 +47,23 @@ interop_test() ->
   ?assertEqual(Objects, Objects1).
 
 decode_deflate_file_test() ->
-  PrivDir = priv_dir(),
-  InteropOcfFile = filename:join([PrivDir, "interop_deflate.ocf"]),
+  InteropOcfFile = test_data("interop_deflate.ocf"),
   {Header, _Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
   ?assertEqual(<<"deflate">>,
                proplists:get_value(<<"avro.codec">>, Header#header.meta)),
-  ?assertEqual(<<"hey">>, 
+  ?assertEqual(<<"hey">>,
                proplists:get_value(<<"stringField">>, hd(Objects))).
 
 decode_no_codec_file_test() ->
-  PrivDir = priv_dir(),
-  InteropOcfFile = filename:join([PrivDir, "interop_no_codec.ocf"]),
+  InteropOcfFile = test_data("interop_no_codec.ocf"),
   {Header, _Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
   ?assertEqual(undefined,
                proplists:get_value(<<"avro.codec">>, Header#header.meta)),
-  ?assertEqual(<<"hey">>, 
+  ?assertEqual(<<"hey">>,
                proplists:get_value(<<"stringField">>, hd(Objects))).
 
 write_file_test() ->
-  OcfFile = filename:join([priv_dir(), "my.ocf.test"]),
+  OcfFile = test_data("my.ocf.test"),
   Store = undefined, %% should not require lookup
   Fields = [ avro_record:define_field("f1", int, [])
            , avro_record:define_field("f2", string, [])
@@ -78,7 +75,7 @@ write_file_test() ->
   ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}]], Objs).
 
 write_deflate_file_test() ->
-  OcfFile = filename:join([priv_dir(), "deflate.ocf.test"]),
+  OcfFile = test_data("deflate.ocf.test"),
   Store = undefined, %% should not require lookup
   Fields = [ avro_record:define_field("f1", int, [])
            , avro_record:define_field("f2", string, [])
@@ -91,7 +88,7 @@ write_deflate_file_test() ->
   ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}]], Objs).
 
 root_level_union_test() ->
-  OcfFile = filename:join([priv_dir(), "union.ocf.test"]),
+  OcfFile = test_data("union.ocf.test"),
   Store = undefined, %% should not require lookup
   Fields = [ avro_record:define_field("f1", int, [])
            , avro_record:define_field("f2", string, [])
@@ -129,17 +126,8 @@ make_ocf_test() ->
   {_, _, DecodedL} = avro_ocf:decode_binary(Bin),
   ?assertEqual(L, DecodedL).
 
-priv_dir() ->
-  case code:priv_dir(erlavro) of
-    {error, bad_name} ->
-      %% application is not loaded, try dirty way
-      case filelib:is_dir(filename:join(["..", priv])) of
-        true -> filename:join(["..", priv]);
-        _    -> "./priv"
-      end;
-    Dir ->
-      Dir
-  end.
+test_data(FileName) ->
+  filename:join([code:lib_dir(erlavro, test), "data", FileName]).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
