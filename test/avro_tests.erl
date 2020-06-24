@@ -125,14 +125,14 @@ decode_with_map_type_option_test() ->
   ok.
 
 interop_schema_decode_test() ->
-  SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
+  SchemaFilename = test_data("interop.avsc"),
   {ok, JSON} = file:read_file(SchemaFilename),
   avro:decode_schema(JSON, [validate_default_values]).
 
 readme_load_schmea_test() ->
-  SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
+  SchemaFilename = test_data("interop.avsc"),
   {ok, SchemaJSON} = file:read_file(SchemaFilename),
-  OcfFilename = filename:join(priv_dir(), "interop.ocf"),
+  OcfFilename = test_data("interop.ocf"),
   Encoder = avro:make_simple_encoder(SchemaJSON, []),
   Decoder = avro:make_simple_decoder(SchemaJSON, []),
   Term = hd(element(3, avro_ocf:decode_file(OcfFilename))),
@@ -141,9 +141,9 @@ readme_load_schmea_test() ->
   ok.
 
 simple_encoder_decoder_load_schema_equality_test() ->
-  SchemaFilename = filename:join(priv_dir(), "interop.avsc"),
+  SchemaFilename = test_data("interop.avsc"),
   {ok, SchemaJSON} = file:read_file(SchemaFilename),
-  OcfFilename = filename:join(priv_dir(), "interop.ocf"),
+  OcfFilename = test_data("interop.ocf"),
   Encoder = avro:make_encoder(SchemaJSON, []),
   Decoder = avro:make_decoder(SchemaJSON, []),
   SimpleEncoder = avro:make_simple_encoder(SchemaJSON, []),
@@ -368,7 +368,7 @@ array_of_union_cast_test() ->
   ok.
 
 default_values_test() ->
-  File = filename:join(priv_dir(), "test.avsc"),
+  File = test_data("test.avsc"),
   {ok, JSON} = file:read_file(File),
   Type = avro:decode_schema(JSON),
   Lkup = avro:make_lkup_fun(Type),
@@ -413,7 +413,7 @@ default_values_test() ->
   ok.
 
 nil_values_test() ->
-  File = filename:join(priv_dir(), "test.avsc"),
+  File = test_data("test.avsc"),
   {ok, JSON} = file:read_file(File),
   Type = avro:decode_schema(JSON),
   Lkup = avro:make_lkup_fun(Type),
@@ -443,7 +443,7 @@ nil_values_test() ->
   ok.
 
 atoms_as_strings_test() ->
-  File = filename:join(priv_dir(), "test.avsc"),
+  File = test_data("test.avsc"),
   {ok, JSON} = file:read_file(File),
   Type = avro:decode_schema(JSON),
   Lkup = avro:make_lkup_fun(Type),
@@ -475,7 +475,7 @@ atoms_as_strings_test() ->
 
 
 default_values_with_map_type_test() ->
-  File = filename:join(priv_dir(), "test.avsc"),
+  File = test_data("test.avsc"),
   {ok, JSON} = file:read_file(File),
   Type = avro:decode_schema(JSON),
   Lkup = avro:make_lkup_fun(Type),
@@ -521,19 +521,8 @@ default_values_with_map_type_test() ->
   TestFun([{encoding, avro_json}, {map_type, map}, {record_type, map}]),
   ok.
 
-
-%% @private
-priv_dir() ->
-  case code:priv_dir(erlavro) of
-    {error, bad_name} ->
-      %% application is not loaded, try dirty way
-      case filelib:is_dir(filename:join(["..", priv])) of
-        true -> filename:join(["..", priv]);
-        _    -> "./priv"
-      end;
-    Dir ->
-      Dir
-  end.
+test_data(FileName) ->
+  filename:join([code:lib_dir(erlavro, test), "data", FileName]).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

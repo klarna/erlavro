@@ -48,11 +48,11 @@ NOT a unicode character list which may possibly contain some code points greater
 
 ## Load Avro Schema file(s) (demonstrating in Erlang shell)
 
-See `priv/interop.avsc` for avro schema definition.
+See `test/data/interop.avsc` for avro schema definition.
 
 ```erlang
-1> {ok, SchemaJSON} = file:read_file("priv/interop.avsc").
-2> Term = hd(element(3, avro_ocf:decode_file("priv/interop.ocf"))).
+1> {ok, SchemaJSON} = file:read_file("test/data/interop.avsc").
+2> Term = hd(element(3, avro_ocf:decode_file("test/data/interop.ocf"))).
 [{"intField",12},
  {"longField",15234324},
  {"stringField","hey"},
