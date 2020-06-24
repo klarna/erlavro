@@ -12,3 +12,5 @@ out/
 _build
 rebar.lock
 *.crashdump
+src/avro_idl_lexer.erl
+src/avro_idl_parser.erl

@@ -47,7 +47,7 @@
 %%%_* APIs =====================================================================
 
 %% @doc Decode JSON format avro schema into erlavro internals.
--spec decode_schema(binary()) -> avro_type().
+-spec decode_schema(binary() | map() | [map()]) -> avro_type().
 decode_schema(JSON) ->
   decode_schema(JSON, _Opts = []).
 
@@ -66,7 +66,7 @@ decode_schema(JSON) ->
 %%  * allow_type_redefine: `boolean()'
 %%     This option is to allow one type being defined more than once.
 %% @end
--spec decode_schema(binary(), sc_opts()) -> avro_type().
+-spec decode_schema(binary() | map() | [map()], sc_opts()) -> avro_type().
 decode_schema(JSON, Opts) when is_list(Opts) ->
   %% Parse JSON first
   Type = parse_schema(decode_json(JSON)),
@@ -511,8 +511,20 @@ do_parse_union_ex(ValueTypeName, Value, UnionType,
 %% 'map' is a better option, but we have to keep it backward compatible.
 %% 'proplist' is not an option because otherwise there is no way to tell
 %% apart 'object' and 'array'.
--spec decode_json(binary()) -> json_value().
+-spec decode_json(binary() | map() | [map()]) -> json_value().
+decode_json(Parsed) when is_map(Parsed);
+                         is_list(Parsed) ->
+  map_to_tuple(Parsed);
 decode_json(JSON) -> jsone:decode(JSON, [{object_format, tuple}]).
+
+%% recursively convert map to json-tuple format
+map_to_tuple(Map) when is_map(Map) ->
+  {[{K, map_to_tuple(V)}
+    || {K, V} <- maps:to_list(Map)]};
+map_to_tuple(Array) when is_list(Array) ->
+  lists:map(fun map_to_tuple/1, Array);
+map_to_tuple(Other) ->
+  Other.
 
 %% Filter out non-custom properties.
 -spec filter_custom_props([{binary(), json_value()}], [name()]) ->
