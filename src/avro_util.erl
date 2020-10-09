@@ -65,7 +65,7 @@
 %%%_* APIs =====================================================================
 
 %% @doc Validate type definitions according to given options.
--spec validate(avro:avro_type(), avro:sc_opts()) -> ok | no_return().
+-spec validate(avro:avro_type(), avro:schema_opts()) -> ok | no_return().
 validate(Type, Opts) ->
   AllowBadRefs = proplists:get_bool(allow_bad_references, Opts),
   AllowTypeRedef = proplists:get_bool(allow_type_redefine, Opts),
