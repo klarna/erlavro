@@ -126,6 +126,26 @@ make_ocf_test() ->
   {_, _, DecodedL} = avro_ocf:decode_binary(Bin),
   ?assertEqual(L, DecodedL).
 
+decoder_hook_test() ->
+  Fields = [ avro_record:define_field("f1", int, [])
+           , avro_record:define_field("f2", null, [])
+           ],
+  Type = avro_record:type("rec", Fields, [{namespace, "my.ocf.test"}]),
+  Header = avro_ocf:make_header(Type),
+  Encoder = avro:make_simple_encoder(Type, []),
+  Object = [{"f1", 1}, {"f2", null}],
+  Objects = [Encoder(Object)],
+  Bin = iolist_to_binary(avro_ocf:make_ocf(Header, Objects)),
+  Hook = fun(Typ, _, Data, DecodeFun) ->
+    case avro:get_type_name(Typ) of
+      <<"null">> -> {<<"modifiedNull">>, Data};
+      _ -> DecodeFun(Data)
+    end
+  end,
+  Options = avro:make_decoder_options([{hook, Hook}]),
+  {_, _, Objs} = avro_ocf:decode_binary(Bin, Options),
+  ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"modifiedNull">>}]], Objs).
+
 test_data(FileName) ->
   filename:join([code:lib_dir(erlavro, test), "data", FileName]).
 
