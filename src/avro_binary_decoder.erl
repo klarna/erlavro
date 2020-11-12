@@ -77,11 +77,13 @@ decode_stream(IoData, Type, StoreOrLkupFun) ->
 %% bytes in a tuple.
 %% @end
 -spec decode_stream(iodata(), type_or_name(),
-                    schema_store() | lkup_fun(), hook()) ->
+                    schema_store() | lkup_fun(), hook() | decoder_options()) ->
         {avro:out(), binary()}.
-decode_stream(IoData, Type, StoreOrLkupFun, Hook) ->
-  do_decode(IoData, Type, avro_util:ensure_lkup_fun(StoreOrLkupFun),
-            avro:make_decoder_options([{hook, Hook}])).
+decode_stream(IoData, Type, StoreOrLkupFun, Hook) when is_function(Hook) ->
+  decode_stream(IoData, Type, StoreOrLkupFun,
+                avro:make_decoder_options([{hook, Hook}]));
+decode_stream(IoData, Type, StoreOrLkupFun, Options) when is_map(Options) ->
+  do_decode(IoData, Type, avro_util:ensure_lkup_fun(StoreOrLkupFun), Options).
 
 %%%_* Internal functions =======================================================
 
