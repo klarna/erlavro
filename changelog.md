@@ -1,3 +1,6 @@
+* 2.9.3
+   - Add OCF decoder hook
+   - Dialyzer fixes
 * 2.9.2
    - Move test files from priv to test/data
 * 2.9.1
