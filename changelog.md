@@ -1,3 +1,5 @@
+* 2.9.4
+   - Dropped `?MODULE` from required error in erlavro.hrl to allow elixir to extract record details
 * 2.9.3
    - Add OCF decoder hook
    - Dialyzer fixes

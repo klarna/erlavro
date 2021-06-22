@@ -48,7 +48,7 @@
          N =:= ?AVRO_DOUBLE  orelse
          N =:= ?AVRO_BYTES)).
 
--define(AVRO_REQUIRED, erlang:error({required_field_missed, ?MODULE, ?LINE})).
+-define(AVRO_REQUIRED, erlang:error({required_field_missed, ?LINE})).
 
 -define(AVRO_NS_GLOBAL, <<"">>).
 -define(AVRO_NO_DOC, <<"">>).
