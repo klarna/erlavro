@@ -129,6 +129,7 @@
              | integer()
              | float()
              | binary()
+             | map()
              | [avro:out()]
              | [{name(), avro:out()}].
 
