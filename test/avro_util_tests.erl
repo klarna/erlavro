@@ -48,7 +48,7 @@ tokens_ex_test() ->
   ?assertEqual(["ab", "cd"], tokens_ex("ab.cd", $.)).
 
 is_valid_name_test() ->
-  ValidNames = ["_", "a", "Aa1", "a_A"],
+  ValidNames = ["_", "a", "Aa1", "a_A", "a-A"],
   InvalidNames = ["", "1", " a", "a ", " a ", ".", "a.b.c"],
   [?assert(is_valid_name(Name)) || Name <- ValidNames],
   [?assertNot(is_valid_name(Name)) || Name <- InvalidNames].

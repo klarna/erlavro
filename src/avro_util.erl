@@ -560,7 +560,8 @@ is_valid_name_head(S) ->
 
 %% @private In addition to what applies to leading char, body char can be 0-9.
 is_valid_name_char(S) -> is_valid_name_head(S) orelse
-                         (S >= $0 andalso S =< $9).
+                         (S >= $0 andalso S =< $9) orelse
+                          S =:= $-.
 
 %% @private
 verify_type_name(Type) ->
