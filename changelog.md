@@ -1,3 +1,5 @@
+* 2.9.5
+   - Removed workarounds for OTP < 21
    - Add map() to the avro:out() union type
 * 2.9.4
    - Dropped `?MODULE` from required error in erlavro.hrl to allow elixir to extract record details
