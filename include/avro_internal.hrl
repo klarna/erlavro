@@ -20,7 +20,6 @@
 -define(AVRO_INTERNAL_HRL, true).
 
 -include("erlavro.hrl").
--include("avro_stacktrace.hrl").
 
 -define(INT4_MIN, -2147483648).
 -define(INT4_MAX,  2147483647).

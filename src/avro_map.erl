@@ -119,9 +119,9 @@ encode(Type, Value, EncodeFun) ->
                 try
                   EncodeFun(ItemsType, K, V)
                 catch
-                  C : E ?CAPTURE_STACKTRACE ->
+                  C : E : Stacktrace ->
                     ?RAISE_ENC_ERR(C, E, [{map, Type},
-                                          {key, K}], ?GET_STACKTRACE)
+                                          {key, K}], Stacktrace)
                 end
             end, Value).
 
