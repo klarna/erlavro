@@ -143,9 +143,10 @@ make_header(Type) ->
 %% @doc Make ocf header, and append the given metadata fields.
 %% You can use `&gt;&gt;"avro.codec"&lt;&lt;' metadata field to choose what data
 %% block coding should be used. Supported values are `&gt;&gt;"null"&lt;&lt;'
-%% (default) and `&gt;&gt;"deflate"&lt;&lt;' (compressed). Other values in
-%% `avro' namespace are reserved for internal use and can't be set.
-%% Other than that you are free to provide any custom metadata.
+%% (default), `&gt;&gt;"deflate"&lt;&lt;' (compressed) and 
+%% `&gt;&gt;"snappy"&lt;&lt;' (compressed). Other values in `avro' namespace
+%% are reserved for internal use and can't be set. Other than that you are 
+%% free to provide any custom metadata.
 %% @end
 -spec make_header(avro_type(), meta()) -> header().
 make_header(Type, Meta0) ->
@@ -212,6 +213,7 @@ is_reserved_meta_key(_)                     -> false.
 -spec is_invalid_codec_meta(binary(), binary()) -> boolean().
 is_invalid_codec_meta(<<"avro.codec">>, <<"null">>) -> false;
 is_invalid_codec_meta(<<"avro.codec">>, <<"deflate">>) -> false;
+is_invalid_codec_meta(<<"avro.codec">>, <<"snappy">>) -> false;
 is_invalid_codec_meta(<<"avro.codec">>, _) -> true;
 is_invalid_codec_meta(_, _) -> false.
 
@@ -253,9 +255,22 @@ decode_block(_Lkup, _Type, _Codec, <<>>, 0, Acc, _Options) -> Acc;
 decode_block(Lkup, Type, deflate, Bin, Count, Acc, Options) ->
   Decompressed = zlib:unzip(Bin),
   decode_block(Lkup, Type, null, Decompressed, Count, Acc, Options);
+decode_block(Lkup, Type, snappy, Bin, Count, Acc, Options) ->
+  Size = byte_size(Bin),
+  <<Compressed:(Size-4)/binary, Checksum:4/binary>> = Bin,
+  {ok, Decompressed} = snappyer:decompress(Compressed),
+  case is_valid_checksum(Decompressed, Checksum) of
+    true -> Decompressed;
+    false -> erlang:error({invalid_checksum, Decompressed})
+  end,
+  decode_block(Lkup, Type, null, Decompressed, Count, Acc, Options);
 decode_block(Lkup, Type, null, Bin, Count, Acc, Options) ->
   {Obj, Tail} = decode_stream(Lkup, Type, Bin, Options),
   decode_block(Lkup, Type, null, Tail, Count - 1, [Obj | Acc], Options).
+
+- spec is_valid_checksum(binary(), binary()) -> boolean().
+is_valid_checksum(Decompressed, Checksum) ->
+  binary:encode_unsigned(erlang:crc32(Decompressed)) =:= Checksum.
 
 %% Hand coded schema.
 %% {"type": "record", "name": "org.apache.avro.file.Header",
@@ -285,7 +300,9 @@ get_codec(Meta) ->
     {_, <<"null">>} ->
       null;
     {_, <<"deflate">>} ->
-      deflate
+      deflate;
+    {_, <<"snappy">>} ->
+      snappy
   end.
 
 %% Encode block according to selected codec
@@ -295,7 +312,11 @@ encode_block(Meta, Data) ->
     null ->
       iolist_to_binary(Data);
     deflate ->
-      zlib:zip(Data)
+      zlib:zip(Data);
+    snappy ->
+      Checksum = erlang:crc32(Data),
+      {ok, Bin} = snappyer:compress(Data),
+      iolist_to_binary([Bin, <<Checksum:32>>])
   end.
 
 %%%_* Emacs ====================================================================

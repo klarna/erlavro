@@ -62,6 +62,18 @@ decode_no_codec_file_test() ->
   ?assertEqual(<<"hey">>,
                proplists:get_value(<<"stringField">>, hd(Objects))).
 
+decode_snappy_file_test() ->
+  InteropOcfFile = test_data("interop_snappy.ocf"),
+  {Header, _Schema, Objects} = avro_ocf:decode_file(InteropOcfFile),
+  ?assertEqual(<<"snappy">>,
+               proplists:get_value(<<"avro.codec">>, Header#header.meta)),
+  ?assertEqual(<<"hey">>,
+               proplists:get_value(<<"stringField">>, hd(Objects))).
+
+decode_snappy_file_invalid_checksum_test() ->
+  InteropOcfFile = test_data("interop_snappy_invalid_checksum.ocf"),
+  ?assertException(error, {invalid_checksum, _}, avro_ocf:decode_file(InteropOcfFile)).
+
 write_file_test() ->
   OcfFile = test_data("my.ocf.test"),
   Store = undefined, %% should not require lookup
@@ -80,9 +92,22 @@ write_deflate_file_test() ->
   Fields = [ avro_record:define_field("f1", int, [])
            , avro_record:define_field("f2", string, [])
            ],
-  Type = avro_record:type("rec", Fields, [{namespace, "defalate.ocf.test"}]),
+  Type = avro_record:type("rec", Fields, [{namespace, "deflate.ocf.test"}]),
   Obj = [{"f1", 1}, {"f2", "foo"}],
   Meta = [{<<"avro.codec">>, <<"deflate">>}],
+  ok = avro_ocf:write_file(OcfFile, Store, Type, [Obj], Meta),
+  {_Header, Type, Objs} = avro_ocf:decode_file(OcfFile),
+  ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}]], Objs).
+
+write_snappy_file_test() ->
+  OcfFile = test_data("snappy.ocf.test"),
+  Store = undefined, %% should not require lookup
+  Fields = [ avro_record:define_field("f1", int, [])
+           , avro_record:define_field("f2", string, [])
+           ],
+  Type = avro_record:type("rec", Fields, [{namespace, "snappy.ocf.test"}]),
+  Obj = [{"f1", 1}, {"f2", "foo"}],
+  Meta = [{<<"avro.codec">>, <<"snappy">>}],
   ok = avro_ocf:write_file(OcfFile, Store, Type, [Obj], Meta),
   {_Header, Type, Objs} = avro_ocf:decode_file(OcfFile),
   ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"foo">>}]], Objs).
