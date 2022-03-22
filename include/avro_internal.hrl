@@ -99,7 +99,7 @@
 -type avro_json() :: jsone:json_object().
 -type avro_binary() :: iolist().
 
--type avro_codec() :: null | deflate.
+-type avro_codec() :: null | deflate | snappy.
 
 %% Type checks
 
