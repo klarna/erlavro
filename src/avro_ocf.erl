@@ -29,6 +29,8 @@
         , decode_binary/2
         , decode_file/1
         , decode_file/2
+        , encode_header/1
+        , make_block/2
         , make_header/1
         , make_header/2
         , make_ocf/2
@@ -169,8 +171,7 @@ make_ocf(Header, Objects) ->
   DataBytes = make_block(Header, Objects),
   [HeaderBytes, DataBytes].
 
-%%%_* Internal functions =======================================================
-
+%% @doc Encode the given ocf header.
 -spec encode_header(header()) -> iodata().
 encode_header(Header) ->
   HeaderFields =
@@ -181,6 +182,7 @@ encode_header(Header) ->
   HeaderRecord = avro_record:new(ocf_schema(), HeaderFields),
   avro_binary_encoder:encode_value(HeaderRecord).
 
+%% @doc Encode the given objects as one data block.
 -spec make_block(header(), [binary()]) -> iodata().
 make_block(Header, Objects) ->
   Count = length(Objects),
@@ -191,6 +193,8 @@ make_block(Header, Objects) ->
   , Data
   , Header#header.sync
   ].
+
+%%%_* Internal functions =======================================================
 
 %% Raise an exception if meta has a bad format.
 %% Otherwise return the formatted metadata entries
