@@ -22,7 +22,7 @@ case IsRebar3 of
                     {tag, proplists:get_value(jsone, Rebar3Deps)}}},
             {snappyer, ".*",
                 {git, "https://github.com/zmstone/snappyer",
-                    {tag, proplists:get_value(snappyer, Rebar3Deps)}}}        
+                    {tag, proplists:get_value(snappyer, Rebar3Deps)}}}
         ],
         lists:keyreplace(deps, 1, CONFIG, {deps, Rebar2Deps})
 end.

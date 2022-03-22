@@ -143,9 +143,9 @@ make_header(Type) ->
 %% @doc Make ocf header, and append the given metadata fields.
 %% You can use `&gt;&gt;"avro.codec"&lt;&lt;' metadata field to choose what data
 %% block coding should be used. Supported values are `&gt;&gt;"null"&lt;&lt;'
-%% (default), `&gt;&gt;"deflate"&lt;&lt;' (compressed) and 
+%% (default), `&gt;&gt;"deflate"&lt;&lt;' (compressed) and
 %% `&gt;&gt;"snappy"&lt;&lt;' (compressed). Other values in `avro' namespace
-%% are reserved for internal use and can't be set. Other than that you are 
+%% are reserved for internal use and can't be set. Other than that you are
 %% free to provide any custom metadata.
 %% @end
 -spec make_header(avro_type(), meta()) -> header().
