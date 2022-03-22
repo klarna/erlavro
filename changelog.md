@@ -1,3 +1,5 @@
+* 2.9.6
+   - Add snappy compression for OCF
 * 2.9.5
    - Removed workarounds for OTP < 21
    - Add map() to the avro:out() union type
