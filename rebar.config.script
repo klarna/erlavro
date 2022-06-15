@@ -1,6 +1,4 @@
-IsRebar3 = erlang:function_exported(rebar3, main, 1),
-
-CONFIG0 = case os:getenv("TRAVIS") of
+case os:getenv("TRAVIS") of
   "true" ->
     JobId   = os:getenv("TRAVIS_JOB_ID"),
     [{coveralls_service_job_id, JobId},
@@ -10,20 +8,3 @@ CONFIG0 = case os:getenv("TRAVIS") of
   _ ->
     CONFIG
 end.
-
-case IsRebar3 of
-    true ->
-        CONFIG0;
-    false ->
-        Rebar3Deps = proplists:get_value(deps, CONFIG),
-        Rebar2Deps = [
-            {jsone, ".*",
-                {git, "https://github.com/sile/jsone",
-                    {tag, proplists:get_value(jsone, Rebar3Deps)}}},
-            {snappyer, ".*",
-                {git, "https://github.com/zmstone/snappyer",
-                    {tag, proplists:get_value(snappyer, Rebar3Deps)}}}
-        ],
-        lists:keyreplace(deps, 1, CONFIG, {deps, Rebar2Deps})
-end.
-
