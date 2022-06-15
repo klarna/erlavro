@@ -1,4 +1,3 @@
-
 case os:getenv("TRAVIS") of
   "true" ->
     JobId   = os:getenv("TRAVIS_JOB_ID"),
@@ -9,4 +8,3 @@ case os:getenv("TRAVIS") of
   _ ->
     CONFIG
 end.
-
