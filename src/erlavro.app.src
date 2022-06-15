@@ -13,7 +13,7 @@
     {modules,[]},
     {licenses, ["Apache License 2.0"]},
     {links, [{"Github", "https://github.com/klarna/erlavro"}]},
-    {build_tools, ["make", "rebar", "rebar3"]},
+    {build_tools, ["make", "rebar3"]},
     {files, ["src", "include", "rebar.config", "rebar.config.script",
              "README.md", "LICENSE", "Makefile", "elvis.config"]}
   ]}.
