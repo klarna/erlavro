@@ -1,3 +1,5 @@
+* 2.9.8
+   - Removed support for Rebar 2
 * 2.9.7
    - Export OCF make_header and make_block functions
 * 2.9.6
