@@ -212,7 +212,7 @@ parse_record_field(Attrs) ->
   Aliases   = avro_util:get_opt(<<"aliases">>, Attrs, []),
   FieldType = parse_schema(Type),
   #avro_record_field
-  { name    = Name
+  { name    = ?NAME(Name)
   , doc     = Doc
   , type    = FieldType
   , default = Default

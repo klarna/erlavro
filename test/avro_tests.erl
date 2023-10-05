@@ -54,7 +54,16 @@ get_aliases_test() ->
   ?assertEqual([], avro:get_aliases(avro_primitive:null_type())),
   ?assertEqual([], avro:get_aliases(avro_union:type([int]))),
   ?assertEqual([], avro:get_aliases(avro_array:type(string))),
-  ?assertEqual([], avro:get_aliases(avro_map:type(long))).
+  ?assertEqual([], avro:get_aliases(avro_map:type(long))),
+  Record = avro_record:type(<<"MyRecord">>, [], [{aliases, [<<"MyAlias">>]}]),
+  ?assertEqual([<<"MyAlias">>], avro:get_aliases(Record)),
+  RecordField = avro_record:define_field(
+                  new_name, <<"string">>, [{aliases, [<<"old_name">>]}]),
+  ?assertEqual([<<"old_name">>], avro:get_aliases(RecordField)),
+  Enum = avro_enum:type("MyEnum", ["a", "b"], [{aliases, [<<"MyAlias">>]}]),
+  ?assertEqual([<<"MyAlias">>], avro:get_aliases(Enum)),
+  Fixed = avro_fixed:type("MyFixed", 2, [{aliases, [<<"MyAlias">>]}]),
+  ?assertEqual([<<"MyAlias">>], avro:get_aliases(Fixed)).
 
 get_type_namespace_test() ->
   ?assertEqual(?NS_GLOBAL, avro:get_type_namespace(avro_primitive:null_type())),

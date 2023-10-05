@@ -307,17 +307,19 @@ do_is_compatible(Reader, Writer, RPath, WPath)
   when ?IS_RECORD_TYPE(Reader) andalso ?IS_RECORD_TYPE(Writer) ->
   SameType = avro:is_same_type(Reader, Writer),
   ReaderTypes = avro_record:get_all_field_data(Reader),
-  WriterTypes = avro_record:get_all_field_data(Writer),
+  WriterTypesByName = maps:from_list(
+                        avro_record:get_all_field_types(Writer)),
   SameType andalso
     lists:all(
-      fun({FieldName, FieldType, Default}) ->
-          case lists:keysearch(FieldName, 1, WriterTypes) of
-            false ->
+      fun({FieldName, FieldAliases, FieldType, Default}) ->
+          case maps:to_list(maps:with([FieldName | FieldAliases],
+                                      WriterTypesByName)) of
+            [] ->
               Default =/= ?NO_VALUE orelse
                 erlang:throw({ reader_missing_defalut_value
                              , [{field, FieldName} |  WPath]
                              });
-            {value, {_, WriterType, _}} ->
+            [{_, WriterType}] ->  % let's not allow several fields to have same alias
               FieldDesc = {field, FieldName},
               do_is_compatible_next(FieldType, WriterType,
                                [FieldDesc | RPath],

@@ -308,7 +308,7 @@ avro_schema_compatible_record_test() ->
                             [ field("field0", <<"string">>) ]))
       )),
   ?assertMatch(
-     {false, {reader_missing_default_value, [<<"record0">>, {field,"field0"}]}},
+     {false, {reader_missing_default_value, [<<"record0">>, {field,<<"field0">>}]}},
      is_compatible(
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ])),
@@ -317,8 +317,8 @@ avro_schema_compatible_record_test() ->
       )),
   ?assertMatch(
      { false
-     , { not_compatible, [<<"record0">>, {field,"field0"}, <<"string">>]
-       , [<<"record0">>, {field,"field0"}, <<"int">>]}
+     , { not_compatible, [<<"record0">>, {field,<<"field0">>}, <<"string">>]
+       , [<<"record0">>, {field,<<"field0">>}, <<"int">>]}
      },
      is_compatible(
        mkschema(record_type("record0",
@@ -336,12 +336,12 @@ avro_schema_compatible_record_test() ->
   ?assertMatch(
      { false
      , { not_compatible
-       , [ <<"record0">>, {field,"field1"}
-         , <<"inner_record">>, {field,"inner_field"}
+       , [ <<"record0">>, {field,<<"field1">>}
+         , <<"inner_record">>, {field,<<"inner_field">>}
          , <<"int">>
          ]
-       , [ <<"record0">>, {field,"field1"}
-         , <<"inner_record">>, {field,"inner_field"}
+       , [ <<"record0">>, {field,<<"field1">>}
+         , <<"inner_record">>, {field,<<"inner_field">>}
          , <<"string">>
          ]}},
      is_compatible(
@@ -361,6 +361,40 @@ avro_schema_compatible_record_test() ->
                                                         <<"string">>)
                                                 ]))
                             ])))).
+
+avro_schema_compatible_type_name_aliases_test() ->
+  Samples =
+    [#{r => avro_record:type(<<"NewName">>, [], [{aliases, [<<"OldName">>]}]),
+       w => avro_record:type(<<"OldName">>, [])},
+     #{r => avro_enum:type("NewName", ["a", "b"], [{aliases, [<<"OldName">>]}]),
+       w => avro_enum:type("OldName", ["a", "b"])},
+     #{r => avro_fixed:type("NewName", 2, [{aliases, [<<"OldName">>]}]),
+       w => avro_fixed:type("OldName", 2)}],
+  lists:foreach(
+    fun(#{r := Reader, w := Writer}) ->
+        ?assert(
+           is_compatible(Reader, Writer),
+           [{reader, Reader}, {writer, Writer}])
+    end, Samples).
+
+
+avro_schema_compatible_record_field_name_aliases_test() ->
+  Reader = mkschema(
+             record_type("record0",
+                         [
+                          (field("new_name", <<"string">>))#{aliases => [<<"old_name">>]}
+                         ])),
+  Writer = mkschema(
+             record_type("record0",
+                         [
+                          field("old_name", <<"string">>)
+                         ])),
+  %% Data encoded by older Writer schema can be read by newer Reader schema
+  ?assert(is_compatible(Reader, Writer)),
+  %% But data encoded by the newer schema can NOT be read by old schema
+  ?assertEqual({false, {reader_missing_default_value, [<<"record0">>, {field, <<"old_name">>}]}},
+               is_compatible(Writer, Reader)).
+
 
 primitive_type(Type) ->
   #{ type => Type }.
