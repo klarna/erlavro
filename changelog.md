@@ -1,3 +1,6 @@
+* 2.9.9
+   - Enable builds with gcc-13
+   - Improve `@aliases` support
 * 2.9.8
    - Removed support for Rebar 2
 * 2.9.7
