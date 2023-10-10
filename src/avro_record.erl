@@ -162,16 +162,18 @@ get_all_field_types(Type) when ?IS_RECORD_TYPE(Type) ->
 %% in a triple list.
 %% @end
 -spec get_all_field_data(avro_type()) -> [ {field_name()
+                                         , [field_name()]
                                          , type_or_name()
                                          , ?NO_VALUE | avro:in() | avro_value()
                                          }].
 get_all_field_data(#avro_record_type{fields = Fields}) ->
   lists:map(
     fun(#avro_record_field{ name = FieldName
+                          , aliases = Aliases
                           , type = FieldTypeOrName
                           , default = Default
                           }) ->
-        {FieldName, FieldTypeOrName, Default}
+        {FieldName, Aliases, FieldTypeOrName, Default}
     end, Fields).
 
 %% @doc Parse fields' default values.

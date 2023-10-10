@@ -432,6 +432,7 @@ get_aliases(#avro_fixed_type{aliases = Aliases})  -> Aliases;
 get_aliases(#avro_map_type{})                     -> [];
 get_aliases(#avro_primitive_type{})               -> [];
 get_aliases(#avro_record_type{aliases = Aliases}) -> Aliases;
+get_aliases(#avro_record_field{aliases = Aliases}) -> Aliases;
 get_aliases(#avro_union_type{})                   -> [].
 
 %% @doc Get custom type properties such as logical type info. Lookup fun
@@ -526,8 +527,13 @@ is_same_type(T1, T2) when ?IS_UNION_TYPE(T1) andalso
               end, lists:zip(Members1, Members2));
 is_same_type(T1, T2) ->
   %% Named types and primitive types fall into this clause
-  %% Should be enough to just compare their names
-  get_type_fullname(T1) =:= get_type_fullname(T2).
+  %% Should be enough to just compare their names or aliases
+  Aliases = fun(T) when ?IS_NAME_RAW(T) -> [];
+               (T) -> get_aliases(T)
+            end,
+  ordsets:intersection(
+    ordsets:from_list([get_type_fullname(T1) | Aliases(T1)]),
+    ordsets:from_list([get_type_fullname(T2) | Aliases(T2)])) =/= [].
 
 
 %% @doc Check whether two schemas are compatible in sense that data
