@@ -528,12 +528,30 @@ is_same_type(T1, T2) when ?IS_UNION_TYPE(T1) andalso
 is_same_type(T1, T2) ->
   %% Named types and primitive types fall into this clause
   %% Should be enough to just compare their names or aliases
-  Aliases = fun(T) when ?IS_NAME_RAW(T) -> [];
-               (T) -> get_aliases(T)
-            end,
-  ordsets:intersection(
-    ordsets:from_list([get_type_fullname(T1) | Aliases(T1)]),
-    ordsets:from_list([get_type_fullname(T2) | Aliases(T2)])) =/= [].
+  Fullname1 = get_type_fullname(T1),
+  Fullname2 = get_type_fullname(T2),
+  case Fullname1 =:= Fullname2 of
+    true -> true;
+    false ->
+      Aliases = fun(T) when ?IS_NAME_RAW(T) -> [];
+                   (T) -> get_aliases(T)
+                end,
+      case {Aliases(T1), Aliases(T2)} of
+        {[], []} -> false;
+        {Aliases1, Aliases2} ->
+          %% Check if [Fullname1 | Aliases1] and [Fullname2 | Aliases2] have a
+          %% non-empty intersection. These lists are always very short.
+          is_nonempty_intersection([Fullname1 | Aliases1], [Fullname2 | Aliases2])
+      end
+  end.
+
+%% Use this only for very short lists.
+is_nonempty_intersection([X | Xs], Ys) ->
+  case lists:member(X, Ys) of
+    true -> true;
+    false -> is_nonempty_intersection(Xs, Ys)
+  end;
+is_nonempty_intersection([], _Ys) -> false.
 
 
 %% @doc Check whether two schemas are compatible in sense that data
