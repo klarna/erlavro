@@ -1,3 +1,6 @@
+* 2.9.10
+   - Optimize avro:is_same_type/2
+   - Upgrade jsone to 1.8.1
 * 2.9.9
    - Enable builds with gcc-13
    - Improve `@aliases` support
