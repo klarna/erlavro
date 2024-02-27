@@ -223,8 +223,8 @@ new_ets(Options) ->
 -spec add_by_assigned_name(undefined | name_raw(),
                            type_or_name(), store()) -> store().
 add_by_assigned_name(undefined, _Type, Store) -> Store;
-add_by_assigned_name(AssignedName, Type, Store) ->
-  do_add_type_by_names([?NAME(AssignedName)], Type, Store).
+add_by_assigned_name(AssignedName, TypeOrName, Store) ->
+  add_type_by_name(?NAME(AssignedName), TypeOrName, Store).
 
 %% @private Parse file basename. try to strip ".avsc" or ".json" extension.
 -spec parse_basename(filename()) -> name().
@@ -252,13 +252,19 @@ import_schema_json(AssignedName, Json, Store) ->
 do_add_type(Type, Store) ->
   FullName = avro:get_type_fullname(Type),
   Aliases = avro:get_aliases(Type),
-  do_add_type_by_names([FullName|Aliases], Type, Store).
+  Store1 = add_type_by_name(FullName, Type, Store),
+  add_aliases(Aliases, FullName, Store1).
+
+add_aliases([], _FullName, Store) ->
+  Store;
+add_aliases([Alias | More], FullName, Store) ->
+  NewStore = put_type_to_store(Alias, FullName, Store),
+  add_aliases(More, FullName, NewStore).
 
 %% @private
--spec do_add_type_by_names([fullname()], avro_type(), store()) ->
+-spec add_type_by_name([fullname()], avro_type(), store()) ->
         store() | no_return().
-do_add_type_by_names([], _Type, Store) -> Store;
-do_add_type_by_names([Name|Rest], Type, Store) ->
+add_type_by_name(Name, Type, Store) ->
   case get_type_from_store(Name, Store) of
     {ok, Type} ->
       Store;
@@ -268,12 +274,11 @@ do_add_type_by_names([Name|Rest], Type, Store) ->
       %% old / new types.
       erlang:error({name_clash, Name, Type, OtherType});
     false   ->
-      Store1 = put_type_to_store(Name, Type, Store),
-      do_add_type_by_names(Rest, Type, Store1)
+      put_type_to_store(Name, Type, Store)
   end.
 
 %% @private
--spec put_type_to_store(fullname(), avro_type(), store()) -> store().
+-spec put_type_to_store(fullname(), name() | avro_type(), store()) -> store().
 put_type_to_store(Name, Type, {dict, Dict}) ->
   NewDict = dict:store(Name, Type, Dict),
   {dict, NewDict};
@@ -283,19 +288,31 @@ put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
   Store.
 
-%% @private
+%% @private Get type by name or alias.
 -spec get_type_from_store(fullname(), store()) -> false | {ok, avro_type()}.
-get_type_from_store(Name, {dict, Dict}) ->
+get_type_from_store(NameRef, Store) ->
+  case do_get_type_from_store(NameRef, Store) of
+    false ->
+      false;
+    {ok, FullName} when is_binary(FullName) ->
+      do_get_type_from_store(FullName, Store);
+    {ok, Type} ->
+      {ok, Type}
+  end.
+
+%% @private
+-spec do_get_type_from_store(fullname(), store()) -> false | {ok, fullname() | avro_type()}.
+do_get_type_from_store(Name, {dict, Dict}) ->
   case dict:find(Name, Dict) of
     error -> false;
     {ok, Type} -> {ok, Type}
   end;
-get_type_from_store(Name, Map) when is_map(Map) ->
-  case maps:get(Name, Map, error) of
+do_get_type_from_store(Name, Map) when is_map(Map) ->
+  case maps:find(Name, Map) of
     error -> false;
-    Type -> {ok, Type}
+    {ok, Type} -> {ok, Type}
   end;
-get_type_from_store(Name, Store) ->
+do_get_type_from_store(Name, Store) ->
   case ets:lookup(Store, Name) of
     []             -> false;
     [{Name, Type}] -> {ok, Type}

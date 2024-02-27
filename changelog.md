@@ -1,5 +1,6 @@
 * 2.10.0
    - Add map as avro store, and use it as default.
+   - Changed to store type aliases as type's full name index, so the type store map (or dict) is less bloated.
 * 2.9.10
    - Optimize avro:is_same_type/2
    - Upgrade jsone to 1.8.1
