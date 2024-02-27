@@ -337,7 +337,7 @@ wrapped_union_cast_test() ->
   Rec1 = avro_record:type("rec1", [avro_record:define_field("f1", int)]),
   Rec2 = avro_record:type("rec2", [avro_record:define_field("f1", int)]),
   Union = avro_union:type(["rec1", "rec2"]),
-  Store0 = avro_schema_store:new([dict]),
+  Store0 = avro_schema_store:new([map]),
   Store1 = avro_schema_store:add_type(Rec1, Store0),
   Store = avro_schema_store:add_type(Rec2, Store1),
   Lkup = avro_util:ensure_lkup_fun(Store),

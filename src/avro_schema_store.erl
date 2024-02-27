@@ -62,8 +62,8 @@
 
 -include("avro_internal.hrl").
 
--opaque store() :: ets:tab() | {dict, dict:dict()}.
--type option_key() :: access | name | dict.
+-type store() :: ets:tab() | {dict, dict:dict()} | map().
+-type option_key() :: access | name | dict | map.
 -type options() :: [option_key() | {option_key(), term()}].
 -type filename() :: file:filename_all().
 
@@ -81,12 +81,20 @@ new() -> new([]).
 %%    mode in ets:new and defines what processes can have access to
 %%  * `{name, atom()}' - used to create a named ets table.
 %%  * `dict' - use dict as store backend, ignore `access' and `name' options
+%%  * `map' - use map as store backend, ignore `access' and `name' options
 %% @end
 -spec new(options()) -> store().
 new(Options) ->
   case proplists:get_bool(dict, Options) of
-    true -> {dict, dict:new()};
-    false -> new_ets(Options)
+    true ->
+          {dict, dict:new()};
+    false ->
+          case proplists:get_bool(map, Options) of
+              true ->
+                  #{};
+              false ->
+                new_ets(Options)
+          end
   end.
 
 %% @doc Create a new schema store and improt the given schema JSON files.
@@ -98,6 +106,7 @@ new(Options, Files) ->
 %% @doc Return true if the given arg is a schema store.
 -spec is_store(term()) -> boolean().
 is_store({dict, _}) -> true;
+is_store(Map) when is_map(Map) -> true;
 is_store(T) -> is_integer(T) orelse is_atom(T) orelse is_reference(T).
 
 %% @doc Make a schema lookup function from store.
@@ -143,12 +152,13 @@ import_schema_json(Json, Store) ->
 %% @doc Delete the ets table.
 -spec close(store()) -> ok.
 close({dict, _}) -> ok;
+close(Map) when is_map(Map) -> ok;
 close(Store) ->
   ets:delete(Store),
   ok.
 
 %% @doc To make dialyzer happy.
--spec ensure_store(atom() | integer() | reference() | {dict, dict:dict()}) ->
+-spec ensure_store(atom() | integer() | reference() | store()) ->
         store().
 ensure_store(Store) ->
   true = is_store(Store),
@@ -194,6 +204,7 @@ get_all_types(Store) ->
 
 -spec to_list(store()) -> [{name(), avro_type()}].
 to_list({dict, Dict}) -> dict:to_list(Dict);
+to_list(Map) when is_map(Map) -> maps:to_list(Map);
 to_list(Store) -> ets:tab2list(Store).
 
 -spec new_ets(options()) -> store().
@@ -266,6 +277,8 @@ do_add_type_by_names([Name|Rest], Type, Store) ->
 put_type_to_store(Name, Type, {dict, Dict}) ->
   NewDict = dict:store(Name, Type, Dict),
   {dict, NewDict};
+put_type_to_store(Name, Type, Map) when is_map(Map) ->
+  Map#{Name => Type};
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
   Store.
@@ -276,6 +289,11 @@ get_type_from_store(Name, {dict, Dict}) ->
   case dict:find(Name, Dict) of
     error -> false;
     {ok, Type} -> {ok, Type}
+  end;
+get_type_from_store(Name, Map) when is_map(Map) ->
+  case maps:get(Name, Map, error) of
+    error -> false;
+    Type -> {ok, Type}
   end;
 get_type_from_store(Name, Store) ->
   case ets:lookup(Store, Name) of

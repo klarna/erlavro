@@ -35,11 +35,13 @@ get_all_types_test() ->
       ok = avro_schema_store:close(Store)
     end,
   ok = TestFun(avro_schema_store:new([{name, ?MODULE}])),
-  ok = TestFun(avro_schema_store:new([dict])).
+  ok = TestFun(avro_schema_store:new([dict])),
+  ok = TestFun(avro_schema_store:new([map])).
 
 is_store_test() ->
   ?assertNot(avro_schema_store:is_store(<<"json">>)),
   ?assert(avro_schema_store:is_store(avro_schema_store:new([dict]))),
+  ?assert(avro_schema_store:is_store(avro_schema_store:new([map]))),
   ?assert(avro_schema_store:is_store(avro_schema_store:new([]))).
 
 ensure_store_test() ->
@@ -52,7 +54,8 @@ ensure_store_test() ->
   ?assertEqual(1, avro_schema_store:ensure_store(1)),
   ?assertEqual(atom, avro_schema_store:ensure_store(atom)),
   ?assertEqual({dict, dict:new()},
-               avro_schema_store:ensure_store({dict, dict:new()})).
+               avro_schema_store:ensure_store({dict, dict:new()})),
+  ?assertEqual(#{}, avro_schema_store:ensure_store(#{})).
 
 flatten_type_test() ->
   Type = avro_array:type(test_record()),
@@ -81,7 +84,8 @@ add_type_test() ->
         ok = avro_schema_store:close(Store1)
     end,
   ok = TestFun(avro_schema_store:new()),
-  ok = TestFun(avro_schema_store:new([dict])).
+  ok = TestFun(avro_schema_store:new([dict])),
+  ok = TestFun(avro_schema_store:new([map])).
 
 lookup(Name, Store) ->
   avro_schema_store:lookup_type(Name, Store).
