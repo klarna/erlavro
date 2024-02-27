@@ -347,7 +347,10 @@ do_encode_value(Array) when ?IS_ARRAY_VALUE(Array) ->
   lists:map(fun do_encode_value/1, ?AVRO_VALUE_DATA(Array));
 do_encode_value(Map) when ?IS_MAP_VALUE(Map) ->
   L = avro_map:to_list(Map),
-  lists:map(fun encode_field_with_value/1, L);
+  lists:foldl(fun (X, Acc) ->
+                  {Key, Value} = encode_field_with_value(X),
+                  maps:put(Key, Value, Acc)
+              end, #{}, L);
 do_encode_value(Fixed) when ?IS_FIXED_VALUE(Fixed) ->
   %% jsone treats binary as utf8 string
   ?INLINE(encode_binary(?AVRO_VALUE_DATA(Fixed)));

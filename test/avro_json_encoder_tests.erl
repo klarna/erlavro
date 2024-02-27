@@ -249,6 +249,16 @@ encode_map_test() ->
   ?assertEqual(<<"{\"v1\":{\"int\":1},\"v2\":null,\"v3\":{\"int\":2}}">>,
                Json1).
 
+encode_empty_map_test() ->
+  MapType = avro_map:type(avro_union:type([int, null])),
+  MapValue0 = avro_map:new(MapType, []),
+  Json0 = encode_value(MapValue0),
+  ?assertEqual(<<"{}">>, Json0),
+
+  MapValue1 = avro_map:new(MapType, #{}),
+  Json1 = encode_value(MapValue1),
+  ?assertEqual(<<"{}">>, Json1).
+
 encode_fixed_type_test() ->
   Type = avro_fixed:type("FooBar", 2,
                          [ {namespace, "name.space"}
