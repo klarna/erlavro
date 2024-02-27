@@ -83,10 +83,10 @@ ensure_lkup_fun(Sc) ->
     false -> make_lkup_fun(?ASSIGNED_NAME, Sc)
   end.
 
-%% @doc Make a schema store (dict based) and wrap it in a lookup fun.
+%% @doc Make a schema store (map based) and wrap it in a lookup fun.
 -spec make_lkup_fun(name_raw(), avro_type()) -> lkup().
 make_lkup_fun(AssignedName, Type) ->
-  Store0 = avro_schema_store:new([dict]),
+  Store0 = avro_schema_store:new([map]),
   Store = avro_schema_store:add_type(AssignedName, Type, Store0),
   avro_schema_store:to_lookup_fun(Store).
 

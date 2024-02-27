@@ -62,8 +62,8 @@
 
 -include("avro_internal.hrl").
 
--opaque store() :: ets:tab() | {dict, dict:dict()}.
--type option_key() :: access | name | dict.
+-type store() :: ets:tab() | {dict, dict:dict()} | map().
+-type option_key() :: access | name | dict | map.
 -type options() :: [option_key() | {option_key(), term()}].
 -type filename() :: file:filename_all().
 
@@ -81,12 +81,20 @@ new() -> new([]).
 %%    mode in ets:new and defines what processes can have access to
 %%  * `{name, atom()}' - used to create a named ets table.
 %%  * `dict' - use dict as store backend, ignore `access' and `name' options
+%%  * `map' - use map as store backend, ignore `access' and `name' options
 %% @end
 -spec new(options()) -> store().
 new(Options) ->
   case proplists:get_bool(dict, Options) of
-    true -> {dict, dict:new()};
-    false -> new_ets(Options)
+    true ->
+          {dict, dict:new()};
+    false ->
+          case proplists:get_bool(map, Options) of
+              true ->
+                  #{};
+              false ->
+                new_ets(Options)
+          end
   end.
 
 %% @doc Create a new schema store and improt the given schema JSON files.
@@ -98,6 +106,7 @@ new(Options, Files) ->
 %% @doc Return true if the given arg is a schema store.
 -spec is_store(term()) -> boolean().
 is_store({dict, _}) -> true;
+is_store(Map) when is_map(Map) -> true;
 is_store(T) -> is_integer(T) orelse is_atom(T) orelse is_reference(T).
 
 %% @doc Make a schema lookup function from store.
@@ -143,12 +152,13 @@ import_schema_json(Json, Store) ->
 %% @doc Delete the ets table.
 -spec close(store()) -> ok.
 close({dict, _}) -> ok;
+close(Map) when is_map(Map) -> ok;
 close(Store) ->
   ets:delete(Store),
   ok.
 
 %% @doc To make dialyzer happy.
--spec ensure_store(atom() | integer() | reference() | {dict, dict:dict()}) ->
+-spec ensure_store(atom() | integer() | reference() | store()) ->
         store().
 ensure_store(Store) ->
   true = is_store(Store),
@@ -194,6 +204,7 @@ get_all_types(Store) ->
 
 -spec to_list(store()) -> [{name(), avro_type()}].
 to_list({dict, Dict}) -> dict:to_list(Dict);
+to_list(Map) when is_map(Map) -> maps:to_list(Map);
 to_list(Store) -> ets:tab2list(Store).
 
 -spec new_ets(options()) -> store().
@@ -212,8 +223,8 @@ new_ets(Options) ->
 -spec add_by_assigned_name(undefined | name_raw(),
                            type_or_name(), store()) -> store().
 add_by_assigned_name(undefined, _Type, Store) -> Store;
-add_by_assigned_name(AssignedName, Type, Store) ->
-  do_add_type_by_names([?NAME(AssignedName)], Type, Store).
+add_by_assigned_name(AssignedName, TypeOrName, Store) ->
+  add_type_by_name(?NAME(AssignedName), TypeOrName, Store).
 
 %% @private Parse file basename. try to strip ".avsc" or ".json" extension.
 -spec parse_basename(filename()) -> name().
@@ -241,13 +252,19 @@ import_schema_json(AssignedName, Json, Store) ->
 do_add_type(Type, Store) ->
   FullName = avro:get_type_fullname(Type),
   Aliases = avro:get_aliases(Type),
-  do_add_type_by_names([FullName|Aliases], Type, Store).
+  Store1 = add_type_by_name(FullName, Type, Store),
+  add_aliases(Aliases, FullName, Store1).
+
+add_aliases([], _FullName, Store) ->
+  Store;
+add_aliases([Alias | More], FullName, Store) ->
+  NewStore = put_type_to_store(Alias, FullName, Store),
+  add_aliases(More, FullName, NewStore).
 
 %% @private
--spec do_add_type_by_names([fullname()], avro_type(), store()) ->
+-spec add_type_by_name([fullname()], avro_type(), store()) ->
         store() | no_return().
-do_add_type_by_names([], _Type, Store) -> Store;
-do_add_type_by_names([Name|Rest], Type, Store) ->
+add_type_by_name(Name, Type, Store) ->
   case get_type_from_store(Name, Store) of
     {ok, Type} ->
       Store;
@@ -257,27 +274,45 @@ do_add_type_by_names([Name|Rest], Type, Store) ->
       %% old / new types.
       erlang:error({name_clash, Name, Type, OtherType});
     false   ->
-      Store1 = put_type_to_store(Name, Type, Store),
-      do_add_type_by_names(Rest, Type, Store1)
+      put_type_to_store(Name, Type, Store)
   end.
 
 %% @private
--spec put_type_to_store(fullname(), avro_type(), store()) -> store().
+-spec put_type_to_store(fullname(), name() | avro_type(), store()) -> store().
 put_type_to_store(Name, Type, {dict, Dict}) ->
   NewDict = dict:store(Name, Type, Dict),
   {dict, NewDict};
+put_type_to_store(Name, Type, Map) when is_map(Map) ->
+  Map#{Name => Type};
 put_type_to_store(Name, Type, Store) ->
   true = ets:insert(Store, {Name, Type}),
   Store.
 
-%% @private
+%% @private Get type by name or alias.
 -spec get_type_from_store(fullname(), store()) -> false | {ok, avro_type()}.
-get_type_from_store(Name, {dict, Dict}) ->
+get_type_from_store(NameRef, Store) ->
+  case do_get_type_from_store(NameRef, Store) of
+    false ->
+      false;
+    {ok, FullName} when is_binary(FullName) ->
+      do_get_type_from_store(FullName, Store);
+    {ok, Type} ->
+      {ok, Type}
+  end.
+
+%% @private
+-spec do_get_type_from_store(fullname(), store()) -> false | {ok, fullname() | avro_type()}.
+do_get_type_from_store(Name, {dict, Dict}) ->
   case dict:find(Name, Dict) of
     error -> false;
     {ok, Type} -> {ok, Type}
   end;
-get_type_from_store(Name, Store) ->
+do_get_type_from_store(Name, Map) when is_map(Map) ->
+  case maps:find(Name, Map) of
+    error -> false;
+    {ok, Type} -> {ok, Type}
+  end;
+do_get_type_from_store(Name, Store) ->
   case ets:lookup(Store, Name) of
     []             -> false;
     [{Name, Type}] -> {ok, Type}
