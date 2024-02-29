@@ -262,7 +262,7 @@ add_aliases([Alias | More], FullName, Store) ->
   add_aliases(More, FullName, NewStore).
 
 %% @private
--spec add_type_by_name([fullname()], avro_type(), store()) ->
+-spec add_type_by_name(fullname(), avro_type(), store()) ->
         store() | no_return().
 add_type_by_name(Name, Type, Store) ->
   case get_type_from_store(Name, Store) of
