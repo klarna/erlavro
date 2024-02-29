@@ -1,3 +1,5 @@
+* 2.10.1
+   - Fix dialyzer error.
 * 2.10.0
    - Add map as avro store, and use it as default.
    - Changed to store type aliases as type's full name index, so the type store map (or dict) is less bloated.
