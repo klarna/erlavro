@@ -1,0 +1,24 @@
+name: Erlang CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    container:
+      image: erlang:26
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run tests
+      run: make eunit && make cover
