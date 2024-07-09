@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2013-2018 Klarna AB
+%%% Copyright (c) 2013-2024 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
