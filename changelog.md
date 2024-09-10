@@ -1,3 +1,5 @@
+* 2.10.2
+   - Fix bytes and fixed JSON value decode
 * 2.10.1
    - Fix dialyzer error.
 * 2.10.0
