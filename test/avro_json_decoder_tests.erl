@@ -1,6 +1,6 @@
 %% coding: latin-1
 %%%-------------------------------------------------------------------
-%%% Copyright (c) 2013-2018 Klarna AB
+%%% Copyright (c) 2013-2024 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -235,9 +235,23 @@ parse_fixed_type_test() ->
   ?assertEqual(ExpectedType, Fixed).
 
 parse_bytes_value_test() ->
-  Json = <<"\\u0010\\u0000\\u00FF">>,
-  Value = parse_value(Json, avro_primitive:bytes_type(), none),
+  RawJson = <<"{\"a\":\"\\u0010\\u0000\\u00FF\"}">>,
+  #{<<"a">> := Bytes} = jsone:decode(RawJson),
+  ?assertEqual([16,0,255], unicode:characters_to_list(Bytes, utf8)),
+  Value = parse_value(Bytes, avro_primitive:bytes_type(), none),
   ?assertEqual(avro_primitive:bytes(<<16,0,255>>), Value).
+
+bytes_value_encode_decode_test() ->
+  Fields = [avro_record:define_field("a", bytes)],
+  Schema = avro_record:type("Test", Fields, [{namespace, "name.space"}]),
+  Bytes = iolist_to_binary(lists:seq(0, 255)),
+  Record = avro_record:new(Schema, [{"a", Bytes}]),
+  Json = avro_json_encoder:encode_value(Record),
+  Lkup = fun(_) -> Schema end,
+  Opts = avro:make_decoder_options([{is_wrapped, false}]),
+  Decoded = avro_json_decoder:decode_value(Json, Schema, Lkup, Opts),
+  ?assertEqual([{<<"a">>, Bytes}], Decoded),
+  ok.
 
 parse_record_value_test() ->
   %% This test also tests parsing other types inside the record
@@ -337,11 +351,13 @@ parse_map_value_test() ->
 
 parse_fixed_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
-  Json = <<"\\u0001\\u007f">>,
+  RawJson = <<"{\"a\":\"\\u0001\\u007f\"}">>,
+  #{<<"a">> := Bytes} = jsone:decode(RawJson),
+  ?assertEqual([1,127], unicode:characters_to_list(Bytes, utf8)),
   ExpectedValue = avro_fixed:new(Type, <<1,127>>),
-  ?assertEqual(ExpectedValue, parse_value(Json, Type, none)),
+  ?assertEqual(ExpectedValue, parse_value(Bytes, Type, none)),
   ?assertEqual(<<1,127>>,
-               parse(Json, Type, none,
+               parse(Bytes, Type, none,
                      avro:make_decoder_options([{is_wrapped, false}]))).
 
 parse_value_with_lkup_fun_test() ->

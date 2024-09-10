@@ -1,5 +1,5 @@
 %%%-----------------------------------------------------------------------------
-%%% Copyright (c) 2013-2018 Klarna AB
+%%% Copyright (c) 2013-2024 Klarna AB
 %%%
 %%% This file is provided to you under the Apache License,
 %%% Version 2.0 (the "License"); you may not use this file
@@ -371,16 +371,18 @@ parse_prim(V, Type) when ?IS_STRING_TYPE(Type) andalso
                          is_binary(V) ->
   avro_primitive:string(V).
 
+%% Avro bytes and fixed type values are encoded as \u escaped string
+%% e.g. \u00ff for 255.
+%% The JSON library (jsone) however, tries to decode it as utf8 strings
+%% here we try to revert it.
 -spec parse_bytes(binary()) -> binary().
-parse_bytes(BytesStr) ->
-  list_to_binary(parse_bytes(BytesStr, [])).
-
--spec parse_bytes(binary(), [byte()]) -> [byte()].
-parse_bytes(<<>>, Acc) ->
-  lists:reverse(Acc);
-parse_bytes(<<"\\u00", B1, B0, Rest/binary>>, Acc) ->
-  Byte = erlang:list_to_integer([B1, B0], 16),
-  parse_bytes(Rest, [Byte | Acc]).
+parse_bytes(Bytes) ->
+  Original = unicode:characters_to_list(Bytes, utf8),
+  try
+    iolist_to_binary(Original)
+  catch _:_ ->
+    error({invalid_bytes_value, Bytes})
+  end.
 
 -spec parse_record(json_value(), record_type(),
                    lkup_fun(), decoder_options()) ->
