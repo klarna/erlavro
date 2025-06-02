@@ -54,8 +54,8 @@
 
 -include("avro_internal.hrl").
 
--type id2type() :: gb_trees:tree(union_index(), type_or_name()).
--type name2id() :: gb_trees:tree(name(), {union_index(), boolean()}).
+-type id2type() :: #{union_index() => type_or_name()}.
+-type name2id() :: #{name() => {union_index(), boolean()}}.
 -type encode_result() :: avro_binary() | avro_json().
 -type encode_fun() :: fun((avro_type(), avro:in(),
                            union_index()) -> encode_result()).
@@ -70,7 +70,10 @@
 %% @end
 -spec type([type_or_name()]) -> union_type() | no_return().
 type([]) ->
-  erlang:error(<<"union should have at least one member type">>);
+  #avro_array_type
+  { id2type = #{}
+  , name2id = {}
+  };
 type([_ | _ ] = Types0) ->
   IsUnion = fun(T) -> ?IS_UNION_TYPE(T) end,
   lists:any(IsUnion, Types0) andalso
@@ -81,8 +84,8 @@ type([_ | _ ] = Types0) ->
   Name2Id = build_name_to_id(IndexedTypes),
   ok = assert_no_duplicated_names(Name2Id, []),
   #avro_union_type
-  { id2type = gb_trees:from_orddict(IndexedTypes)
-  , name2id = gb_trees:from_orddict(orddict:from_list(Name2Id))
+  { id2type = maps:from_list(IndexedTypes)
+  , name2id = maps:from_list(Name2Id)
   }.
 
 %% @doc Resolve fullname by newly discovered enclosing namespace.
@@ -103,17 +106,14 @@ update_member_types(T0, F) ->
 %% @doc Get the union member types in a list.
 -spec get_types(union_type()) -> [avro_type()].
 get_types(#avro_union_type{id2type = IndexedTypes}) ->
-  {_Ids, Types} = lists:unzip(gb_trees:to_list(IndexedTypes)),
+  {_Ids, Types} = lists:unzip(lists:keysort(1, maps:to_list(IndexedTypes))),
   Types.
 
 %% @doc Search for a union member by its index or full name.
 -spec lookup_type(name_raw() | union_index(), union_type()) ->
         {ok, avro_type() | name()} | false.
 lookup_type(Id, #avro_union_type{id2type = Types}) when is_integer(Id) ->
-  case gb_trees:lookup(Id, Types) of
-    {value, Type} -> {ok, Type};
-    none          -> false
-  end;
+  maps:is_key(Id, Types) andalso {ok, maps:get(Id, Types)};
 lookup_type(Name, Union) when ?IS_NAME(Name) ->
   case lookup_index(Name, Union) of
     {ok, {_Id, true}} -> {ok, avro:name2type(Name)};
@@ -241,10 +241,7 @@ try_encode_union_loop(UnionType, [MemberT | Rest], Value, Index, EncodeFun) ->
 -spec lookup_index(name(), union_type()) ->
         {ok, {union_index(), boolean()}} | false.
 lookup_index(Name, #avro_union_type{name2id = Ids}) when ?IS_NAME_RAW(Name) ->
-  case gb_trees:lookup(?NAME(Name), Ids) of
-    {value, Id} -> {ok, Id};
-    none        -> false
-  end.
+  maps:is_key(?NAME(Name), Ids) andalso {ok, maps:get(?NAME(Name), Ids)}.
 
 %% @private
 -spec do_cast(union_type(), {name(), avro_value()} | avro:in()) ->
