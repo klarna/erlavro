@@ -172,7 +172,7 @@ decoder_hook_test() ->
   ?assertEqual([[{<<"f1">>, 1}, {<<"f2">>, <<"modifiedNull">>}]], Objs).
 
 test_data(FileName) ->
-  filename:join([code:lib_dir(erlavro, test), "data", FileName]).
+  filename:join([code:lib_dir(erlavro), "test", "data", FileName]).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

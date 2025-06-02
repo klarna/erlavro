@@ -64,15 +64,14 @@
 
 %% @doc Define a union type.
 %% Exception when any of the below constraints is violated:
-%% 1. A union should have at least one member and no duplication
-%% 2. Union should no have union as direct member
-%% 3. No duplicated types are allowed in members
+%% 1. Union should no have union as direct member
+%% 2. No duplicated types are allowed in members
 %% @end
 -spec type([type_or_name()]) -> union_type() | no_return().
 type([]) ->
-  #avro_array_type
+  #avro_union_type
   { id2type = #{}
-  , name2id = {}
+  , name2id = #{}
   };
 type([_ | _ ] = Types0) ->
   IsUnion = fun(T) -> ?IS_UNION_TYPE(T) end,
