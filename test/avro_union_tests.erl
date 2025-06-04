@@ -79,10 +79,6 @@ to_term_test() ->
   ?assertEqual(null, avro:to_term(Value1)),
   ?assertEqual(1,    avro:to_term(Value2)).
 
-empty_unon_not_allowed_test() ->
-  ?assertException(error, <<"union should have at least one member type">>,
-                   avro_union:type([])).
-
 cast_test() ->
   Type = avro_union:type([null, long]),
   ?assertMatch({ok, #avro_value{}}, avro_union:cast(Type, {long, 1})),
@@ -157,6 +153,11 @@ union_of_string_and_int_array_test() ->
   ?assertEqual(string,
                avro_union:encode(Union, <<"abc">>, StringEncodeFun)),
   ok.
+
+no_member_test() ->
+  Union = avro_union:type([]),
+  F = fun(_StringType, _StringValue, 0) -> error(unexpected) end,
+  ?assertError({unknown_member, _, string}, avro_union:encode(Union, {string, "abc"}, F)).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:

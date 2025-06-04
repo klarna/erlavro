@@ -216,7 +216,7 @@ flat_test_record() ->
     ]).
 
 test_data(FileName) ->
-  filename:join([code:lib_dir(erlavro, test), "data", FileName]).
+  filename:join([code:lib_dir(erlavro), "test", "data", FileName]).
 
 define_field(Name, Type) -> avro_record:define_field(Name, Type).
 

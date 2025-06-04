@@ -531,7 +531,7 @@ default_values_with_map_type_test() ->
   ok.
 
 test_data(FileName) ->
-  filename:join([code:lib_dir(erlavro, test), "data", FileName]).
+  filename:join([code:lib_dir(erlavro), "test", "data", FileName]).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
