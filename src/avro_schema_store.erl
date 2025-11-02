@@ -301,7 +301,8 @@ get_type_from_store(NameRef, Store) ->
   end.
 
 %% @private
--spec do_get_type_from_store(fullname(), store()) -> false | {ok, fullname() | avro_type()}.
+-spec do_get_type_from_store(fullname(), store()) ->
+    false | {ok, fullname() | avro_type()}.
 do_get_type_from_store(Name, {dict, Dict}) ->
   case dict:find(Name, Dict) of
     error -> false;

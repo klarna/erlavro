@@ -319,7 +319,8 @@ do_is_compatible(Reader, Writer, RPath, WPath)
                 erlang:throw({ reader_missing_defalut_value
                              , [{field, FieldName} |  WPath]
                              });
-            [{_, WriterType}] ->  % let's not allow several fields to have same alias
+            [{_, WriterType}] ->
+              % let's not allow several fields to have same alias
               FieldDesc = {field, FieldName},
               do_is_compatible_next(FieldType, WriterType,
                                [FieldDesc | RPath],

@@ -474,8 +474,10 @@ encode_type(Type) ->
 encode_value(Value) ->
   iolist_to_binary(avro_json_encoder:encode_value(Value)).
 
-%% @private Helper to compare JSON strings by decoding both and comparing the decoded values
-%% This avoids issues with JSON key ordering differences between jsone and native json
+%% @private Helper to compare JSON strings by decoding both and
+%% comparing the decoded values
+%% This avoids issues with JSON key ordering differences between
+%% jsone and native json
 json_equal(Json1, Json2) ->
   Decoded1 = avro_json_compat:decode(Json1, [{object_format, map}]),
   Decoded2 = avro_json_compat:decode(Json2, [{object_format, map}]),

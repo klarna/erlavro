@@ -25,7 +25,8 @@ canon(Json) ->
   avro:encode_schema(Schema, [{canon, true}]).
 
 %% Helper to compare canonical forms by decoding both and comparing schemas
-%% This avoids issues with JSON key ordering differences between jsone and native json
+%% This avoids issues with JSON key ordering differences between
+%% jsone and native json
 canon_equal(Json1, Json2) ->
   Schema1 = avro_json_decoder:decode_schema(Json1),
   Schema2 = avro_json_decoder:decode_schema(Json2),
