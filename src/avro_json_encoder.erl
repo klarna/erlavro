@@ -37,8 +37,9 @@
 
 -include("avro_internal.hrl").
 
--type json_value() :: jsone:json_value().
--define(INLINE(JSON), {{json, JSON}}).
+-type json_value() :: avro_json_compat:json_value().
+
+-define(INLINE(JSON), avro_json_compat:inline(JSON)).
 
 %%%_* APIs =====================================================================
 
@@ -83,7 +84,7 @@ encode(Sc, TypeOrName, Value) ->
 
 %% @private
 -spec encode_json(json_value()) -> iodata().
-encode_json(Input) -> jsone:encode(Input, [native_utf8]).
+encode_json(Input) -> avro_json_compat:encode(Input, [native_utf8]).
 
 %% @private
 -spec do_encode(lkup_fun(), type_or_name(), avro_value() | avro:in()) ->
@@ -383,13 +384,13 @@ encode_field_with_value({FieldName, Value}) ->
 %% encode per avro spec.
 %% @end
 encode_binary(Bin) ->
-  [$", encode_binary_body(Bin), $"].
+  erlang:iolist_to_binary([$", encode_binary_body(Bin), $"]).
 
 %% @private
 encode_binary_body(<<>>) ->
   "";
 encode_binary_body(<<H1:4, H2:4, Rest/binary>>) ->
-  [$\\, $u, $0, $0, to_hex(H1), to_hex(H2) |encode_binary_body(Rest)].
+  [$\\, $u, $0, $0, to_hex(H1), to_hex(H2) | encode_binary_body(Rest)].
 
 %% @private
 to_hex(D) when D >= 0 andalso D =< 9 ->

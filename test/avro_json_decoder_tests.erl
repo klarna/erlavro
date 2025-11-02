@@ -75,7 +75,7 @@ allow_null_as_string_for_default_test() ->
 
                      ]}
     ]),
-  JSON = iolist_to_binary(jsone:encode(Schema, [native_utf8])),
+  JSON = iolist_to_binary(avro_json_compat:encode(Schema, [native_utf8])),
   ExpectedUnion = avro_union:type([ avro_primitive:null_type()
                                   , avro_primitive:int_type()
                                   ]),
@@ -116,7 +116,7 @@ decode_with_default_values_test() ->
 
                      ]}
     ]),
-  JSON = iolist_to_binary(jsone:encode(Schema, [native_utf8])),
+  JSON = iolist_to_binary(avro_json_compat:encode(Schema, [native_utf8])),
   ExpectedUnion = avro_union:type([ avro_primitive:boolean_type()
                                   , avro_primitive:int_type()
                                   ]),
@@ -236,7 +236,7 @@ parse_fixed_type_test() ->
 
 parse_bytes_value_test() ->
   RawJson = <<"{\"a\":\"\\u0010\\u0000\\u00FF\"}">>,
-  #{<<"a">> := Bytes} = jsone:decode(RawJson),
+  #{<<"a">> := Bytes} = avro_json_compat:decode(RawJson, [{object_format, map}]),
   ?assertEqual([16,0,255], unicode:characters_to_list(Bytes, utf8)),
   Value = parse_value(Bytes, avro_primitive:bytes_type(), none),
   ?assertEqual(avro_primitive:bytes(<<16,0,255>>), Value).
@@ -352,7 +352,7 @@ parse_map_value_test() ->
 parse_fixed_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
   RawJson = <<"{\"a\":\"\\u0001\\u007f\"}">>,
-  #{<<"a">> := Bytes} = jsone:decode(RawJson),
+  #{<<"a">> := Bytes} = avro_json_compat:decode(RawJson, [{object_format, map}]),
   ?assertEqual([1,127], unicode:characters_to_list(Bytes, utf8)),
   ExpectedValue = avro_fixed:new(Type, <<1,127>>),
   ?assertEqual(ExpectedValue, parse_value(Bytes, Type, none)),

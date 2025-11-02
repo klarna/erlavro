@@ -68,6 +68,8 @@
         , canonical_form_fingerprint/1
         ]).
 
+-export([set_json_provider/1, get_json_provider/0]).
+
 -export_type([ array_type/0
              , avro_type/0
              , avro_value/0
@@ -142,6 +144,14 @@
 -type schema_opts() :: proplists:proplist().
 -type schema_all() :: avro_type() | binary() | lkup_fun() | schema_store().
 -type crc64_fingerprint() :: avro_fingerprint:crc64().
+
+%% @doc Set JSON library module.
+-spec set_json_provider(json | jsone) -> ok.
+set_json_provider(Module) -> avro_json_compat:set_provider(Module).
+
+%% @doc Set JSON library module.
+-spec get_json_provider() -> json | jsone.
+get_json_provider() -> avro_json_compat:get_provider().
 
 %% @doc Decode JSON format avro schema into `erlavro' internals.
 -spec decode_schema(binary()) -> avro_type().
@@ -541,7 +551,8 @@ is_same_type(T1, T2) ->
         {Aliases1, Aliases2} ->
           %% Check if [Fullname1 | Aliases1] and [Fullname2 | Aliases2] have a
           %% non-empty intersection. These lists are always very short.
-          is_nonempty_intersection([Fullname1 | Aliases1], [Fullname2 | Aliases2])
+          is_nonempty_intersection([Fullname1 | Aliases1],
+                                   [Fullname2 | Aliases2])
       end
   end.
 

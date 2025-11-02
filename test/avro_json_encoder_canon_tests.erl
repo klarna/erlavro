@@ -24,6 +24,13 @@ canon(Json) ->
   Schema = avro_json_decoder:decode_schema(Json),
   avro:encode_schema(Schema, [{canon, true}]).
 
+%% Helper to compare canonical forms by decoding both and comparing schemas
+%% This avoids issues with JSON key ordering differences between jsone and native json
+canon_equal(Json1, Json2) ->
+  Schema1 = avro_json_decoder:decode_schema(Json1),
+  Schema2 = avro_json_decoder:decode_schema(Json2),
+  Schema1 =:= Schema2.
+
 % Run Java test cases from the Avro project:
 % https://github.com/apache/avro/blob/master/share/test/data/schema-tests.txt
 
@@ -52,14 +59,16 @@ java_primitive_test() ->
 
 % Put fields in standard order, without whitespace
 java_019_test() ->
-  ?assertEqual(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>,
-               canon(<<"{\"fields\":[], "
-                       "\"type\":\"record\", \"name\":\"foo\"}">>)).
+  Expected = <<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>,
+  Actual = canon(<<"{\"fields\":[], "
+                       "\"type\":\"record\", \"name\":\"foo\"}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_020_test() ->
-  ?assertEqual(<<"{\"name\":\"x.y.foo\",\"type\":\"record\",\"fields\":[]}">>,
-               canon(<<"{\"fields\":[], \"type\":\"record\", \"name\":\"foo\", "
-                       "\"namespace\":\"x.y\"}">>)).
+  Expected = <<"{\"name\":\"x.y.foo\",\"type\":\"record\",\"fields\":[]}">>,
+  Actual = canon(<<"{\"fields\":[], \"type\":\"record\", \"name\":\"foo\", "
+                       "\"namespace\":\"x.y\"}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_021_test() ->
 % https://avro.apache.org/docs/1.8.2/spec.html#names
@@ -67,32 +76,37 @@ java_021_test() ->
 % "A fullname is specified. If the name specified contains a dot, then it is
 % assumed to be a fullname, and any namespace also specified is ignored. For
 % example, use "name": "org.foo.X" to indicate the fullname org.foo.X."
-  ?assertEqual(<<"{\"name\":\"a.b.foo\",\"type\":\"record\",\"fields\":[]}">>,
-               canon(<<"{\"fields\":[], \"type\":\"record\", "
-                       "\"name\":\"a.b.foo\", \"namespace\":\"x.y\"}">>)).
+  Expected = <<"{\"name\":\"a.b.foo\",\"type\":\"record\",\"fields\":[]}">>,
+  Actual = canon(<<"{\"fields\":[], \"type\":\"record\", "
+                       "\"name\":\"a.b.foo\", \"namespace\":\"x.y\"}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_022_test() ->
-  ?assertEqual(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>,
-               canon(<<"{\"fields\":[], \"type\":\"record\", "
-                       "\"name\":\"foo\", \"doc\":\"Useful info\"}">>)).
+  Expected = <<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>,
+  Actual = canon(<<"{\"fields\":[], \"type\":\"record\", "
+                       "\"name\":\"foo\", \"doc\":\"Useful info\"}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_023_test() ->
-  ?assertEqual(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>,
-               canon(<<"{\"fields\":[], \"type\":\"record\", "
-                       "\"name\":\"foo\", \"aliases\":[\"foo\",\"bar\"]}">>)).
+  Expected = <<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>,
+  Actual = canon(<<"{\"fields\":[], \"type\":\"record\", "
+                       "\"name\":\"foo\", \"aliases\":[\"foo\",\"bar\"]}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_024_test() ->
-  ?assertEqual(canon(<<"{\"fields\":[], \"type\":\"record\", "
+  Expected = <<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>,
+  Actual = canon(<<"{\"fields\":[], \"type\":\"record\", "
                        "\"name\":\"foo\", \"doc\":\"foo\", "
                        "\"aliases\":[\"foo\",\"bar\"]}">>),
-               <<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":[]}">>).
+  ?assert(canon_equal(Expected, Actual)).
 
 java_025_test() ->
-  ?assertEqual(<<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":["
+  Expected = <<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":["
                  "{\"name\":\"f1\",\"type\":\"boolean\"}]}">>,
-               canon(<<"{\"fields\":[{\"type\":{\"type\":\"boolean\"}, "
+  Actual = canon(<<"{\"fields\":[{\"type\":{\"type\":\"boolean\"}, "
                        "\"name\":\"f1\"}], \"type\":\"record\", "
-                       "\"name\":\"foo\"}">>)).
+                       "\"name\":\"foo\"}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_026_test() ->
   Result = canon(<<
@@ -106,48 +120,53 @@ java_026_test() ->
   Expected = <<"{\"name\":\"foo\",\"type\":\"record\",\"fields\":["
                "{\"name\":\"f1\",\"type\":\"boolean\"},"
                "{\"name\":\"f2\",\"type\":\"int\"}]}">>,
-  ?assertEqual(Expected, Result).
+  ?assert(canon_equal(Expected, Result)).
 
 java_027_test() ->
-  ?assertEqual(<<"{\"name\":\"foo\",\"type\":\"enum\","
+  Expected = <<"{\"name\":\"foo\",\"type\":\"enum\","
                  "\"symbols\":[\"A1\"]}">>,
-               canon(<<"{\"type\":\"enum\", \"name\":\"foo\", "
-                       "\"symbols\":[\"A1\"]}">>)).
+  Actual = canon(<<"{\"type\":\"enum\", \"name\":\"foo\", "
+                       "\"symbols\":[\"A1\"]}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_028_test() ->
-  ?assertEqual(<<"{\"name\":\"x.y.z.foo\",\"type\":\"enum\","
+  Expected = <<"{\"name\":\"x.y.z.foo\",\"type\":\"enum\","
                  "\"symbols\":[\"A1\",\"A2\"]}">>,
-               canon(<<"{\"namespace\":\"x.y.z\", \"type\":\"enum\", "
+  Actual = canon(<<"{\"namespace\":\"x.y.z\", \"type\":\"enum\", "
                        "\"name\":\"foo\", \"doc\":\"foo bar\", "
-                       "\"symbols\":[\"A1\", \"A2\"]}">>)).
+                       "\"symbols\":[\"A1\", \"A2\"]}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_029_test() ->
-  ?assertEqual(<<"{\"name\":\"foo\",\"type\":\"fixed\",\"size\":15}">>,
-               canon(<<"{\"name\":\"foo\",\"type\":\"fixed\",\"size\":15}">>)).
+  Expected = <<"{\"name\":\"foo\",\"type\":\"fixed\",\"size\":15}">>,
+  Actual = canon(<<"{\"name\":\"foo\",\"type\":\"fixed\",\"size\":15}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_030_test() ->
-  ?assertEqual(<<"{\"name\":\"x.y.z.foo\",\"type\":\"fixed\",\"size\":32}">>,
-               canon(<<"{\"namespace\":\"x.y.z\", \"type\":\"fixed\", "
+  Expected = <<"{\"name\":\"x.y.z.foo\",\"type\":\"fixed\",\"size\":32}">>,
+  Actual = canon(<<"{\"namespace\":\"x.y.z\", \"type\":\"fixed\", "
                        "\"name\":\"foo\", \"doc\":\"foo bar\", \"size\":32}">>
-                    )).
+                    ),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_031_test() ->
-  ?assertEqual(<<"{\"type\":\"array\",\"items\":\"null\"}">>,
-               canon(<<"{ \"items\":{\"type\":\"null\"}, "
-                       "\"type\":\"array\"}">>)).
+  Expected = <<"{\"type\":\"array\",\"items\":\"null\"}">>,
+  Actual = canon(<<"{ \"items\":{\"type\":\"null\"}, "
+                       "\"type\":\"array\"}">>),
+  ?assert(canon_equal(Expected, Actual)).
 
 java_032_test() ->
-  ?assertEqual(canon(<<"{ \"values\":\"string\", \"type\":\"map\"}">>),
-               <<"{\"type\":\"map\",\"values\":\"string\"}">>).
-
+  Expected = <<"{\"type\":\"map\",\"values\":\"string\"}">>,
+  Actual = canon(<<"{ \"values\":\"string\", \"type\":\"map\"}">>),
+  ?assert(canon_equal(Expected, Actual)).
 java_033_test() ->
-  ?assertEqual(<<"{\"name\":\"PigValue\",\"type\":\"record\",\"fields\":["
+  Expected = <<"{\"name\":\"PigValue\",\"type\":\"record\",\"fields\":["
                  "{\"name\":\"value\",\"type\":[\"null\",\"int\",\"long\","
                  "\"PigValue\"]}]}">>,
-     canon(<<"  {\"name\":\"PigValue\",\"type\":\"record\",", 10:8,
+  Actual = canon(<<"  {\"name\":\"PigValue\",\"type\":\"record\",", 10:8,
              "   \"fields\":[{\"name\":\"value\", \"type\":[\"null\", "
-             "\"int\", \"long\", \"PigValue\"]}]}", 10:8>>)).
-
+             "\"int\", \"long\", \"PigValue\"]}]}", 10:8>>),
+  ?assert(canon_equal(Expected, Actual)).
 %%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t

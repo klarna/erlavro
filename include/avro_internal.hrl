@@ -64,7 +64,7 @@
 -type type_or_name() :: avro_type() | name_raw().
 
 -type custom_prop_name() :: binary().
--type custom_prop_value() :: jsone:json_value().
+-type custom_prop_value() :: avro_json_compat:json_value().
 -type custom_prop() :: {custom_prop_name(), custom_prop_value()}.
 
 -define(ASSIGNED_NAME, <<"_erlavro_assigned">>).
@@ -96,7 +96,7 @@
 -type type_prop_value() :: namespace() | typedoc() | [name()] | custom_prop_value().
 -type type_props() :: [{type_prop_name(), type_prop_value()}].
 
--type avro_json() :: jsone:json_object().
+-type avro_json() :: avro_json_compat:json_value().
 -type avro_binary() :: iolist().
 
 -type avro_codec() :: null | deflate | snappy.

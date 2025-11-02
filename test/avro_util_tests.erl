@@ -268,8 +268,8 @@ avro_schema_compatible_union_test() ->
        mkschema([<<"int">>, <<"long">>]),
        mkschema(<<"long">>)
       )),
-  FixedType1 = jsone:encode(fixed_type("name", 16)),
-  FixedType2 = jsone:encode(fixed_type("name1", 14)),
+  FixedType1 = avro_json_compat:encode(fixed_type("name", 16)),
+  FixedType2 = avro_json_compat:encode(fixed_type("name1", 14)),
   ?assert(
      is_compatible(
        avro:decode_schema(<<"[", FixedType1/binary, ",",
@@ -439,7 +439,7 @@ field(Name, Type, Default) ->
    }.
 
 mkschema(Map) ->
-  avro:decode_schema(jsone:encode(Map)).
+  avro:decode_schema(avro_json_compat:encode(Map)).
 
 is_compatible(Reader, Writer) -> avro:is_compatible(Reader, Writer).
 

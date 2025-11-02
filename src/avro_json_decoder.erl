@@ -38,7 +38,7 @@
 %% Exported for test
 -export([ parse_schema/1 ]).
 
--type json_value() :: jsone:json_value().
+-type json_value() :: avro_json_compat:json_value().
 -type sc_opts() :: avro:schema_opts().
 -type default_parse_fun() :: fun((type_or_name(), json_value()) -> avro:out()).
 
@@ -514,7 +514,7 @@ do_parse_union_ex(ValueTypeName, Value, UnionType,
 %% 'proplist' is not an option because otherwise there is no way to tell
 %% apart 'object' and 'array'.
 -spec decode_json(binary()) -> json_value().
-decode_json(JSON) -> jsone:decode(JSON, [{object_format, tuple}]).
+decode_json(JSON) -> avro_json_compat:decode(JSON, [{object_format, tuple}]).
 
 %% Filter out non-custom properties.
 -spec filter_custom_props([{binary(), json_value()}], [name()]) ->
