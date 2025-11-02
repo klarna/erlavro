@@ -1,3 +1,9 @@
+* 2.11.0
+   - Deleted jsone as dependency.
+     When OTP release is 27 or later, the default JSON provider module is `json`, otherwise `jsone`.
+     For OTP release 26 or earlier version, you must add `jsone-1.8.1` or newer in your project dependency.
+     For OTP release 27 or later, you can choose to continue using jsone by calling `avro:set_json_provider(jsone)`.
+
 * 2.10.3
    - Allow union type to have zero member types.
 * 2.10.2
