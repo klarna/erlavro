@@ -15,10 +15,16 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        otp-version: [26, 27, 28]
+
     container:
-      image: erlang:26
+      image: erlang:${{ matrix.otp-version }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Run tests
       run: make eunit && make cover
+    - name: Run Dialyzer
+      run: make dialyzer
