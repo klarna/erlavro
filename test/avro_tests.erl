@@ -493,20 +493,20 @@ atoms_as_strings_test() ->
 assert_struct_equal(avro_binary, Expect, Got) ->
   ?assertEqual(Expect, Got);
 assert_struct_equal(avro_json, Expect, Got) ->
-  assert_strcut_equal_no_fields_order(Expect, Got).
+  assert_struct_equal_no_fields_order(Expect, Got).
 
-assert_strcut_equal_no_fields_order(Value, Value) ->
+assert_struct_equal_no_fields_order(Value, Value) ->
   ok;
-assert_strcut_equal_no_fields_order([], _Got) ->
+assert_struct_equal_no_fields_order([], _Got) ->
   ok;
-assert_strcut_equal_no_fields_order([{Key, ValueExpect} | More], Got) ->
+assert_struct_equal_no_fields_order([{Key, ValueExpect} | More], Got) ->
   {Key, ValueGot} = lists:keyfind(Key, 1, Got),
-  ok = assert_strcut_equal_no_fields_order(ValueExpect, ValueGot),
-  assert_strcut_equal_no_fields_order(More, Got);
-assert_strcut_equal_no_fields_order([H1 | T1], [H2 | T2]) ->
-  ok = assert_strcut_equal_no_fields_order(H1, H2),
-  assert_strcut_equal_no_fields_order(T1, T2);
-assert_strcut_equal_no_fields_order(Expect, Got) ->
+  ok = assert_struct_equal_no_fields_order(ValueExpect, ValueGot),
+  assert_struct_equal_no_fields_order(More, Got);
+assert_struct_equal_no_fields_order([H1 | T1], [H2 | T2]) ->
+  ok = assert_struct_equal_no_fields_order(H1, H2),
+  assert_struct_equal_no_fields_order(T1, T2);
+assert_struct_equal_no_fields_order(Expect, Got) ->
   ?assertEqual(Expect, Got).
 
 default_values_with_map_type_test() ->
