@@ -38,11 +38,15 @@
                     [{binary(), json_value()}] |
                     {[{binary(), json_value()}]}.
 
+%% NB: atom() only for encoder inputs.
+%% No atom created when decode.
+-type string_value() :: atom() | binary().
+
 -type json_value() :: null
                     | boolean()
                     | integer()
                     | float()
-                    | binary()
+                    | string_value()
                     | [json_value()]
                     | json_obj().
 
@@ -94,6 +98,7 @@ encode(Value, Options) ->
     Module ->
       apply(Module, encode, [Value, Options])
   end.
+
 %% Custom encoder callback for json:encode/2
 %% Handles conversion from jsone format (lists of tuples) to
 %% native json format inline
