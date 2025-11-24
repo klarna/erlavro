@@ -72,7 +72,8 @@ decode_snappy_file_test() ->
 
 decode_snappy_file_invalid_checksum_test() ->
   InteropOcfFile = test_data("interop_snappy_invalid_checksum.ocf"),
-  ?assertException(error, {invalid_checksum, _}, avro_ocf:decode_file(InteropOcfFile)).
+  ?assertException(error, {invalid_checksum, _},
+                   avro_ocf:decode_file(InteropOcfFile)).
 
 write_file_test() ->
   OcfFile = test_data("my.ocf.test"),

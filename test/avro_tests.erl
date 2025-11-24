@@ -27,6 +27,16 @@
                    , data = Value
                    }).
 
+provider_test() ->
+  Default = avro:get_json_provider(),
+  avro:set_json_provider(jsone),
+  jsone = avro:get_json_provider(),
+  avro:set_json_provider(json),
+  json = avro:get_json_provider(),
+  avro:set_json_provider(Default),
+  Default = avro:get_json_provider(),
+  ok.
+
 get_test_type(Name, Namespace) ->
   avro_fixed:type(Name, 16, [{namespace, Namespace}]).
 
@@ -203,7 +213,7 @@ primitive_cast_error_test() ->
                    avro_primitive:int("foo")).
 
 get_custom_props_test() ->
-  Date = avro_primitive:type(int, [{logicalType, "Date"}, {"p", [{"x", "y"}]}]),
+  Date = avro_primitive:type(int, [{logicalType, date}, {"p", [{"x", "y"}]}]),
   Union = avro_union:type([null, int]),
   Array = avro_array:type(int, [{"p", "v"}, {tag, true}]),
   Enum = avro_enum:type("abc", ["a", "b", "c"], [{"p", "v"}]),
@@ -232,7 +242,7 @@ get_custom_props_test() ->
     end,
   ?assertEqual([], FieldTypeProps(k1)),
   ?assertEqual([], FieldTypeProps(k2)),
-  ?assertEqual([{<<"logicalType">>, <<"Date">>},
+  ?assertEqual([{<<"logicalType">>, <<"date">>},
                 {<<"p">>, [{<<"x">>, <<"y">>}]}],
                FieldTypeProps(date)),
   ?assertEqual([{<<"p">>, <<"v">>}, {<<"tag">>, true}], FieldTypeProps(array)),
@@ -392,8 +402,7 @@ default_values_test() ->
                            },
          #avro_record_field{ name = <<"children">>
                            , type = #avro_array_type{type = NodeTypeFullName}
-                           , default = [[{<<"label">>, <<"default-label">>},
-                                         {<<"children">>, []}]]
+                           , default = [_Child]
                            }]},
     Lkup(NodeTypeFullName)),
   %% Encode input has no 'children' field, default value should be used
@@ -415,7 +424,7 @@ default_values_test() ->
       Decoder = avro:make_decoder(Lkup, Opts),
       Encoded = Encoder(RootType, Input),
       Decoded = Decoder(RootType, Encoded),
-      ?assertEqual(Expect, Decoded)
+      assert_struct_equal(proplists:get_value(encoding, Opts), Expect, Decoded)
     end,
   TestFun([{encoding, avro_binary}]),
   TestFun([{encoding, avro_json}]),
@@ -445,7 +454,7 @@ nil_values_test() ->
       Decoder = avro:make_decoder(Lkup, Opts),
       Encoded = Encoder(RootType, Input),
       Decoded = Decoder(RootType, Encoded),
-      ?assertEqual(Expect, Decoded)
+      assert_struct_equal(proplists:get_value(encoding, Opts), Expect, Decoded)
     end,
   TestFun([{encoding, avro_binary}]),
   TestFun([{encoding, avro_json}]),
@@ -475,13 +484,30 @@ atoms_as_strings_test() ->
       Decoder = avro:make_decoder(Lkup, Opts),
       Encoded = Encoder(RootType, Input),
       Decoded = Decoder(RootType, Encoded),
-      ?assertEqual(Expect, Decoded)
+      assert_struct_equal(proplists:get_value(encoding, Opts), Expect, Decoded)
     end,
   TestFun([{encoding, avro_binary}]),
   TestFun([{encoding, avro_json}]),
   ok.
 
+assert_struct_equal(avro_binary, Expect, Got) ->
+  ?assertEqual(Expect, Got);
+assert_struct_equal(avro_json, Expect, Got) ->
+  assert_struct_equal_no_fields_order(Expect, Got).
 
+assert_struct_equal_no_fields_order(Value, Value) ->
+  ok;
+assert_struct_equal_no_fields_order([], _Got) ->
+  ok;
+assert_struct_equal_no_fields_order([{Key, ValueExpect} | More], Got) ->
+  {Key, ValueGot} = lists:keyfind(Key, 1, Got),
+  ok = assert_struct_equal_no_fields_order(ValueExpect, ValueGot),
+  assert_struct_equal_no_fields_order(More, Got);
+assert_struct_equal_no_fields_order([H1 | T1], [H2 | T2]) ->
+  ok = assert_struct_equal_no_fields_order(H1, H2),
+  assert_struct_equal_no_fields_order(T1, T2);
+assert_struct_equal_no_fields_order(Expect, Got) ->
+  ?assertEqual(Expect, Got).
 
 default_values_with_map_type_test() ->
   File = test_data("test.avsc"),
@@ -489,6 +515,7 @@ default_values_with_map_type_test() ->
   Type = avro:decode_schema(JSON),
   Lkup = avro:make_lkup_fun(Type),
   NodeTypeFullName = <<"org.apache.avro.Node">>,
+  LookupType = Lkup(NodeTypeFullName),
   ?assertMatch(
     #avro_record_type{
       name = <<"Node">>,
@@ -499,10 +526,9 @@ default_values_with_map_type_test() ->
                            },
          #avro_record_field{ name = <<"children">>
                            , type = #avro_array_type{type = NodeTypeFullName}
-                           , default = [[{<<"label">>, <<"default-label">>},
-                                         {<<"children">>, []}]]
+                           , default = [_Child]
                            }]},
-    Lkup(NodeTypeFullName)),
+    LookupType),
   %% Encode input has no 'children' field, default value should be used
   Input = #{"f1" => #{"label" => "x"}, "f4" => "four"},
   Expect = #{<<"f1">> =>

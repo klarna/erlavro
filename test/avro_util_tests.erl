@@ -268,8 +268,8 @@ avro_schema_compatible_union_test() ->
        mkschema([<<"int">>, <<"long">>]),
        mkschema(<<"long">>)
       )),
-  FixedType1 = jsone:encode(fixed_type("name", 16)),
-  FixedType2 = jsone:encode(fixed_type("name1", 14)),
+  FixedType1 = avro_json_compat:encode(fixed_type("name", 16)),
+  FixedType2 = avro_json_compat:encode(fixed_type("name1", 14)),
   ?assert(
      is_compatible(
        avro:decode_schema(<<"[", FixedType1/binary, ",",
@@ -308,7 +308,8 @@ avro_schema_compatible_record_test() ->
                             [ field("field0", <<"string">>) ]))
       )),
   ?assertMatch(
-     {false, {reader_missing_default_value, [<<"record0">>, {field,<<"field0">>}]}},
+     {false, {reader_missing_default_value,
+              [<<"record0">>, {field,<<"field0">>}]}},
      is_compatible(
        mkschema(record_type("record0",
                             [ field("field0", <<"string">>) ])),
@@ -382,7 +383,8 @@ avro_schema_compatible_record_field_name_aliases_test() ->
   Reader = mkschema(
              record_type("record0",
                          [
-                          (field("new_name", <<"string">>))#{aliases => [<<"old_name">>]}
+                          (field("new_name", <<"string">>))#{
+                            aliases => [<<"old_name">>]}
                          ])),
   Writer = mkschema(
              record_type("record0",
@@ -392,9 +394,9 @@ avro_schema_compatible_record_field_name_aliases_test() ->
   %% Data encoded by older Writer schema can be read by newer Reader schema
   ?assert(is_compatible(Reader, Writer)),
   %% But data encoded by the newer schema can NOT be read by old schema
-  ?assertEqual({false, {reader_missing_default_value, [<<"record0">>, {field, <<"old_name">>}]}},
+  ?assertEqual({false, {reader_missing_default_value,
+                        [<<"record0">>, {field, <<"old_name">>}]}},
                is_compatible(Writer, Reader)).
-
 
 primitive_type(Type) ->
   #{ type => Type }.
@@ -439,7 +441,7 @@ field(Name, Type, Default) ->
    }.
 
 mkschema(Map) ->
-  avro:decode_schema(jsone:encode(Map)).
+  avro:decode_schema(avro_json_compat:encode(Map)).
 
 is_compatible(Reader, Writer) -> avro:is_compatible(Reader, Writer).
 

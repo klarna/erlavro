@@ -158,8 +158,8 @@ delete_opts(KvList, Keys) ->
 canonicalize_custom_props(Props0) ->
   %% Filter out all type_prop_name() keys first
   Props = delete_opts(Props0, [namespace, doc, aliases]),
-  JSON = jsone:encode(make_jsone_input(Props)),
-  jsone:decode(JSON, [{object_format, proplist}]).
+  JSON = avro_json_compat:encode(make_jsone_input(Props)),
+  avro_json_compat:decode(JSON, [{object_format, proplist}]).
 
 %% @doc Assert validity of a list of names.
 -spec verify_names([name_raw()]) -> ok | no_return().
@@ -319,7 +319,8 @@ do_is_compatible(Reader, Writer, RPath, WPath)
                 erlang:throw({ reader_missing_defalut_value
                              , [{field, FieldName} |  WPath]
                              });
-            [{_, WriterType}] ->  % let's not allow several fields to have same alias
+            [{_, WriterType}] ->
+              % let's not allow several fields to have same alias
               FieldDesc = {field, FieldName},
               do_is_compatible_next(FieldType, WriterType,
                                [FieldDesc | RPath],
@@ -544,7 +545,7 @@ is_valid_name([H | T]) ->
 is_valid_dotted_name(DottedName) when ?IS_NAME_RAW(DottedName) ->
   NameStr = binary_to_list(?NAME(DottedName)),
   Names = tokens_ex(NameStr, $.),
-  Names =/= [] andalso lists:all(fun is_valid_name/1, Names).
+  lists:all(fun is_valid_name/1, Names).
 
 %% @private
 -spec reserved_type_names() -> [name()].

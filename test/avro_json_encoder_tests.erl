@@ -37,7 +37,8 @@ encode_boolean_type_test() ->
 encode_type_with_custom_prop_test() ->
   Props = [{<<"logicalType">>, <<"x">>}],
   Json = encode_type(avro_primitive:type(bytes, Props)),
-  ?assertEqual(<<"{\"type\":\"bytes\",\"logicalType\":\"x\"}">>, Json).
+  Expected = <<"{\"type\":\"bytes\",\"logicalType\":\"x\"}">>,
+  ?assert(json_equal(Expected, Json)).
 
 encode_boolean_test() ->
   JsonTrue = encode_value(avro_primitive:boolean(true)),
@@ -179,13 +180,13 @@ encode_enum_type_test() ->
   EnumType = avro_enum:type("Enum", ["A", "B", "C"],
                             [{namespace, "com.klarna.test.bix"}]),
   EnumTypeJson = encode_type(EnumType),
-  ?assertEqual(<<"{"
+  Expected = <<"{"
   "\"namespace\":\"com.klarna.test.bix\","
   "\"name\":\"Enum\","
   "\"type\":\"enum\","
   "\"symbols\":[\"A\",\"B\",\"C\"]"
-  "}">>, EnumTypeJson).
-
+  "}">>,
+  ?assert(json_equal(Expected, EnumTypeJson)).
 encode_enum_test_() ->
   EnumType = avro_enum:type("Enum", ["A", "B", "C"],
                             [{namespace, "com.klarna.test.bix"}]),
@@ -265,12 +266,13 @@ encode_fixed_type_test() ->
                          , {aliases, ["Alias1", "Alias2"]}
                          ]),
   Json = encode_type(Type),
-  ?assertEqual(<<"{"
+  Expected = <<"{"
   "\"namespace\":\"name.space\","
   "\"name\":\"FooBar\","
   "\"type\":\"fixed\","
   "\"size\":2,"
-  "\"aliases\":[\"name.space.Alias1\",\"name.space.Alias2\"]}">>, Json).
+  "\"aliases\":[\"name.space.Alias1\",\"name.space.Alias2\"]}">>,
+  ?assert(json_equal(Expected, Json)).
 
 encode_fixed_value_test() ->
   Type = avro_fixed:type("FooBar", 2),
@@ -344,12 +346,14 @@ check_json_encode_fixed_properly_test() ->
   ?assertEqual(Json, Encoded).
 
 encode_type_fullname_ref_test() ->
+  avro:set_json_provider(jsone),
   Type = avro_map:type("com.example.type"),
   Encoded = encode_type(Type),
   JSON = <<"{\"type\":\"map\",\"values\":\"com.example.type\"}">>,
   ?assertEqual(JSON, iolist_to_binary(Encoded)).
 
 encode_type_shortname_ref_test() ->
+  avro:set_json_provider(jsone),
   Field = avro_record:define_field("f1", "com.example.mytype", []),
   Type = avro_record:type("rec", [Field], [{namespace, "com.example"}]),
   Encoded = encode_type(Type),
@@ -361,6 +365,7 @@ encode_type_shortname_ref_test() ->
   ?assertEqual(Expected, iolist_to_binary(Encoded)).
 
 encode_type_no_redundant_ns_test() ->
+  avro:set_json_provider(jsone),
   SubField = avro_record:define_field("subf", int, []),
   SubType = avro_record:type("subrec", [SubField],
                              [{namespace, "com.example"}]),
@@ -381,6 +386,7 @@ encode_type_no_redundant_ns_test() ->
   ?assertEqual(iolist_to_binary(Expected), iolist_to_binary(Encoded)).
 
 encode_field_order_test_() ->
+  avro:set_json_provider(jsone),
   [ fun() ->
         Field = avro_record:define_field("f", "mytype", [{order, Order}]),
         Type = avro_record:type("rec", [Field], [{namespace, "com.example"}]),
@@ -467,6 +473,15 @@ encode_type(Type) ->
 %% @private
 encode_value(Value) ->
   iolist_to_binary(avro_json_encoder:encode_value(Value)).
+
+%% @private Helper to compare JSON strings by decoding both and
+%% comparing the decoded values
+%% This avoids issues with JSON key ordering differences between
+%% jsone and native json
+json_equal(Json1, Json2) ->
+  Decoded1 = avro_json_compat:decode(Json1, [{object_format, map}]),
+  Decoded2 = avro_json_compat:decode(Json2, [{object_format, map}]),
+  Decoded1 =:= Decoded2.
 
 %% @private
 encode(StoreOrLkupFun, TypeOrName, Value) ->

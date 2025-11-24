@@ -157,7 +157,8 @@ union_of_string_and_int_array_test() ->
 no_member_test() ->
   Union = avro_union:type([]),
   F = fun(_StringType, _StringValue, 0) -> error(unexpected) end,
-  ?assertError({unknown_member, _, string}, avro_union:encode(Union, {string, "abc"}, F)).
+  ?assertError({unknown_member, _, string},
+               avro_union:encode(Union, {string, "abc"}, F)).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
