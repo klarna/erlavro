@@ -9,10 +9,9 @@ Rules.
 
 [\s\t\n\r]+ : skip_token.
 
-%% TODO: escaped double quotes inside strings
-"[^\"]+" : {token, {string_v, TokenLine, unescape(TokenChars, $\")}}.
+"([^\"\\]|\\.)*" : {token, {string_v, TokenLine, unescape_string(TokenChars)}}.
 
-`[^\`]+` : {token, {id, TokenLine, unescape(TokenChars, $`)}}.
+`[^\`]+` : {token, {id, TokenLine, string:strip(TokenChars, both, $`)}}.
 
 //[^\r\n]* : {token, {comment_v, TokenLine, unescape_line_comment(TokenChars)}}.
 
@@ -95,8 +94,26 @@ do_preprocess(trim_doc, T) ->
 
 %% Lexer internal helpers
 
-unescape(Token, Char) ->
-    string:strip(Token, both, Char).
+unescape_string(Token) ->
+    %% Strip enclosing double-quotes then replace escape sequences
+    [$\" | Rest] = Token,
+    Inner = lists:sublist(Rest, length(Rest) - 1),
+    unescape_chars(Inner, []).
+
+unescape_chars([], Acc) ->
+    lists:reverse(Acc);
+unescape_chars([$\\, $\" | Rest], Acc) ->
+    unescape_chars(Rest, [$\" | Acc]);
+unescape_chars([$\\, $\\ | Rest], Acc) ->
+    unescape_chars(Rest, [$\\ | Acc]);
+unescape_chars([$\\, $n | Rest], Acc) ->
+    unescape_chars(Rest, [$\n | Acc]);
+unescape_chars([$\\, $t | Rest], Acc) ->
+    unescape_chars(Rest, [$\t | Acc]);
+unescape_chars([$\\, $r | Rest], Acc) ->
+    unescape_chars(Rest, [$\r | Acc]);
+unescape_chars([C | Rest], Acc) ->
+    unescape_chars(Rest, [C | Acc]).
 
 unescape_line_comment("//" ++ Comment) ->
     Comment.

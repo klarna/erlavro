@@ -142,6 +142,9 @@ fixed ->
 
 %% -- Error typedef
 error ->
+    error_k id '{' '}' :
+        #error{name = value_of('$2')}.
+error ->
     error_k id '{' record_field record_tail :
         #error{name = value_of('$2'), fields = ['$4' | '$5']}.
 error ->
@@ -150,6 +153,9 @@ error ->
 
 %% -- Record
 
+record ->
+    record_t id '{' '}' :
+        #record{name = value_of('$2')}.
 record ->
     record_t id '{' record_field record_tail :
         #record{name = value_of('$2'), fields = ['$4' | '$5']}.
@@ -225,8 +231,8 @@ function ->
     fun_return id '(' fun_arguments ')' fun_extra ';' :
         #function{name = value_of('$2'), arguments = '$4', return = '$1', extra = '$6'}.
 function ->
-    doc_v function :
-        ('$2')#function{meta = [{doc, value_of('$1')}]}.
+    meta function :
+        ('$2')#function{meta = '$1' ++ ('$2')#function.meta}.
 
 fun_return -> type : '$1'.
 fun_return -> void_k : void.

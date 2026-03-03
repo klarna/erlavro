@@ -144,6 +144,48 @@ protocol_with_typedefs_test() ->
                      #function{name = "ping", extra = undefined}]},
        parse_idl("protocol_with_typedefs")).
 
+empty_record_test() ->
+    ?assertEqual(
+       #protocol{
+          name = "P",
+          definitions = [#record{name = "R"}]},
+       parse_str("protocol P { record R {} }")).
+
+empty_error_test() ->
+    ?assertEqual(
+       #protocol{
+          name = "P",
+          definitions = [#error{name = "E"}]},
+       parse_str("protocol P { error E {} }")).
+
+empty_string_default_test() ->
+    #protocol{definitions = [#record{fields = [#field{default = Default}]}]} =
+        parse_str("protocol P { record R { string f = \"\"; } }"),
+    ?assertEqual("", Default).
+
+escaped_quote_in_string_test() ->
+    #protocol{definitions = [#record{fields = [#field{default = Default}]}]} =
+        parse_str("protocol P { record R { string f = \"foo\\\"bar\"; } }"),
+    ?assertEqual("foo\"bar", Default).
+
+function_annotation_test() ->
+    ?assertMatch(
+       #protocol{
+          definitions = [#function{
+              name = "hello",
+              meta = [#annotation{name = "deprecated", value = "true"},
+                      {doc, "Say hello"}],
+              return = string}]},
+       parse_str("protocol P { @deprecated(\"true\") /** Say hello */ string hello(); }")).
+
+function_multi_meta_test() ->
+    ?assertMatch(
+       #protocol{
+          definitions = [#function{
+              name = "hello",
+              meta = [{doc, "Doc one"}, {doc, "Doc two"}]}]},
+       parse_str("protocol P { /** Doc one */ /** Doc two */ string hello(); }")).
+
 array_types_test() ->
     Probes =
         [{int, "int"},
