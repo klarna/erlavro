@@ -1,0 +1,13 @@
+{
+    "protocol": "Bar",
+    "types": [
+        {
+            "type": "record",
+            "name": "BarRecord",
+            "fields": [
+                {"name": "bar_field", "type": "int"}
+            ]
+        }
+    ],
+    "messages": {}
+}

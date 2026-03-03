@@ -85,7 +85,11 @@ protocol_with_typedefs_avpr_test() ->
     #{<<"types">> := Types,
       <<"messages">> := Messages} = Proto,
     ?assertMatch(
-       [#{<<"name">> := <<"MyEnum1">>},
+       [#{<<"name">> := <<"FooRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"FooEnum">>, <<"type">> := ?AVRO_ENUM},
+        #{<<"name">> := <<"BarRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"BazRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"MyEnum1">>},
         #{<<"name">> := <<"MyEnum2">>,
           <<"type">> := ?AVRO_ENUM,
           <<"symbols">> := [<<"VAR21">>, <<"VAR22">>, <<"VAR23">>]},
@@ -137,6 +141,48 @@ protocol_with_typedefs_avpr_test() ->
        Messages).
 
 
+import_idl_test() ->
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import idl \"foo.avdl\"; }",
+              "test/data"),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"FooRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"FooEnum">>, <<"type">> := ?AVRO_ENUM}],
+       Types).
+
+import_protocol_test() ->
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import protocol \"bar.avpr\"; }",
+              "test/data"),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"BarRecord">>, <<"type">> := ?AVRO_RECORD}],
+       Types).
+
+import_schema_test() ->
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import schema \"baz.avsc\"; }",
+              "test/data"),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"BazRecord">>, <<"type">> := ?AVRO_RECORD}],
+       Types).
+
+import_nested_idl_test() ->
+    %% subdir/submodule.avdl imports ../foo.avdl (relative to its own dir).
+    %% Verifies that import paths are resolved relative to the importing file,
+    %% not relative to the top-level caller's cwd.
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import idl \"subdir/submodule.avdl\"; }",
+              "test/data"),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"FooRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"FooEnum">>, <<"type">> := ?AVRO_ENUM},
+        #{<<"name">> := <<"SubRecord">>, <<"type">> := ?AVRO_RECORD}],
+       Types).
+
 duplicate_annotation_avpr_test() ->
     ?assertError(
        {duplicate_annotation, "my_decorator", _, _},
@@ -179,5 +225,6 @@ read_schema(Name) ->
     binary_to_list(B).
 
 idl_to_avpr(Name) ->
-    Schema = read_schema(Name),
-    avro_idl:str_to_avpr(Schema, "").
+    File = "test/data/" ++ Name ++ ".avdl",
+    {ok, B} = file:read_file(File),
+    avro_idl:str_to_avpr(binary_to_list(B), filename:dirname(File)).

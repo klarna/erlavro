@@ -58,8 +58,8 @@ protocol_to_avpr(#protocol{name = Name,
         #{<<"protocol">> => b(Name),
           <<"types">> =>
               lists:map(
-                fun(Type) ->
-                        typedecl_to_avsc(Type, St)
+                fun({avsc, Map}) -> Map;
+                   (Type) -> typedecl_to_avsc(Type, St)
                 end, Types),
           <<"messages">> =>
               lists:map(
@@ -69,14 +69,44 @@ protocol_to_avpr(#protocol{name = Name,
          },
     meta(Protocol0, Meta).
 
-process_imports(Defs, _St) ->
-    %% TODO
-    %% https://avro.apache.org/docs/1.9.2/spec.html#names
-    %% when importing definitions from avdl or avpr, copy namespaces from
-    %% protocol to definitions, if not specified
-    lists:filter(fun({import, _, _}) -> false;
-                    (_) -> true
-                 end, Defs).
+process_imports(Defs, St) ->
+    lists:flatmap(
+      fun(#import{type = idl, file_path = Path}) ->
+              load_idl_import(Path, St);
+          (#import{type = protocol, file_path = Path}) ->
+              load_avpr_import(Path, St);
+          (#import{type = schema, file_path = Path}) ->
+              load_avsc_import(Path, St);
+          (Def) ->
+              [Def]
+      end, Defs).
+
+load_idl_import(Path, #st{cwd = Cwd} = St) ->
+    AbsPath = filename:join(Cwd, Path),
+    {ok, Bin} = file:read_file(AbsPath),
+    ImportedCwd = filename:dirname(AbsPath),
+    Avpr = str_to_avpr(binary_to_list(Bin), ImportedCwd),
+    types_from_avpr(Avpr, St).
+
+load_avpr_import(Path, #st{cwd = Cwd} = St) ->
+    AbsPath = filename:join(Cwd, Path),
+    {ok, Bin} = file:read_file(AbsPath),
+    Avpr = avro_json_compat:decode(Bin, [{object_format, map}]),
+    types_from_avpr(Avpr, St).
+
+load_avsc_import(Path, #st{cwd = Cwd} = _St) ->
+    AbsPath = filename:join(Cwd, Path),
+    {ok, Bin} = file:read_file(AbsPath),
+    Schema = avro_json_compat:decode(Bin, [{object_format, map}]),
+    case Schema of
+        _ when is_list(Schema) -> [{avsc, S} || S <- Schema];
+        _ when is_map(Schema)  -> [{avsc, Schema}]
+    end.
+
+types_from_avpr(#{<<"types">> := Types}, _St) ->
+    [{avsc, T} || T <- Types];
+types_from_avpr(#{}, _St) ->
+    [].
 
 typedecl_to_avsc(#enum{name = Name, meta = Meta, variants = Vars}, _St) ->
     meta(
