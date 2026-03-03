@@ -122,11 +122,11 @@ to_lookup_fun(Store) ->
 import_files(Files, Store) ->
   lists:foldl(fun(File, S) -> import_file(File, S) end, Store, Files).
 
-%% @doc Import avro JSON file into schema store.
-%% In case the schema is unnamed, the file basename is used as its
-%% lookup name.
-%% Extention ".avsc" or ".json" will be stripped,
-%% Otherwise the full file basename is used.
+%% @doc Import avro JSON or IDL file into schema store.
+%% For ".avdl" files, the IDL is compiled and all types are imported.
+%% For JSON files, in case the schema is unnamed, the file basename is
+%% used as its lookup name. Extension ".avsc" or ".json" will be stripped,
+%% otherwise the full file basename is used.
 %% e.g.
 %%  "/path/to/com.klarna.test.x.avsc" to 'com.klarna.etst.x"
 %%  "/path/to/com.klarna.test.x.json" to 'com.klarna.etst.x"
@@ -134,12 +134,17 @@ import_files(Files, Store) ->
 %% @end
 -spec import_file(filename(), store()) -> store().
 import_file(File, Store) ->
-  case file:read_file(File) of
-    {ok, Json} ->
-      Name = parse_basename(File),
-      import_schema_json(Name, Json, Store);
-    {error, Reason} ->
-      erlang:error({failed_to_read_schema_file, File, Reason})
+  case filename:extension(File) of
+    Ext when Ext =:= ".avdl"; Ext =:= <<".avdl">> ->
+      import_idl_file(File, Store);
+    _ ->
+      case file:read_file(File) of
+        {ok, Json} ->
+          Name = parse_basename(File),
+          import_schema_json(Name, Json, Store);
+        {error, Reason} ->
+          erlang:error({failed_to_read_schema_file, File, Reason})
+      end
   end.
 
 %% @doc Decode avro schema JSON into erlavro records.
@@ -246,6 +251,16 @@ parse_basename(FileName) ->
 import_schema_json(AssignedName, Json, Store) ->
   Schema = avro:decode_schema(Json),
   add_type(AssignedName, Schema, Store).
+
+%% @private Import an Avro IDL (.avdl) file into the schema store.
+%% All named types defined in (or imported by) the protocol are added.
+-spec import_idl_file(filename(), store()) -> store().
+import_idl_file(File, Store) ->
+  Cwd = filename:dirname(File),
+  {ok, Bin} = file:read_file(File),
+  Schema = avro_idl:decode_schema(binary_to_list(Bin), Cwd),
+  {_Root, FlatTypes} = avro:flatten_type(Schema),
+  lists:foldl(fun do_add_type/2, Store, FlatTypes).
 
 %% @private
 -spec do_add_type(avro_type(), store()) -> store().
