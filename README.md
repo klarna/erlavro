@@ -242,6 +242,106 @@ Because we believe the use case of tagged unions in decoder output is not as com
 You may use the decoder hook `avro_decoer_hooks:tag_unions/0` to have the decoded values tagged.
 NOTE: only named complex types are tagged by this hook, you can of course write your own hook for a different tagging behaviour.
 
+# Avro IDL (.avdl) Support
+
+erlavro can parse [Avro IDL](https://avro.apache.org/docs/current/idl-language/)
+files (`.avdl`) — the human-readable schema definition language — and convert
+them to Avro schemas for encoding and decoding.
+
+## Loading an .avdl schema file
+
+Given a schema file `com/example/my_service.avdl`:
+
+```avdl
+@namespace("com.example")
+protocol MyService {
+  enum Status { OK, ERROR }
+
+  record Response {
+    string id;
+    Status status;
+    union { null, string } message = null;
+  }
+
+  Response process(string id);
+}
+```
+
+Load it into a schema store and use it for encoding/decoding:
+
+```erlang
+%% Load all types from the .avdl file into a schema store
+Store = avro_schema_store:new([], ["com/example/my_service.avdl"]),
+
+%% Look up a type by its full name and make an encoder/decoder
+LookupFun = avro_schema_store:to_lookup_fun(Store),
+Encoder = avro:make_encoder(LookupFun, []),
+Decoder = avro:make_decoder(LookupFun, []),
+
+Record = [{"id", <<"req-1">>}, {"status", <<"OK">>}, {"message", null}],
+Bin = iolist_to_binary(Encoder("com.example.Response", Record)),
+Record = Decoder("com.example.Response", Bin).
+```
+
+## Importing types across .avdl files
+
+IDL files can import types from other files using `import idl`, `import schema`
+(`.avsc`), or `import protocol` (`.avpr`) statements. Import paths are resolved
+relative to the importing file's directory, so nested imports work correctly.
+
+```avdl
+@namespace("com.example")
+protocol Orders {
+  import idl "common/types.avdl";   %% imports Common.Address, Common.Money
+  import schema "status.avsc";      %% imports a plain JSON schema
+
+  record Order {
+    string id;
+    com.example.common.Address shipping_address;
+    com.example.common.Money   total;
+  }
+}
+```
+
+```erlang
+Store = avro_schema_store:new([], ["schemas/orders.avdl"]),
+```
+
+## In-memory schema loading (no filesystem)
+
+For testing or embedded schemas, supply a custom `read_fun` that resolves
+import paths from memory instead of the filesystem:
+
+```erlang
+Files = #{
+    {"schemas", "common.avdl"} =>
+        <<"protocol Common { record Address { string city; } }">>,
+    {"schemas", "orders.avdl"} =>
+        <<"protocol Orders {\n"
+          "  import idl \"common.avdl\";\n"
+          "  record Order { string id; Address addr; }\n"
+          "}">>
+},
+ReadFun = fun(Cwd, Path) ->
+    case maps:find({Cwd, Path}, Files) of
+        {ok, Bin} -> {ok, Bin};
+        error     -> {error, enoent}
+    end
+end,
+{ok, Bin} = maps:find({"schemas", "orders.avdl"}, Files),
+Schema = avro_idl:decode_schema(
+           binary_to_list(Bin), "schemas",
+           [{read_fun, ReadFun}]).
+```
+
+## Converting .avdl to AVPR (JSON protocol)
+
+```erlang
+{ok, Bin} = file:read_file("my_service.avdl"),
+Avpr = avro_idl:str_to_avpr(binary_to_list(Bin), filename:dirname("my_service.avdl")),
+io:format("~s~n", [jsone:encode(Avpr)]).
+```
+
 # Object container file encoding/decoding
 
 See `avro_ocf.erl` for details
