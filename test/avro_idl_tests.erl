@@ -183,6 +183,35 @@ import_nested_idl_test() ->
         #{<<"name">> := <<"SubRecord">>, <<"type">> := ?AVRO_RECORD}],
        Types).
 
+import_with_read_fun_test() ->
+    %% All schemas kept in memory; no filesystem access.
+    %% dep.avdl transitively imports transitive.avdl, verifying read_fun
+    %% is threaded through recursive imports.
+    Files = #{
+        {"root", "dep.avdl"} =>
+            <<"protocol Dep {\n"
+              "  import idl \"transitive.avdl\";\n"
+              "  record DepRecord { string dep_field; }\n"
+              "}">>,
+        {"root", "transitive.avdl"} =>
+            <<"protocol Trans { record TransRecord { int t_field; } }">>
+    },
+    ReadFun = fun(Cwd, Path) ->
+        case maps:find({Cwd, Path}, Files) of
+            {ok, Bin} -> {ok, Bin};
+            error     -> {error, enoent}
+        end
+    end,
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import idl \"dep.avdl\"; }",
+              "root",
+              [{read_fun, ReadFun}]),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"TransRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"DepRecord">>,   <<"type">> := ?AVRO_RECORD}],
+       Types).
+
 duplicate_annotation_avpr_test() ->
     ?assertError(
        {duplicate_annotation, "my_decorator", _, _},
