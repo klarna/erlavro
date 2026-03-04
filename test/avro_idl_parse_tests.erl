@@ -131,9 +131,9 @@ protocol_with_typedefs_test() ->
                      #record{name = "MyAnnotated",
                              fields =
                                  [#field{
-                                     name = "error",
+                                     name = "kind",
                                      type = {custom,
-                                             "org.erlang.www.MyError"}}
+                                             "org.erlang.www.MyEnum2"}}
                                  ]},
                      #error{name = "MyError"},
                      #function{name = "div",

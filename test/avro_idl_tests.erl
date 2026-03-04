@@ -125,8 +125,8 @@ protocol_with_typedefs_avpr_test() ->
         #{<<"name">> := <<"MyAnnotated">>,
           <<"namespace">> := <<"org.erlang.ftp">>,
           <<"fields">> :=
-              [#{<<"name">> := <<"error">>,
-                 <<"type">> := <<"org.erlang.www.MyError">>}]},
+              [#{<<"name">> := <<"kind">>,
+                 <<"type">> := <<"org.erlang.www.MyEnum2">>}]},
         #{<<"name">> := <<"MyError">>,
           <<"fields">> :=
               [#{<<"type">> := <<"MyEnum2">>},
@@ -240,6 +240,47 @@ nested_complex_types_avr_test() ->
          "protocol P { record R { array<map<union{null, ns.T}>> f; }}", "")
       ).
 
+encode_decode_test() ->
+    %% subdir/submodule.avdl imports ../foo.avdl (idl); verify types from both
+    %% files can be encoded/decoded after loading via schema store
+    SubmoduleFile = test_data("subdir/submodule.avdl"),
+    Store1 = avro_schema_store:new([], [SubmoduleFile]),
+    LookupFun1 = avro_schema_store:to_lookup_fun(Store1),
+    Encoder1 = avro:make_encoder(LookupFun1, []),
+    Decoder1 = avro:make_decoder(LookupFun1, []),
+    %% FooRecord comes from the imported ../foo.avdl
+    FooTerm = [{<<"foo_field">>, <<"hello">>}],
+    ?assertEqual(FooTerm,
+                 Decoder1("FooRecord",
+                          iolist_to_binary(Encoder1("FooRecord", FooTerm)))),
+    %% SubRecord is defined locally in submodule.avdl
+    SubTerm = [{<<"sub_field">>, <<"world">>}],
+    ?assertEqual(SubTerm,
+                 Decoder1("SubRecord",
+                          iolist_to_binary(Encoder1("SubRecord", SubTerm)))),
+    %% protocol_with_typedefs.avdl exercises all three import kinds:
+    %%   import idl      "foo.avdl"  -> FooRecord, FooEnum
+    %%   import protocol "bar.avpr"  -> BarRecord
+    %%   import schema   "baz.avsc"  -> BazRecord
+    ProtoFile = test_data("protocol_with_typedefs.avdl"),
+    Store2 = avro_schema_store:new([], [ProtoFile]),
+    LookupFun2 = avro_schema_store:to_lookup_fun(Store2),
+    Encoder2 = avro:make_encoder(LookupFun2, []),
+    Decoder2 = avro:make_decoder(LookupFun2, []),
+    BarTerm = [{<<"bar_field">>, 42}],
+    BarBin = iolist_to_binary(Encoder2("org.erlang.www.BarRecord", BarTerm)),
+    ?assertEqual(BarTerm, Decoder2("org.erlang.www.BarRecord", BarBin)),
+    BazTerm = [{<<"baz_field">>, true}],
+    BazBin = iolist_to_binary(Encoder2("org.erlang.www.BazRecord", BazTerm)),
+    ?assertEqual(BazTerm, Decoder2("org.erlang.www.BazRecord", BazBin)),
+    %% MyAnnotated is in org.erlang.ftp namespace,
+    %% its field references org.erlang.www.MyEnum2
+    AnnTerm = [{<<"kind">>, <<"VAR21">>}],
+    AnnBin = iolist_to_binary(
+               Encoder2("org.erlang.ftp.MyAnnotated", AnnTerm)),
+    ?assertEqual(AnnTerm,
+                 Decoder2("org.erlang.ftp.MyAnnotated", AnnBin)).
+
 full_protocol_load_test() ->
     Schema = read_schema("full_protocol"),
     DecSchema = avro_idl:decode_schema(Schema, ""),
@@ -247,6 +288,9 @@ full_protocol_load_test() ->
     %% ?debugFmt("~n~p~n~s", [DecSchema, EncSchema]).
 
 %% Helpers
+
+test_data(FileName) ->
+    filename:join([code:lib_dir(erlavro), "test", "data", FileName]).
 
 read_schema(Name) ->
     File = "test/data/" ++ Name ++ ".avdl",

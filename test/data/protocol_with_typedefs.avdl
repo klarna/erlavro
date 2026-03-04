@@ -35,7 +35,7 @@ protocol MyProto {
    }
    @namespace("org.erlang.ftp")
    record MyAnnotated {
-       org.erlang.www.MyError `error`;
+       org.erlang.www.MyEnum2 kind;
    }
    error MyError {
       MyEnum2 code;
