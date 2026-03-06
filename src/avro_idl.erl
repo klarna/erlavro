@@ -66,12 +66,12 @@ str_to_avpr(String, Cwd, Opts) ->
     {ok, Tree} = avro_idl_parser:parse(T),
     protocol_to_avpr(Tree, new_context(Cwd, CtxOpts)).
 
-protocol_to_avpr(#protocol{name = Name,
+protocol_to_avpr(#idl_protocol{name = Name,
                            meta = Meta,
                            definitions = Defs0}, St) ->
     Defs = process_imports(Defs0, St),
     {Types, Messages} =
-        lists:partition(fun(#function{}) -> false;
+        lists:partition(fun(#idl_function{}) -> false;
                            (_) -> true
                         end, Defs),
     Protocol0 =
@@ -91,11 +91,11 @@ protocol_to_avpr(#protocol{name = Name,
 
 process_imports(Defs, St) ->
     lists:flatmap(
-      fun(#import{type = idl, file_path = Path}) ->
+      fun(#idl_import{type = idl, file_path = Path}) ->
               load_idl_import(Path, St);
-          (#import{type = protocol, file_path = Path}) ->
+          (#idl_import{type = protocol, file_path = Path}) ->
               load_avpr_import(Path, St);
-          (#import{type = schema, file_path = Path}) ->
+          (#idl_import{type = schema, file_path = Path}) ->
               load_avsc_import(Path, St);
           (Def) ->
               [Def]
@@ -126,33 +126,33 @@ types_from_avpr(#{<<"types">> := Types}, _St) ->
 types_from_avpr(#{}, _St) ->
     [].
 
-typedecl_to_avsc(#enum{name = Name, meta = Meta, variants = Vars}, _St) ->
+typedecl_to_avsc(#idl_enum{name = Name, meta = Meta, variants = Vars}, _St) ->
     meta(
       #{<<"type">> => ?AVRO_ENUM,
         <<"name">> => b(Name),
         <<"symbols">> => lists:map(fun b/1, Vars)
        },
       Meta);
-typedecl_to_avsc(#fixed{name = Name, meta = Meta, size = Size}, _St) ->
+typedecl_to_avsc(#idl_fixed{name = Name, meta = Meta, size = Size}, _St) ->
     meta(
       #{<<"type">> => ?AVRO_FIXED,
         <<"name">> => b(Name),
         <<"size">> => Size},
       Meta);
-typedecl_to_avsc(#error{name = Name, meta = Meta, fields = Fields}, St) ->
+typedecl_to_avsc(#idl_error{name = Name, meta = Meta, fields = Fields}, St) ->
     meta(
       #{<<"type">> => ?AVRO_ERROR,
         <<"name">> => b(Name),
         <<"fields">> => [field_to_avsc(Field, St) || Field <- Fields]},
       Meta);
-typedecl_to_avsc(#record{name = Name, meta = Meta, fields = Fields}, St) ->
+typedecl_to_avsc(#idl_record{name = Name, meta = Meta, fields = Fields}, St) ->
     meta(
       #{<<"type">> => ?AVRO_RECORD,
         <<"name">> => b(Name),
         <<"fields">> => [field_to_avsc(Field, St) || Field <- Fields]},
       Meta).
 
-field_to_avsc(#field{name = Name, meta = Meta,
+field_to_avsc(#idl_field{name = Name, meta = Meta,
                      type = Type, default = Default}, St) ->
     meta(
       default(
@@ -161,10 +161,10 @@ field_to_avsc(#field{name = Name, meta = Meta,
         Default),         % TODO: maybe validate default matches type
       Meta).
 
-message_to_avsc(#function{name = Name, meta = Meta,
+message_to_avsc(#idl_function{name = Name, meta = Meta,
                           arguments = Args, return = Return,
                           extra = Extra}, St) ->
-    %% TODO: arguments can just reuse `#field{}`
+    %% TODO: arguments can just reuse `#idl_field{}`
     ArgsSchema =
         [default(
            #{<<"name">> => b(ArgName),
@@ -226,7 +226,7 @@ meta(Schema, Meta) ->
     {Docs, Annotations} =
         lists:partition(
           fun({doc, _}) -> true;
-             (#annotation{}) -> false
+             (#idl_annotation{}) -> false
           end, Meta),
     Schema1 = case Docs of
                   [] -> Schema;
@@ -236,7 +236,7 @@ meta(Schema, Meta) ->
                                                "\n", DocStrings))}
               end,
     lists:foldl(
-     fun(#annotation{name = Name, value = Value}, Schema2) ->
+     fun(#idl_annotation{name = Name, value = Value}, Schema2) ->
              BName = b(Name),
              BVal = case Value of
                         [] -> <<>>;

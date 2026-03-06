@@ -1,43 +1,43 @@
--record(protocol,
+-record(idl_protocol,
         {name,
          meta = [],
          definitions = []}).
 
--record(annotation,
+-record(idl_annotation,
         {name,
          value}).
 
--record(import,
+-record(idl_import,
         {type,
          file_path}).
 
--record(enum,
+-record(idl_enum,
         {name,
          meta = [],
          variants = []}).
 
--record(fixed,
+-record(idl_fixed,
         {name,
          meta = [],
          size}).
 
--record(error,
+-record(idl_error,
         {name,
          meta = [],
          fields = []}).
 
--record(record,
+-record(idl_record,
         {name,
          meta = [],
          fields = []}).
 
--record(field,
+-record(idl_field,
         {name,
          meta = [],
          type,
          default}).
 
--record(function,
+-record(idl_function,
         {name,
          meta = [],
          arguments = [],

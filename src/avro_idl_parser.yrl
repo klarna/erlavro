@@ -36,13 +36,13 @@ Expect 2.
 
 protocol ->
     protocol_k id '{' '}' :
-        #protocol{name = value_of('$2')}.
+        #idl_protocol{name = value_of('$2')}.
 protocol ->
     protocol_k id '{' declaration declaration_tail :
-        #protocol{name = value_of('$2'), definitions = ['$4' | '$5']}.
+        #idl_protocol{name = value_of('$2'), definitions = ['$4' | '$5']}.
 protocol ->
     meta protocol :
-        ('$2')#protocol{meta = '$1'}.
+        ('$2')#idl_protocol{meta = '$1'}.
 
 
 %% == Annotation ==
@@ -62,7 +62,7 @@ meta_item ->
 
 annotation ->
     annotation_v '(' annotation_value ')' :
-        #annotation{name = value_of('$1'), value = '$3'}.
+        #idl_annotation{name = value_of('$1'), value = '$3'}.
 
 %% Maybe can just use `data` instead of `decorator_value`?
 annotation_value ->
@@ -112,7 +112,7 @@ declaration -> function : '$1'.
 
 import ->
     import_k import_file_type string_v ';' :
-        #import{type = '$2', file_path = value_of('$3')}.
+        #idl_import{type = '$2', file_path = value_of('$3')}.
 
 import_file_type -> idl_k : idl.
 import_file_type -> protocol_k : protocol.
@@ -121,10 +121,10 @@ import_file_type -> schema_k : schema.
 %% -- Enum typedef
 enum ->
     enum_t id '{' id enum_variants :            % TODO: add support for default
-        #enum{name = value_of('$2'), variants = [value_of('$4') | '$5']}.
+        #idl_enum{name = value_of('$2'), variants = [value_of('$4') | '$5']}.
 enum ->
     meta enum :
-        ('$2')#enum{meta = '$1'}.
+        ('$2')#idl_enum{meta = '$1'}.
 
 enum_variants ->
     '}' :
@@ -135,33 +135,33 @@ enum_variants ->
 %% -- Fixed typedef
 fixed ->
     fixed_t id '(' integer_v ')' ';':
-        #fixed{name = value_of('$2'), size = value_of('$4')}.
+        #idl_fixed{name = value_of('$2'), size = value_of('$4')}.
 fixed ->
     meta fixed :
-        ('$2')#fixed{meta = '$1'}.
+        ('$2')#idl_fixed{meta = '$1'}.
 
 %% -- Error typedef
 error ->
     error_k id '{' '}' :
-        #error{name = value_of('$2')}.
+        #idl_error{name = value_of('$2')}.
 error ->
     error_k id '{' record_field record_tail :
-        #error{name = value_of('$2'), fields = ['$4' | '$5']}.
+        #idl_error{name = value_of('$2'), fields = ['$4' | '$5']}.
 error ->
     meta error :
-        ('$2')#error{meta = '$1'}.
+        ('$2')#idl_error{meta = '$1'}.
 
 %% -- Record
 
 record ->
     record_t id '{' '}' :
-        #record{name = value_of('$2')}.
+        #idl_record{name = value_of('$2')}.
 record ->
     record_t id '{' record_field record_tail :
-        #record{name = value_of('$2'), fields = ['$4' | '$5']}.
+        #idl_record{name = value_of('$2'), fields = ['$4' | '$5']}.
 record ->
     meta record :
-        ('$2')#record{meta = '$1'}.
+        ('$2')#idl_record{meta = '$1'}.
 
 record_tail ->
     '}' :
@@ -172,14 +172,14 @@ record_tail ->
 
 record_field ->
     type record_field_name ';' :
-        #field{name = element(1, '$2'), meta = element(2, '$2'), type = '$1'}.
+        #idl_field{name = element(1, '$2'), meta = element(2, '$2'), type = '$1'}.
 record_field ->
     type record_field_name '=' data ';' :
-        #field{name = element(1, '$2'), meta = element(2, '$2'),
+        #idl_field{name = element(1, '$2'), meta = element(2, '$2'),
                type = '$1', default = '$4'}.
 record_field ->
     meta record_field :
-        ('$2')#field{meta = '$1' ++ ('$2')#field.meta}.
+        ('$2')#idl_field{meta = '$1' ++ ('$2')#idl_field.meta}.
 
 record_field_name ->
     id :
@@ -229,10 +229,10 @@ map ->
 
 function ->
     fun_return id '(' fun_arguments ')' fun_extra ';' :
-        #function{name = value_of('$2'), arguments = '$4', return = '$1', extra = '$6'}.
+        #idl_function{name = value_of('$2'), arguments = '$4', return = '$1', extra = '$6'}.
 function ->
     meta function :
-        ('$2')#function{meta = '$1' ++ ('$2')#function.meta}.
+        ('$2')#idl_function{meta = '$1' ++ ('$2')#idl_function.meta}.
 
 fun_return -> type : '$1'.
 fun_return -> void_k : void.

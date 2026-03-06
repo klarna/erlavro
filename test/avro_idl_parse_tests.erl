@@ -8,63 +8,63 @@
 
 parse_empty_protocol_test() ->
     ?assertEqual(
-       #protocol{name = "MyProto"},
+       #idl_protocol{name = "MyProto"},
        parse_idl("empty_protocol")).
 
 parse_annotations_test() ->
     ?assertEqual(
-       #protocol{
+       #idl_protocol{
           name = "MyProto",
           meta =
               [{doc, "My protocol"},
                {doc, "No, really\nIt's some multiline doc\n"
                 "bullet points will be stripped\nso no unordered lists"},
-               #annotation{name = "version",
+               #idl_annotation{name = "version",
                            value = "1.0"},
-               #annotation{name = "aliases",
+               #idl_annotation{name = "aliases",
                            value = ["ns.Proto1", "ns.Proto2"]}
               ],
           definitions =
-              [#enum{name = "MyEnum",
+              [#idl_enum{name = "MyEnum",
                      meta =
                          [{doc, "My enum"},
-                          #annotation{name = "namespace",
+                          #idl_annotation{name = "namespace",
                                       value = "enums"}],
                      variants = ["A", "B", "C"]},
-               #fixed{name = "MyFixed",
+               #idl_fixed{name = "MyFixed",
                       meta =
                           [{doc, "My Fixed"},
-                           #annotation{name = "namespace",
+                           #idl_annotation{name = "namespace",
                                        value = "fixeds"}],
                      size = 16},
-               #error{name = "MyError",
+               #idl_error{name = "MyError",
                       meta =
                           [{doc, "My Error"},
-                           #annotation{name = "namespace",
+                           #idl_annotation{name = "namespace",
                                        value = "errors"}],
                       fields =
-                          [#field{name = "my_err_field",
+                          [#idl_field{name = "my_err_field",
                                   meta =
                                       [{doc, "My Err Field"},
-                                       #annotation{name = "order",
+                                       #idl_annotation{name = "order",
                                                    value = "ignore"}],
                                   type = string}]},
-               #record{name = "MyRecord",
+               #idl_record{name = "MyRecord",
                        meta =
                            [{doc, "My Record"},
-                            #annotation{name = "namespace",
+                            #idl_annotation{name = "namespace",
                                         value = "records"}],
                        fields =
-                           [#field{name = "my_record_field",
+                           [#idl_field{name = "my_record_field",
                                    meta =
                                        [{doc, "My Rec Field Type"},
-                                        #annotation{name = "order",
+                                        #idl_annotation{name = "order",
                                                     value = "ignore"},
                                         {doc, "My Rec Field"},
-                                        #annotation{name = "aliases",
+                                        #idl_annotation{name = "aliases",
                                                     value = ["my_alias"]}],
                                    type = string}]},
-              #function{name = "hello",
+              #idl_function{name = "hello",
                         meta = [{doc, "My Fun"}],
                         arguments = [],
                         return = string,
@@ -74,114 +74,114 @@ parse_annotations_test() ->
 
 full_protocol_test() ->
     ?assertMatch(
-      #protocol{name = "Simple",
+      #idl_protocol{name = "Simple",
                 meta =
                     [{doc, "An example protocol in Avro IDL"},
-                     #annotation{}],
+                     #idl_annotation{}],
                 definitions =
-                    [#enum{name = "Kind"},
-                     #fixed{name = "MD5"},
-                     #record{name = "TestRecord"},
-                     #error{name = "TestError"},
-                     #function{name = "hello"},
-                     #function{name = "echo"},
-                     #function{name = "add"},
-                     #function{name = "echoBytes"},
-                     #function{name = "error"},
-                     #function{name = "ping"}]},
+                    [#idl_enum{name = "Kind"},
+                     #idl_fixed{name = "MD5"},
+                     #idl_record{name = "TestRecord"},
+                     #idl_error{name = "TestError"},
+                     #idl_function{name = "hello"},
+                     #idl_function{name = "echo"},
+                     #idl_function{name = "add"},
+                     #idl_function{name = "echoBytes"},
+                     #idl_function{name = "error"},
+                     #idl_function{name = "ping"}]},
       parse_idl("full_protocol")).
 
 protocol_with_typedefs_test() ->
     ?assertMatch(
-      #protocol{name = "MyProto",
+      #idl_protocol{name = "MyProto",
                 definitions =
-                    [#import{type = idl, file_path = "foo.avdl"},
-                     #import{type = protocol, file_path = "bar.avpr"},
-                     #import{type = schema, file_path = "baz.avsc"},
-                     #enum{name = "MyEnum1"},
-                     #enum{name = "MyEnum2"},
-                     #fixed{name = "MyFix"},
-                     #record{name = "MyRec",
+                    [#idl_import{type = idl, file_path = "foo.avdl"},
+                     #idl_import{type = protocol, file_path = "bar.avpr"},
+                     #idl_import{type = schema, file_path = "baz.avsc"},
+                     #idl_enum{name = "MyEnum1"},
+                     #idl_enum{name = "MyEnum2"},
+                     #idl_fixed{name = "MyFix"},
+                     #idl_record{name = "MyRec",
                              fields =
-                                 [#field{name = "my_int", type = int},
-                                  #field{name = "my_string", type = string},
-                                  #field{name = "my_float", type = float},
-                                  #field{name = "my_bool", type = boolean,
+                                 [#idl_field{name = "my_int", type = int},
+                                  #idl_field{name = "my_string", type = string},
+                                  #idl_field{name = "my_float", type = float},
+                                  #idl_field{name = "my_bool", type = boolean,
                                          default = false},
-                                  #field{name = "my_custom",
+                                  #idl_field{name = "my_custom",
                                          type = {custom, "MyFix"}},
-                                  #field{name = "my_union",
+                                  #idl_field{name = "my_union",
                                          type = {union, [boolean, null]},
                                          default = null},
-                                  #field{name = "my_date",
+                                  #idl_field{name = "my_date",
                                          type = date},
-                                  #field{name = "my_time",
+                                  #idl_field{name = "my_time",
                                          type = time_ms},
-                                  #field{name = "my_timestamp",
+                                  #idl_field{name = "my_timestamp",
                                          type = timestamp_ms},
-                                  #field{name = "my_decimal",
+                                  #idl_field{name = "my_decimal",
                                          type = {decimal, 5, 2}},
-                                  #field{name = "my_int_array",
+                                  #idl_field{name = "my_int_array",
                                          type = {array, int}},
-                                  #field{},
-                                  #field{},
-                                  #field{name = "my_map",
+                                  #idl_field{},
+                                  #idl_field{},
+                                  #idl_field{name = "my_map",
                                          type = {map, float}}
                                  ]},
-                     #record{name = "MyAnnotated",
+                     #idl_record{name = "MyAnnotated",
                              fields =
-                                 [#field{
+                                 [#idl_field{
                                      name = "kind",
                                      type = {custom,
                                              "org.erlang.www.MyEnum2"}}
                                  ]},
-                     #error{name = "MyError"},
-                     #function{name = "div",
+                     #idl_error{name = "MyError"},
+                     #idl_function{name = "div",
                                extra = {throws, ["DivisionByZero"]}},
-                     #function{name = "append",
+                     #idl_function{name = "append",
                                extra = {throws, ["MyError", "TheirError"]}},
-                     #function{name = "gen_server_cast", extra = oneway},
-                     #function{name = "ping", extra = undefined}]},
+                     #idl_function{name = "gen_server_cast", extra = oneway},
+                     #idl_function{name = "ping", extra = undefined}]},
        parse_idl("protocol_with_typedefs")).
 
 empty_record_test() ->
     ?assertEqual(
-       #protocol{
+       #idl_protocol{
           name = "P",
-          definitions = [#record{name = "R"}]},
+          definitions = [#idl_record{name = "R"}]},
        parse_str("protocol P { record R {} }")).
 
 empty_error_test() ->
     ?assertEqual(
-       #protocol{
+       #idl_protocol{
           name = "P",
-          definitions = [#error{name = "E"}]},
+          definitions = [#idl_error{name = "E"}]},
        parse_str("protocol P { error E {} }")).
 
 empty_string_default_test() ->
-    #protocol{definitions = [#record{fields = [#field{default = Default}]}]} =
+    #idl_protocol{definitions = [#idl_record{fields = [#idl_field{default = Default}]}]} =
         parse_str("protocol P { record R { string f = \"\"; } }"),
     ?assertEqual("", Default).
 
 escaped_quote_in_string_test() ->
-    #protocol{definitions = [#record{fields = [#field{default = Default}]}]} =
+    #idl_protocol{definitions = [#idl_record{fields = [#idl_field{default = Default}]}]} =
         parse_str("protocol P { record R { string f = \"foo\\\"bar\"; } }"),
     ?assertEqual("foo\"bar", Default).
 
 function_annotation_test() ->
     ?assertMatch(
-       #protocol{
-          definitions = [#function{
+       #idl_protocol{
+          definitions = [#idl_function{
               name = "hello",
-              meta = [#annotation{name = "deprecated", value = "true"},
+              meta = [#idl_annotation{name = "deprecated", value = "true"},
                       {doc, "Say hello"}],
               return = string}]},
        parse_str("protocol P { @deprecated(\"true\") /** Say hello */ string hello(); }")).
 
 function_multi_meta_test() ->
     ?assertMatch(
-       #protocol{
-          definitions = [#function{
+       #idl_protocol{
+          definitions = [#idl_function{
               name = "hello",
               meta = [{doc, "Doc one"}, {doc, "Doc two"}]}]},
        parse_str("protocol P { /** Doc one */ /** Doc two */ string hello(); }")).
@@ -218,11 +218,11 @@ test_field_type(ExpectType, IdlType) ->
     Idl = ("protocol P {"
            " record R { " ++ IdlType ++ " f; }"
            "}"),
-    #protocol{
+    #idl_protocol{
        definitions =
-           [#record{
+           [#idl_record{
                fields =
-                   [#field{type = Type}]}]} = parse_str(Idl),
+                   [#idl_field{type = Type}]}]} = parse_str(Idl),
     ?assertEqual(ExpectType, Type).%% ,  % ?assertEqual/3 only OTP-20+
                  %% #{proto => Idl,
                  %%   type => IdlType}).
