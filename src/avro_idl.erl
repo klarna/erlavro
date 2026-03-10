@@ -1,0 +1,258 @@
+%%% @doc APIs to work with Avro IDL format
+%%%
+%%% This module allows to convert .avdl format to .avpr and .avsc as well
+%%% as create Avro encoders and decoders.
+%%% @end
+%%% @reference See [https://avro.apache.org/docs/current/idl.html]
+%%% @author Sergey Prokhorov <me@seriyps.ru>
+-module(avro_idl).
+
+-export([decode_schema/2, decode_schema/3]).
+-export([new_context/1, new_context/2,
+         str_to_avpr/2, str_to_avpr/3,
+         protocol_to_avpr/2,
+         typedecl_to_avsc/2]).
+-include("idl.hrl").
+-include("erlavro.hrl").
+
+-type read_fun() :: fun((Cwd :: string(), Path :: string()) ->
+                            {ok, binary()} | {error, term()}).
+
+-record(st, {cwd, read_fun :: read_fun()}).
+
+decode_schema(SchemaStr, Cwd) ->
+    decode_schema(SchemaStr, Cwd, []).
+
+decode_schema(SchemaStr, Cwd, Opts) ->
+    Protocol = str_to_avpr(SchemaStr, Cwd, Opts),
+    #{<<"types">> := Types0} = Protocol,
+    Types1 = lists:filter(
+              fun(#{<<"type">> := TName}) ->TName =/= <<"error">> end, Types0),
+    Ns = maps:get(<<"namespace">>, Protocol, ?AVRO_NS_GLOBAL),
+    Types = lists:map(
+        fun(T) ->
+                case maps:is_key(<<"namespace">>, T) of
+                    false ->
+                        T#{<<"namespace">> => Ns};
+                    true ->
+                        T
+                end
+        end, Types1),
+    avro:decode_schema(Types, [{ignore_bad_default_values, true}]).
+
+-spec default_read_fun() -> read_fun().
+default_read_fun() ->
+    fun(Cwd, Path) -> file:read_file(filename:join(Cwd, Path)) end.
+
+new_context(Cwd) ->
+    new_context(Cwd, []).
+
+new_context(Cwd, Opts) ->
+    ReadFun = proplists:get_value(read_fun, Opts, default_read_fun()),
+    #st{cwd = Cwd, read_fun = ReadFun}.
+
+str_to_avpr(String, Cwd) ->
+    str_to_avpr(String, Cwd, []).
+
+str_to_avpr(String, Cwd, Opts) ->
+    {LexerOpts, CtxOpts} = lists:partition(
+        fun(drop_comments) -> true;
+           (trim_doc) -> true;
+           (_) -> false
+        end, Opts),
+    LexerOpts1 = case LexerOpts of [] -> [drop_comments, trim_doc]; _ -> LexerOpts end,
+    {ok, T0, _} = avro_idl_lexer:string(String),
+    T = avro_idl_lexer:preprocess(T0, LexerOpts1),
+    {ok, Tree} = avro_idl_parser:parse(T),
+    protocol_to_avpr(Tree, new_context(Cwd, CtxOpts)).
+
+protocol_to_avpr(#idl_protocol{name = Name,
+                           meta = Meta,
+                           definitions = Defs0}, St) ->
+    Defs = process_imports(Defs0, St),
+    {Types, Messages} =
+        lists:partition(fun(#idl_function{}) -> false;
+                           (_) -> true
+                        end, Defs),
+    Protocol0 =
+        #{<<"protocol">> => b(Name),
+          <<"types">> =>
+              lists:map(
+                fun({avsc, Map}) -> Map;
+                   (Type) -> typedecl_to_avsc(Type, St)
+                end, Types),
+          <<"messages">> =>
+              lists:map(
+                fun(Message) ->
+                        message_to_avsc(Message, St)
+                end, Messages)
+         },
+    meta(Protocol0, Meta).
+
+process_imports(Defs, St) ->
+    lists:flatmap(
+      fun(#idl_import{type = idl, file_path = Path}) ->
+              load_idl_import(Path, St);
+          (#idl_import{type = protocol, file_path = Path}) ->
+              load_avpr_import(Path, St);
+          (#idl_import{type = schema, file_path = Path}) ->
+              load_avsc_import(Path, St);
+          (Def) ->
+              [Def]
+      end, Defs).
+
+load_idl_import(Path, #st{cwd = Cwd, read_fun = ReadFun} = St) ->
+    {ok, Bin} = ReadFun(Cwd, Path),
+    ImportedCwd = filename:dirname(filename:join(Cwd, Path)),
+    Avpr = str_to_avpr(binary_to_list(Bin), ImportedCwd,
+                       [{read_fun, ReadFun}]),
+    types_from_avpr(Avpr, St).
+
+load_avpr_import(Path, #st{cwd = Cwd, read_fun = ReadFun} = St) ->
+    {ok, Bin} = ReadFun(Cwd, Path),
+    Avpr = avro_json_compat:decode(Bin, [{object_format, map}]),
+    types_from_avpr(Avpr, St).
+
+load_avsc_import(Path, #st{cwd = Cwd, read_fun = ReadFun}) ->
+    {ok, Bin} = ReadFun(Cwd, Path),
+    Schema = avro_json_compat:decode(Bin, [{object_format, map}]),
+    case Schema of
+        _ when is_list(Schema) -> [{avsc, S} || S <- Schema];
+        _ when is_map(Schema)  -> [{avsc, Schema}]
+    end.
+
+types_from_avpr(#{<<"types">> := Types}, _St) ->
+    [{avsc, T} || T <- Types];
+types_from_avpr(#{}, _St) ->
+    [].
+
+typedecl_to_avsc(#idl_enum{name = Name, meta = Meta, variants = Vars}, _St) ->
+    meta(
+      #{<<"type">> => ?AVRO_ENUM,
+        <<"name">> => b(Name),
+        <<"symbols">> => lists:map(fun b/1, Vars)
+       },
+      Meta);
+typedecl_to_avsc(#idl_fixed{name = Name, meta = Meta, size = Size}, _St) ->
+    meta(
+      #{<<"type">> => ?AVRO_FIXED,
+        <<"name">> => b(Name),
+        <<"size">> => Size},
+      Meta);
+typedecl_to_avsc(#idl_error{name = Name, meta = Meta, fields = Fields}, St) ->
+    meta(
+      #{<<"type">> => ?AVRO_ERROR,
+        <<"name">> => b(Name),
+        <<"fields">> => [field_to_avsc(Field, St) || Field <- Fields]},
+      Meta);
+typedecl_to_avsc(#idl_record{name = Name, meta = Meta, fields = Fields}, St) ->
+    meta(
+      #{<<"type">> => ?AVRO_RECORD,
+        <<"name">> => b(Name),
+        <<"fields">> => [field_to_avsc(Field, St) || Field <- Fields]},
+      Meta).
+
+field_to_avsc(#idl_field{name = Name, meta = Meta,
+                     type = Type, default = Default}, St) ->
+    meta(
+      default(
+        #{<<"name">> => b(Name),
+          <<"type">> => type_to_avsc(Type, St)},
+        Default),         % TODO: maybe validate default matches type
+      Meta).
+
+message_to_avsc(#idl_function{name = Name, meta = Meta,
+                          arguments = Args, return = Return,
+                          extra = Extra}, St) ->
+    %% TODO: arguments can just reuse `#idl_field{}`
+    ArgsSchema =
+        [default(
+           #{<<"name">> => b(ArgName),
+             <<"type">> => type_to_avsc(Type, St)},
+           Default)
+         || {arg, ArgName, Type, Default} <- Args],
+    Schema0 =
+        #{<<"name">> => b(Name),
+          <<"request">> => ArgsSchema,
+          <<"response">> => type_to_avsc(Return, St)},
+    Schema1 = case Extra of
+                  undefined -> Schema0;
+                  oneway ->
+                      Schema0#{<<"one-way">> => true};
+                  {throws, ThrowsTypes} ->
+                      Schema0#{<<"error">> => lists:map(fun b/1, ThrowsTypes)}
+              end,
+    meta(Schema1, Meta).
+
+
+type_to_avsc(void, _St) ->
+    ?AVRO_NULL;
+type_to_avsc(null, _St) ->
+    ?AVRO_NULL;
+type_to_avsc(T, _St) when T == int;
+                          T == long;
+                          T == string;
+                          T == boolean;
+                          T == float;
+                          T == double;
+                          T == bytes ->
+    atom_to_binary(T, utf8);
+type_to_avsc({decimal, Precision, Scale}, _St) ->
+    #{<<"type">> => ?AVRO_BYTES,
+      <<"logicalType">> => <<"decimal">>,
+      <<"precision">> => Precision,
+      <<"scale">> => Scale};
+type_to_avsc(date, _St) ->
+    #{<<"type">> => ?AVRO_INT,
+      <<"logicalType">> => <<"date">>};
+type_to_avsc(time_ms, _St) ->
+    #{<<"type">> => ?AVRO_INT,
+      <<"logicalType">> => <<"time-millis">>};
+type_to_avsc(timestamp_ms, _St) ->
+    #{<<"type">> => ?AVRO_LONG,
+      <<"logicalType">> => <<"timestamp-millis">>};
+type_to_avsc({custom, Id}, _St) ->
+    b(Id);
+type_to_avsc({union, Types}, St) ->
+    [type_to_avsc(Type, St) || Type <- Types];
+type_to_avsc({array, Of}, St) ->
+    #{<<"type">> => ?AVRO_ARRAY,
+      <<"items">> => type_to_avsc(Of, St)};
+type_to_avsc({map, ValType}, St) ->
+    #{<<"type">> => ?AVRO_MAP,
+      <<"values">> => type_to_avsc(ValType, St)}.
+
+meta(Schema, Meta) ->
+    {Docs, Annotations} =
+        lists:partition(
+          fun({doc, _}) -> true;
+             (#idl_annotation{}) -> false
+          end, Meta),
+    Schema1 = case Docs of
+                  [] -> Schema;
+                  _ ->
+                      DocStrings = [S || {doc, S} <- Docs],
+                      Schema#{<<"doc">> => b(lists:join(
+                                               "\n", DocStrings))}
+              end,
+    lists:foldl(
+     fun(#idl_annotation{name = Name, value = Value}, Schema2) ->
+             BName = b(Name),
+             BVal = case Value of
+                        [] -> <<>>;
+                        [C | _] when is_integer(C) -> b(Value);
+                        _ ->
+                            [b(Str) || Str <- Value]
+                    end,
+             maps:is_key(BName, Schema2) andalso
+                 error({duplicate_annotation, Name, Value, Schema2}),
+             Schema2#{BName => BVal}
+     end, Schema1, Annotations).
+
+default(Obj, undefined) ->
+    Obj;
+default(Obj, Default) ->
+    Obj#{<<"default">> => Default}.
+
+b(Str) when is_list(Str) ->
+    unicode:characters_to_binary(Str).

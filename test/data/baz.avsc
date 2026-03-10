@@ -1,0 +1,7 @@
+{
+    "type": "record",
+    "name": "BazRecord",
+    "fields": [
+        {"name": "baz_field", "type": "boolean"}
+    ]
+}

@@ -97,6 +97,17 @@ import_test() ->
   ets:delete(Store),
   ok.
 
+import_avdl_test() ->
+  AvdlFile = test_data("full_protocol.avdl"),
+  Store = avro_schema_store:new([], [AvdlFile]),
+  %% Types defined in full_protocol.avdl under namespace org.apache.avro.test
+  {ok, _} = avro_schema_store:lookup_type(
+              "org.apache.avro.test.Kind", Store),
+  {ok, _} = avro_schema_store:lookup_type(
+              "org.apache.avro.test.TestRecord", Store),
+  {ok, _} = avro_schema_store:lookup_type(
+              "org.apache.avro.test.MD5", Store).
+
 import_unnamed_test() ->
   UnionName = "com.klarna.test.union",
   AvscFile = test_data(UnionName ++ ".avsc"),

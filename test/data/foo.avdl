@@ -1,0 +1,9 @@
+protocol Foo {
+    record FooRecord {
+        string foo_field;
+    }
+    enum FooEnum {
+        FOO_A,
+        FOO_B
+    }
+}

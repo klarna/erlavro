@@ -1,0 +1,7 @@
+protocol Submodule {
+    import idl "../foo.avdl";
+
+    record SubRecord {
+        string sub_field;
+    }
+}
