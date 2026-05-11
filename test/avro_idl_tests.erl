@@ -170,9 +170,10 @@ import_schema_test() ->
        Types).
 
 import_nested_idl_test() ->
-    %% subdir/submodule.avdl imports ../foo.avdl (relative to its own dir).
+    %% subdir/submodule.avdl imports sibling.avdl (relative to its own dir).
     %% Verifies that import paths are resolved relative to the importing file,
-    %% not relative to the top-level caller's cwd.
+    %% not relative to the top-level caller's cwd. sibling.avdl exists only
+    %% in subdir/, so this would fail if resolution used the top-level cwd.
     Proto = avro_idl:str_to_avpr(
               "protocol P { import idl \"subdir/submodule.avdl\"; }",
               "test/data"),
@@ -212,6 +213,33 @@ import_with_read_fun_test() ->
         #{<<"name">> := <<"DepRecord">>,   <<"type">> := ?AVRO_RECORD}],
        Types).
 
+import_outside_root_rejected_test_() ->
+    %% The default read_fun resolves imports relative to the importing
+    %% file's directory and refuses paths that point outside it, both
+    %% absolute paths and relative paths that escape through "..".
+    AttackPaths = ["/etc/passwd", "../../etc/passwd"],
+    Variants = ["idl", "protocol", "schema"],
+    [?_assertError(
+        {badmatch, {error, {import_outside_root, _}}},
+        avro_idl:str_to_avpr(
+          "protocol P { import " ++ Kind ++ " \"" ++ AP ++ "\"; }",
+          "test/data"))
+     || Kind <- Variants, AP <- AttackPaths].
+
+import_outside_root_with_read_fun_override_test() ->
+    %% The strict default can be bypassed by supplying a custom read_fun;
+    %% verify the option still takes effect and the default is not applied
+    %% on top of it.
+    ReadFun = fun(_Cwd, _Path) ->
+                {ok, <<"protocol Bypassed { record R { int n; } }">>}
+              end,
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import idl \"/anywhere/on/disk.avdl\"; }",
+              "test/data",
+              [{read_fun, ReadFun}]),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch([#{<<"name">> := <<"R">>}], Types).
+
 duplicate_annotation_avpr_test() ->
     ?assertError(
        {duplicate_annotation, "my_decorator", _, _},
@@ -241,8 +269,8 @@ nested_complex_types_avr_test() ->
       ).
 
 encode_decode_test() ->
-    %% subdir/submodule.avdl imports ../foo.avdl (idl); verify types from both
-    %% files can be encoded/decoded after loading via schema store
+    %% subdir/submodule.avdl imports sibling.avdl (idl); verify types from
+    %% both files can be encoded/decoded after loading via schema store.
     SubmoduleFile = test_data("subdir/submodule.avdl"),
     Store1 = avro_schema_store:new([], [SubmoduleFile]),
     LookupFun1 = avro_schema_store:to_lookup_fun(Store1),

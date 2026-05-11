@@ -40,9 +40,27 @@ decode_schema(SchemaStr, Cwd, Opts) ->
         end, Types1),
     avro:decode_schema(Types, [{ignore_bad_default_values, true}]).
 
+%% @doc Default `read_fun' used when one is not supplied via options.
+%% Import paths are resolved relative to the importing file's directory
+%% (`Cwd'). Absolute paths and relative paths that escape `Cwd' through
+%% `..' are refused with `{error, {import_outside_root, Path}}'. Callers
+%% that need different resolution semantics can supply their own
+%% function via the `read_fun' option.
 -spec default_read_fun() -> read_fun().
 default_read_fun() ->
-    fun(Cwd, Path) -> file:read_file(filename:join(Cwd, Path)) end.
+    fun(Cwd, Path) ->
+        case filename:pathtype(Path) of
+            absolute ->
+                {error, {import_outside_root, Path}};
+            _ ->
+                case filelib:safe_relative_path(Path, Cwd) of
+                    unsafe ->
+                        {error, {import_outside_root, Path}};
+                    SafePath ->
+                        file:read_file(filename:join(Cwd, SafePath))
+                end
+        end
+    end.
 
 new_context(Cwd) ->
     new_context(Cwd, []).
