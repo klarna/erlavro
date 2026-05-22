@@ -54,33 +54,42 @@ decode_schema(SchemaStr, Cwd, Opts) ->
 %% supply their own function via the `read_fun' option.
 -spec default_read_fun(RootDir :: string()) -> read_fun().
 default_read_fun(RootDir) ->
-    RootParts = filename:split(RootDir),
+    {ok, RootParts} = normalize(filename:split(RootDir)),
     fun(Cwd, Path) ->
-        case filename:pathtype(Path) of
-            relative ->
-                CwdParts = filename:split(Cwd),
-                case lists:prefix(RootParts, CwdParts) of
-                    true ->
-                        RelCwd =
-                            case lists:nthtail(length(RootParts), CwdParts) of
-                                []   -> ".";
-                                Rest -> filename:join(Rest)
-                            end,
-                        Candidate = filename:join(RelCwd, Path),
-                        case filelib:safe_relative_path(Candidate, RootDir) of
-                            unsafe ->
-                                {error, {import_outside_root, Path}};
-                            SafePath ->
-                                file:read_file(
-                                  filename:join(RootDir, SafePath))
-                        end;
-                    false ->
-                        {error, {import_outside_root, Path}}
-                end;
-            _ ->
-                {error, {import_outside_root, Path}}
+        case check_path(Cwd, Path, RootParts) of
+            {ok, Parts} -> file:read_file(filename:join(Parts));
+            unsafe      -> {error, {import_outside_root, Path}}
         end
     end.
+
+%% @private Resolve `Path' against `Cwd', collapse `.'/`..' segments,
+%% and check the result still lies under the root directory identified
+%% by `RootParts'. Returns the normalized path parts on success, or
+%% `unsafe' if the resolved path escapes the root via `..' or otherwise
+%% leaves the rooted tree. Absolute `Path' is accepted only when the
+%% root is also absolute and is a prefix of `Path' — otherwise
+%% `filename:join/2' substitutes `Path' for `Cwd' and the prefix check
+%% rejects it.
+check_path(Cwd, Path, RootParts) ->
+    case normalize(filename:split(filename:join(Cwd, Path))) of
+        {ok, Parts} ->
+            case lists:prefix(RootParts, Parts) of
+                true  -> {ok, Parts};
+                false -> unsafe
+            end;
+        escape ->
+            unsafe
+    end.
+
+%% @private Collapse `.' and `..' segments. Returns `escape' if `..'
+%% would pop past the start of the path, otherwise `{ok, Parts}'.
+normalize(Parts) -> normalize(Parts, []).
+
+normalize([], Acc)                -> {ok, lists:reverse(Acc)};
+normalize(["." | T], Acc)         -> normalize(T, Acc);
+normalize([".." | T], [_ | AccT]) -> normalize(T, AccT);
+normalize([".." | _], [])         -> escape;
+normalize([P | T], Acc)           -> normalize(T, [P | Acc]).
 
 new_context(Cwd) ->
     new_context(Cwd, []).

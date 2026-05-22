@@ -258,6 +258,61 @@ import_outside_root_rejected_test_() ->
           "test/data"))
      || Kind <- Variants, AP <- AttackPaths].
 
+import_absolute_path_under_absolute_root_test() ->
+    %% An absolute import path is accepted when rootdir is also absolute
+    %% and the path lies under it.
+    AbsRoot = test_data(""),
+    AbsFoo = test_data("foo.avdl"),
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import idl \"" ++ AbsFoo ++ "\"; }",
+              AbsRoot,
+              [{rootdir, AbsRoot}]),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"FooRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"FooEnum">>, <<"type">> := ?AVRO_ENUM}],
+       Types).
+
+import_absolute_path_outside_absolute_root_test() ->
+    %% Absolute path with absolute rootdir is rejected when the path is
+    %% not under the root. Exercises the prefix check in the
+    %% absolute-vs-absolute case (the existing /etc/passwd test uses a
+    %% relative root, so the abs-vs-rel mismatch alone makes it fail).
+    AbsRoot = test_data("subdir"),
+    AbsFoo = test_data("foo.avdl"),
+    ?assertError(
+       {badmatch, {error, {import_outside_root, _}}},
+       avro_idl:str_to_avpr(
+         "protocol P { import idl \"" ++ AbsFoo ++ "\"; }",
+         AbsRoot,
+         [{rootdir, AbsRoot}])).
+
+import_rootdir_with_dotdot_segments_test() ->
+    %% rootdir with embedded `..' segments is normalized once at
+    %% setup, so the prefix check still works against canonical paths.
+    DenormRoot = test_data("subdir/.."),
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import idl \"subdir/submodule.avdl\"; }",
+              DenormRoot,
+              [{rootdir, DenormRoot}]),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"FooRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"FooEnum">>, <<"type">> := ?AVRO_ENUM},
+        #{<<"name">> := <<"SubRecord">>, <<"type">> := ?AVRO_RECORD}],
+       Types).
+
+import_dot_segments_collapsed_test() ->
+    %% `.' segments in the import path are collapsed by normalize/1.
+    Proto = avro_idl:str_to_avpr(
+              "protocol P { import idl \"./foo.avdl\"; }",
+              "test/data"),
+    #{<<"types">> := Types} = Proto,
+    ?assertMatch(
+       [#{<<"name">> := <<"FooRecord">>, <<"type">> := ?AVRO_RECORD},
+        #{<<"name">> := <<"FooEnum">>, <<"type">> := ?AVRO_ENUM}],
+       Types).
+
 import_outside_root_with_read_fun_override_test() ->
     %% The strict default can be bypassed by supplying a custom read_fun;
     %% verify the option still takes effect and the default is not applied
