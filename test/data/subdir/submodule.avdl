@@ -1,5 +1,5 @@
 protocol Submodule {
-    import idl "sibling.avdl";
+    import idl "../foo.avdl";
 
     record SubRecord {
         string sub_field;

@@ -18,7 +18,9 @@
 -type read_fun() :: fun((Cwd :: string(), Path :: string()) ->
                             {ok, binary()} | {error, term()}).
 
--record(st, {cwd, read_fun :: read_fun()}).
+-record(st, {cwd :: string(),
+             rootdir :: string(),
+             read_fun :: read_fun()}).
 
 decode_schema(SchemaStr, Cwd) ->
     decode_schema(SchemaStr, Cwd, []).
@@ -42,23 +44,41 @@ decode_schema(SchemaStr, Cwd, Opts) ->
 
 %% @doc Default `read_fun' used when one is not supplied via options.
 %% Import paths are resolved relative to the importing file's directory
-%% (`Cwd'). Absolute paths and relative paths that escape `Cwd' through
-%% `..' are refused with `{error, {import_outside_root, Path}}'. Callers
-%% that need different resolution semantics can supply their own
-%% function via the `read_fun' option.
--spec default_read_fun() -> read_fun().
-default_read_fun() ->
+%% (`Cwd'), but the resolved location must stay under `RootDir' — the
+%% top-level caller's `Cwd' unless overridden via the `rootdir' option.
+%% Absolute paths and relative paths that escape `RootDir' through `..'
+%% are refused with `{error, {import_outside_root, Path}}'. `..' within
+%% `RootDir' is allowed, so layouts like `orders/order.avdl' importing
+%% `../common/types.avdl' work as long as `common/' is also under
+%% `RootDir'. Callers that need different resolution semantics can
+%% supply their own function via the `read_fun' option.
+-spec default_read_fun(RootDir :: string()) -> read_fun().
+default_read_fun(RootDir) ->
+    RootParts = filename:split(RootDir),
     fun(Cwd, Path) ->
         case filename:pathtype(Path) of
-            absolute ->
-                {error, {import_outside_root, Path}};
+            relative ->
+                CwdParts = filename:split(Cwd),
+                case lists:prefix(RootParts, CwdParts) of
+                    true ->
+                        RelCwd =
+                            case lists:nthtail(length(RootParts), CwdParts) of
+                                []   -> ".";
+                                Rest -> filename:join(Rest)
+                            end,
+                        Candidate = filename:join(RelCwd, Path),
+                        case filelib:safe_relative_path(Candidate, RootDir) of
+                            unsafe ->
+                                {error, {import_outside_root, Path}};
+                            SafePath ->
+                                file:read_file(
+                                  filename:join(RootDir, SafePath))
+                        end;
+                    false ->
+                        {error, {import_outside_root, Path}}
+                end;
             _ ->
-                case filelib:safe_relative_path(Path, Cwd) of
-                    unsafe ->
-                        {error, {import_outside_root, Path}};
-                    SafePath ->
-                        file:read_file(filename:join(Cwd, SafePath))
-                end
+                {error, {import_outside_root, Path}}
         end
     end.
 
@@ -66,8 +86,9 @@ new_context(Cwd) ->
     new_context(Cwd, []).
 
 new_context(Cwd, Opts) ->
-    ReadFun = proplists:get_value(read_fun, Opts, default_read_fun()),
-    #st{cwd = Cwd, read_fun = ReadFun}.
+    RootDir = proplists:get_value(rootdir, Opts, Cwd),
+    ReadFun = proplists:get_value(read_fun, Opts, default_read_fun(RootDir)),
+    #st{cwd = Cwd, rootdir = RootDir, read_fun = ReadFun}.
 
 str_to_avpr(String, Cwd) ->
     str_to_avpr(String, Cwd, []).
@@ -119,11 +140,11 @@ process_imports(Defs, St) ->
               [Def]
       end, Defs).
 
-load_idl_import(Path, #st{cwd = Cwd, read_fun = ReadFun} = St) ->
+load_idl_import(Path, #st{cwd = Cwd, rootdir = Root, read_fun = ReadFun} = St) ->
     {ok, Bin} = ReadFun(Cwd, Path),
     ImportedCwd = filename:dirname(filename:join(Cwd, Path)),
     Avpr = str_to_avpr(binary_to_list(Bin), ImportedCwd,
-                       [{read_fun, ReadFun}]),
+                       [{read_fun, ReadFun}, {rootdir, Root}]),
     types_from_avpr(Avpr, St).
 
 load_avpr_import(Path, #st{cwd = Cwd, read_fun = ReadFun} = St) ->
