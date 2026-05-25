@@ -1,3 +1,5 @@
+* 2.11.2
+   - Adjust licenses tag in .app.src due to hex changes.
 * 2.11.1
    - avro_idl: the default IDL `read_fun` now confines imports to a root
      directory. Absolute paths and relative paths that escape the root
