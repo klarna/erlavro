@@ -40,13 +40,16 @@
 -export([ new/0
         , new/1
         , new/2
+        , new/3
         , close/1
         , is_store/1
         ]).
 
 %% Import
 -export([ import_file/2
+        , import_file/3
         , import_files/2
+        , import_files/3
         , import_schema_json/2
         , import_schema_json/3
         ]).
@@ -97,11 +100,19 @@ new(Options) ->
           end
   end.
 
-%% @doc Create a new schema store and improt the given schema JSON files.
+%% @doc Create a new schema store and import the given schema JSON files.
 -spec new([proplists:property()], [filename()]) -> store().
 new(Options, Files) ->
+  new(Options, Files, []).
+
+%% @doc Same as {@link new/2} but forwards `ImportOpts' to
+%% {@link import_files/3} — e.g. `[{rootdir, "schemas"}]' when loading
+%% `.avdl' files that import from sibling directories via `..'.
+-spec new([proplists:property()], [filename()], [proplists:property()]) ->
+        store().
+new(Options, Files, ImportOpts) ->
   Store = new(Options),
-  import_files(Files, Store).
+  import_files(Files, Store, ImportOpts).
 
 %% @doc Return true if the given arg is a schema store.
 -spec is_store(term()) -> boolean().
@@ -120,7 +131,13 @@ to_lookup_fun(Store) ->
 %% @doc Import avro JSON files into schema store.
 -spec import_files([filename()], store()) -> store().
 import_files(Files, Store) ->
-  lists:foldl(fun(File, S) -> import_file(File, S) end, Store, Files).
+  import_files(Files, Store, []).
+
+%% @doc Import avro JSON/IDL files into schema store with options.
+%% Options are forwarded to {@link import_file/3}.
+-spec import_files([filename()], store(), [proplists:property()]) -> store().
+import_files(Files, Store, Opts) ->
+  lists:foldl(fun(File, S) -> import_file(File, S, Opts) end, Store, Files).
 
 %% @doc Import avro JSON or IDL file into schema store.
 %% For ".avdl" files, the IDL is compiled and all types are imported.
@@ -134,9 +151,22 @@ import_files(Files, Store) ->
 %% @end
 -spec import_file(filename(), store()) -> store().
 import_file(File, Store) ->
+  import_file(File, Store, []).
+
+%% @doc Same as {@link import_file/2} but accepts options.
+%% Supported options for `.avdl' inputs:
+%% <ul>
+%%   <li>`{rootdir, Dir}' — directory that bounds default import
+%%       resolution. Imports may use `..' freely within `Dir' but
+%%       cannot escape it. Defaults to the directory of `File'.</li>
+%%   <li>`{read_fun, Fun}' — custom reader; bypasses all path checks.</li>
+%% </ul>
+%% Options are ignored for non-IDL inputs.
+-spec import_file(filename(), store(), [proplists:property()]) -> store().
+import_file(File, Store, Opts) ->
   case filename:extension(File) of
     Ext when Ext =:= ".avdl"; Ext =:= <<".avdl">> ->
-      import_idl_file(File, Store);
+      import_idl_file(File, Store, Opts);
     _ ->
       case file:read_file(File) of
         {ok, Json} ->
@@ -254,11 +284,11 @@ import_schema_json(AssignedName, Json, Store) ->
 
 %% @private Import an Avro IDL (.avdl) file into the schema store.
 %% All named types defined in (or imported by) the protocol are added.
--spec import_idl_file(filename(), store()) -> store().
-import_idl_file(File, Store) ->
+-spec import_idl_file(filename(), store(), [proplists:property()]) -> store().
+import_idl_file(File, Store, Opts) ->
   Cwd = filename:dirname(File),
   {ok, Bin} = file:read_file(File),
-  Schema = avro_idl:decode_schema(binary_to_list(Bin), Cwd),
+  Schema = avro_idl:decode_schema(binary_to_list(Bin), Cwd, Opts),
   {_Root, FlatTypes} = avro:flatten_type(Schema),
   lists:foldl(fun do_add_type/2, Store, FlatTypes).
 

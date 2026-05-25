@@ -1,3 +1,18 @@
+* 2.11.1
+   - avro_idl: the default IDL `read_fun` now confines imports to a root
+     directory. Absolute paths and relative paths that escape the root
+     through `..` are refused with `{error, {import_outside_root, Path}}`,
+     but `..` is allowed as long as the resolved path stays under the
+     root. The root defaults to the top-level caller's `Cwd` and can be
+     overridden via the new `{rootdir, Dir}` option, supported by
+     `avro_idl:decode_schema/3`, `avro_idl:new_context/2`,
+     `avro_idl:str_to_avpr/3`, and the new
+     `avro_schema_store:new/3` / `import_file/3` / `import_files/3`
+     entry points. Callers that need different resolution semantics
+     (loading from arbitrary directories or from an in-memory store)
+     can still supply their own function via the existing
+     `{read_fun, Fun}` option, which bypasses path checks.
+
 * 2.11.0
    - Deleted jsone as dependency.
      When OTP release is 27 or later, the default JSON provider module is `json`, otherwise `jsone`.

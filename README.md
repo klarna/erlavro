@@ -307,6 +307,35 @@ protocol Orders {
 Store = avro_schema_store:new([], ["schemas/orders.avdl"]),
 ```
 
+### Import directory confinement
+
+The default reader confines imports to a "root directory" — by default the
+directory of the top-level `.avdl` file passed to the schema store.
+Absolute paths and relative paths that escape the root through `..` are
+refused with `{error, {import_outside_root, Path}}`. `..` is allowed as
+long as the resolved path stays inside the root, so a layout that splits
+schemas across sibling directories still works:
+
+```text
+schemas/
+  common/types.avdl
+  orders/order.avdl    %% can import "../common/types.avdl"
+```
+
+To use that layout, point `rootdir` at the top of the tree so imports
+above the loaded file's own directory can still resolve:
+
+```erlang
+Store = avro_schema_store:new(
+          [], ["schemas/orders/order.avdl"],
+          [{rootdir, "schemas"}]).
+```
+
+Callers that need different resolution semantics (loading from arbitrary
+directories or from an in-memory store) can supply their own function
+via the `{read_fun, Fun}` option — that bypasses the path checks
+entirely. See the next section for an example.
+
 ## In-memory schema loading (no filesystem)
 
 For testing or embedded schemas, supply a custom `read_fun` that resolves

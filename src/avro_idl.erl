@@ -18,7 +18,9 @@
 -type read_fun() :: fun((Cwd :: string(), Path :: string()) ->
                             {ok, binary()} | {error, term()}).
 
--record(st, {cwd, read_fun :: read_fun()}).
+-record(st, {cwd :: string(),
+             rootdir :: string(),
+             read_fun :: read_fun()}).
 
 decode_schema(SchemaStr, Cwd) ->
     decode_schema(SchemaStr, Cwd, []).
@@ -40,16 +42,62 @@ decode_schema(SchemaStr, Cwd, Opts) ->
         end, Types1),
     avro:decode_schema(Types, [{ignore_bad_default_values, true}]).
 
--spec default_read_fun() -> read_fun().
-default_read_fun() ->
-    fun(Cwd, Path) -> file:read_file(filename:join(Cwd, Path)) end.
+%% @doc Default `read_fun' used when one is not supplied via options.
+%% Import paths are resolved relative to the importing file's directory
+%% (`Cwd'), but the resolved location must stay under `RootDir' — the
+%% top-level caller's `Cwd' unless overridden via the `rootdir' option.
+%% Absolute paths and relative paths that escape `RootDir' through `..'
+%% are refused with `{error, {import_outside_root, Path}}'. `..' within
+%% `RootDir' is allowed, so layouts like `orders/order.avdl' importing
+%% `../common/types.avdl' work as long as `common/' is also under
+%% `RootDir'. Callers that need different resolution semantics can
+%% supply their own function via the `read_fun' option.
+-spec default_read_fun(RootDir :: string()) -> read_fun().
+default_read_fun(RootDir) ->
+    {ok, RootParts} = normalize(filename:split(RootDir)),
+    fun(Cwd, Path) ->
+        case check_path(Cwd, Path, RootParts) of
+            {ok, Parts} -> file:read_file(filename:join(Parts));
+            unsafe      -> {error, {import_outside_root, Path}}
+        end
+    end.
+
+%% @private Resolve `Path' against `Cwd', collapse `.'/`..' segments,
+%% and check the result still lies under the root directory identified
+%% by `RootParts'. Returns the normalized path parts on success, or
+%% `unsafe' if the resolved path escapes the root via `..' or otherwise
+%% leaves the rooted tree. Absolute `Path' is accepted only when the
+%% root is also absolute and is a prefix of `Path' — otherwise
+%% `filename:join/2' substitutes `Path' for `Cwd' and the prefix check
+%% rejects it.
+check_path(Cwd, Path, RootParts) ->
+    case normalize(filename:split(filename:join(Cwd, Path))) of
+        {ok, Parts} ->
+            case lists:prefix(RootParts, Parts) of
+                true  -> {ok, Parts};
+                false -> unsafe
+            end;
+        escape ->
+            unsafe
+    end.
+
+%% @private Collapse `.' and `..' segments. Returns `escape' if `..'
+%% would pop past the start of the path, otherwise `{ok, Parts}'.
+normalize(Parts) -> normalize(Parts, []).
+
+normalize([], Acc)                -> {ok, lists:reverse(Acc)};
+normalize(["." | T], Acc)         -> normalize(T, Acc);
+normalize([".." | T], [_ | AccT]) -> normalize(T, AccT);
+normalize([".." | _], [])         -> escape;
+normalize([P | T], Acc)           -> normalize(T, [P | Acc]).
 
 new_context(Cwd) ->
     new_context(Cwd, []).
 
 new_context(Cwd, Opts) ->
-    ReadFun = proplists:get_value(read_fun, Opts, default_read_fun()),
-    #st{cwd = Cwd, read_fun = ReadFun}.
+    RootDir = proplists:get_value(rootdir, Opts, Cwd),
+    ReadFun = proplists:get_value(read_fun, Opts, default_read_fun(RootDir)),
+    #st{cwd = Cwd, rootdir = RootDir, read_fun = ReadFun}.
 
 str_to_avpr(String, Cwd) ->
     str_to_avpr(String, Cwd, []).
@@ -101,11 +149,11 @@ process_imports(Defs, St) ->
               [Def]
       end, Defs).
 
-load_idl_import(Path, #st{cwd = Cwd, read_fun = ReadFun} = St) ->
+load_idl_import(Path, #st{cwd = Cwd, rootdir = Root, read_fun = ReadFun} = St) ->
     {ok, Bin} = ReadFun(Cwd, Path),
     ImportedCwd = filename:dirname(filename:join(Cwd, Path)),
     Avpr = str_to_avpr(binary_to_list(Bin), ImportedCwd,
-                       [{read_fun, ReadFun}]),
+                       [{read_fun, ReadFun}, {rootdir, Root}]),
     types_from_avpr(Avpr, St).
 
 load_avpr_import(Path, #st{cwd = Cwd, read_fun = ReadFun} = St) ->
