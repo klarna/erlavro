@@ -62,7 +62,8 @@
 
 -module(avro_decoder_hooks).
 
--export([ tag_unions/0
+-export([ materialize_defaults/1
+        , tag_unions/0
         , pretty_print_hist/0
         , print_debug_trace/2
         ]).
@@ -75,6 +76,16 @@
 
 -type count() :: non_neg_integer().
 -type trace_hist_entry() :: {push, _, _} | {pop, _} | pop.
+
+%% @doc Materialize omitted record field defaults while decoding Avro JSON.
+%% Binary decoding is passed through unchanged.
+%% @end
+-spec materialize_defaults(avro:schema_all()) -> avro:decoder_hook_fun().
+materialize_defaults(Schema) ->
+  Lkup = avro_util:ensure_lkup_fun(Schema),
+  fun(Type, SubName, Data, DecodeFun) ->
+      materialize_defaults(Type, SubName, Data, DecodeFun, Lkup)
+  end.
 
 %% @doc By default, decoders do not tag union values.
 %% This hook function is to tag union values with union type names
@@ -131,6 +142,45 @@ pretty_print_hist() ->
   end.
 
 %%%_* Internal functions =======================================================
+
+-spec materialize_defaults(avro:avro_type(), avro:name() | integer() | none,
+                           term(), function(), avro:lkup_fun()) -> term().
+materialize_defaults(#avro_record_type{} = Type, none, Attrs,
+                     DecodeFun, Lkup) when is_list(Attrs) ->
+  DecodeFun(add_missing_defaults(Type, Attrs, Lkup));
+materialize_defaults(_Type, _SubName, Data, DecodeFun, _Lkup) ->
+  DecodeFun(Data).
+
+-spec add_missing_defaults(avro:record_type(),
+                           [{avro:name(), term()}], avro:lkup_fun()) ->
+        [{avro:name(), term()}].
+add_missing_defaults(Type, Attrs, Lkup) ->
+  Defaults = lists:filtermap(
+               fun(FieldData) ->
+                   missing_default(FieldData, Attrs, Lkup)
+               end,
+               avro_record:get_all_field_data(Type)),
+  Attrs ++ Defaults.
+
+-spec missing_default({avro:name(), [avro:name()], avro:type_or_name(), term()},
+                      [{avro:name(), term()}], avro:lkup_fun()) ->
+        false | {true, {avro:name(), jsone:json_value()}}.
+missing_default({FieldName, Aliases, FieldType, Default}, Attrs, Lkup) ->
+  Names = [FieldName | Aliases],
+  IsPresent = lists:any(
+                fun(Name) -> lists:keymember(Name, 1, Attrs) end,
+                Names),
+  case {IsPresent, Default} of
+    {false, undefined} -> false;
+    {false, _} -> {true, {FieldName, default_json(FieldType, Default, Lkup)}};
+    {true, _} -> false
+  end.
+
+-spec default_json(avro:type_or_name(), term(), avro:lkup_fun()) ->
+        jsone:json_value().
+default_json(Type, Default, Lkup) ->
+  Encoded = iolist_to_binary(avro_json_encoder:encode(Lkup, Type, Default)),
+  jsone:decode(Encoded, [{object_format, tuple}]).
 
 %% @private
 tag_unions(#avro_union_type{} = T, SubInfo, DecodeIn, DecodeFun) ->
