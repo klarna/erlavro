@@ -164,7 +164,7 @@ add_missing_defaults(Type, Attrs, Lkup) ->
 
 -spec missing_default({avro:name(), [avro:name()], avro:type_or_name(), term()},
                       [{avro:name(), term()}], avro:lkup_fun()) ->
-        false | {true, {avro:name(), jsone:json_value()}}.
+        false | {true, {avro:name(), avro_json_compat:json_value()}}.
 missing_default({FieldName, Aliases, FieldType, Default}, Attrs, Lkup) ->
   Names = [FieldName | Aliases],
   IsPresent = lists:any(
@@ -177,10 +177,10 @@ missing_default({FieldName, Aliases, FieldType, Default}, Attrs, Lkup) ->
   end.
 
 -spec default_json(avro:type_or_name(), term(), avro:lkup_fun()) ->
-        jsone:json_value().
+        avro_json_compat:json_value().
 default_json(Type, Default, Lkup) ->
   Encoded = iolist_to_binary(avro_json_encoder:encode(Lkup, Type, Default)),
-  jsone:decode(Encoded, [{object_format, tuple}]).
+  avro_json_compat:decode(Encoded, [{object_format, tuple}]).
 
 %% @private
 tag_unions(#avro_union_type{} = T, SubInfo, DecodeIn, DecodeFun) ->

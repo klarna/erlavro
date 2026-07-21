@@ -110,7 +110,24 @@ materialize_defaults_wrapped_test() ->
       <<"mode">> => #{<<"string">> => <<"fallback">>},
       <<"metadata">> => #{<<"source">> => <<"local">>}
     },
-    jsone:decode(
+    avro_json_compat:decode(
+      iolist_to_binary(avro_json_encoder:encode_value(Decoded)),
+      [{object_format, map}])).
+
+materialize_recursive_defaults_test() ->
+  Store = recursive_defaults_store(),
+  Hook = avro_decoder_hooks:materialize_defaults(Store),
+  Options = avro:make_decoder_options([{hook, Hook}]),
+  Decoded = avro_json_decoder:decode_value(
+              <<"{}">>, <<"Config">>, Store, Options),
+  ?assertEqual(
+    #{
+      <<"settings">> => #{
+        <<"subsettings0">> => #{<<"x">> => 1},
+        <<"subsettings1">> => #{<<"y">> => 2}
+      }
+    },
+    avro_json_compat:decode(
       iolist_to_binary(avro_json_encoder:encode_value(Decoded)),
       [{object_format, map}])).
 
@@ -165,7 +182,7 @@ decode_defaults(DecoderOptions) ->
       <<"mode">> => #{<<"string">> => <<"fallback">>},
       <<"metadata">> => #{<<"source">> => <<"local">>}
     },
-    jsone:decode(
+    avro_json_compat:decode(
       iolist_to_binary(Encoded), [{object_format, map}])),
   Decoded.
 
@@ -206,7 +223,58 @@ defaults_store() ->
       }
     ]
   },
-  Json = iolist_to_binary(jsone:encode(Schema, [native_utf8])),
+  Json = iolist_to_binary(avro_json_compat:encode(Schema, [native_utf8])),
+  avro_schema_store:import_schema_json(
+    Json, avro_schema_store:new([map])).
+
+recursive_defaults_store() ->
+  Schema = #{
+    <<"type">> => <<"record">>,
+    <<"name">> => <<"Config">>,
+    <<"fields">> => [
+      #{
+        <<"name">> => <<"settings">>,
+        <<"type">> => #{
+          <<"type">> => <<"record">>,
+          <<"name">> => <<"Settings">>,
+          <<"fields">> => [
+            #{
+              <<"name">> => <<"subsettings0">>,
+              <<"type">> => #{
+                <<"type">> => <<"record">>,
+                <<"name">> => <<"Subsettings0">>,
+                <<"fields">> => [
+                  #{
+                    <<"name">> => <<"x">>,
+                    <<"type">> => <<"int">>,
+                    <<"default">> => 1
+                  }
+                ]
+              },
+              <<"default">> => #{}
+            },
+            #{
+              <<"name">> => <<"subsettings1">>,
+              <<"type">> => #{
+                <<"type">> => <<"record">>,
+                <<"name">> => <<"Subsettings1">>,
+                <<"fields">> => [
+                  #{
+                    <<"name">> => <<"y">>,
+                    <<"type">> => <<"int">>,
+                    <<"default">> => 2
+                  }
+                ]
+              },
+              <<"default">> => #{}
+            }
+          ]
+        },
+        <<"default">> => #{<<"subsettings0">> => #{}}
+      }
+    ]
+  },
+  Json = iolist_to_binary(avro_json_compat:encode(Schema, [native_utf8])),
   avro_schema_store:import_schema_json(
     Json, avro_schema_store:new([map])).
 
