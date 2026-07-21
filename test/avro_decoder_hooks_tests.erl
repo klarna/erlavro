@@ -107,7 +107,6 @@ materialize_defaults_wrapped_test() ->
     #{
       <<"format">> => <<"json">>,
       <<"retries">> => 3,
-      <<"mode">> => #{<<"string">> => <<"fallback">>},
       <<"metadata">> => #{<<"source">> => <<"local">>}
     },
     avro_json_compat:decode(
@@ -138,7 +137,6 @@ materialize_defaults_unwrapped_test_() ->
            [
              {<<"format">>, <<"json">>},
              {<<"retries">>, 3},
-             {<<"mode">>, <<"fallback">>},
              {<<"metadata">>, [{<<"source">>, <<"local">>}]}
            ],
            decode_defaults([]))
@@ -148,7 +146,6 @@ materialize_defaults_unwrapped_test_() ->
            #{
              <<"format">> => <<"json">>,
              <<"retries">> => 3,
-             <<"mode">> => <<"fallback">>,
              <<"metadata">> => #{<<"source">> => <<"local">>}
            },
            decode_defaults([{record_type, map}, {map_type, map}]))
@@ -179,7 +176,6 @@ decode_defaults(DecoderOptions) ->
     #{
       <<"format">> => <<"json">>,
       <<"retries">> => 3,
-      <<"mode">> => #{<<"string">> => <<"fallback">>},
       <<"metadata">> => #{<<"source">> => <<"local">>}
     },
     avro_json_compat:decode(
@@ -204,11 +200,6 @@ defaults_store() ->
         <<"name">> => <<"retries">>,
         <<"type">> => <<"int">>,
         <<"default">> => 3
-      },
-      #{
-        <<"name">> => <<"mode">>,
-        <<"type">> => [<<"null">>, <<"string">>],
-        <<"default">> => <<"fallback">>
       },
       #{
         <<"name">> => <<"metadata">>,
