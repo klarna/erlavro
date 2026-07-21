@@ -95,6 +95,63 @@ tag_unions_test() ->
                   ]}
      ], Decoder("com.example.MyRecord", Bin)).
 
+materialize_defaults_wrapped_test() ->
+  Store = defaults_store(),
+  Hook = avro_decoder_hooks:materialize_defaults(Store),
+  Options = avro:make_decoder_options([{hook, Hook}]),
+  Decoded = avro_json_decoder:decode_value(
+              <<"{}">>, <<"Config">>, Store, Options),
+  Enum = avro_record:get_value(<<"format">>, Decoded),
+  ?assertEqual(<<"json">>, avro_enum:get_value(Enum)),
+  ?assertEqual(
+    #{
+      <<"format">> => <<"json">>,
+      <<"retries">> => 3,
+      <<"metadata">> => #{<<"source">> => <<"local">>}
+    },
+    avro_json_compat:decode(
+      iolist_to_binary(avro_json_encoder:encode_value(Decoded)),
+      [{object_format, map}])).
+
+materialize_recursive_defaults_test() ->
+  Store = recursive_defaults_store(),
+  Hook = avro_decoder_hooks:materialize_defaults(Store),
+  Options = avro:make_decoder_options([{hook, Hook}]),
+  Decoded = avro_json_decoder:decode_value(
+              <<"{}">>, <<"Config">>, Store, Options),
+  ?assertEqual(
+    #{
+      <<"settings">> => #{
+        <<"subsettings0">> => #{<<"x">> => 1},
+        <<"subsettings1">> => #{<<"y">> => 2}
+      }
+    },
+    avro_json_compat:decode(
+      iolist_to_binary(avro_json_encoder:encode_value(Decoded)),
+      [{object_format, map}])).
+
+materialize_defaults_unwrapped_test_() ->
+  [
+    {"proplist", fun() ->
+         ?assertEqual(
+           [
+             {<<"format">>, <<"json">>},
+             {<<"retries">>, 3},
+             {<<"metadata">>, [{<<"source">>, <<"local">>}]}
+           ],
+           decode_defaults([]))
+     end},
+    {"map", fun() ->
+         ?assertEqual(
+           #{
+             <<"format">> => <<"json">>,
+             <<"retries">> => 3,
+             <<"metadata">> => #{<<"source">> => <<"local">>}
+           },
+           decode_defaults([{record_type, map}, {map_type, map}]))
+     end}
+  ].
+
 %% @private
 corrupt_encoded(avro_binary, Bin) ->
   %% for binary format, chopping off the last byte should corrupt the data
@@ -106,6 +163,111 @@ corrupt_encoded(avro_json, Bin) ->
   %% for json, replace the last string with an integer
   %% to violate the type check
   binary:replace(Bin, <<"\"my-string\"">>, <<"42">>).
+
+decode_defaults(DecoderOptions) ->
+  Store = defaults_store(),
+  Hook = avro_decoder_hooks:materialize_defaults(Store),
+  Decoder = avro:make_decoder(
+              Store,
+              [{encoding, avro_json}, {hook, Hook} | DecoderOptions]),
+  Decoded = Decoder(<<"Config">>, <<"{}">>),
+  Encoded = avro_json_encoder:encode(Store, <<"Config">>, Decoded),
+  ?assertEqual(
+    #{
+      <<"format">> => <<"json">>,
+      <<"retries">> => 3,
+      <<"metadata">> => #{<<"source">> => <<"local">>}
+    },
+    avro_json_compat:decode(
+      iolist_to_binary(Encoded), [{object_format, map}])),
+  Decoded.
+
+defaults_store() ->
+  Schema = #{
+    <<"type">> => <<"record">>,
+    <<"name">> => <<"Config">>,
+    <<"fields">> => [
+      #{
+        <<"name">> => <<"format">>,
+        <<"type">> => #{
+          <<"type">> => <<"enum">>,
+          <<"name">> => <<"ToolFormat">>,
+          <<"symbols">> => [<<"json">>, <<"binary">>]
+        },
+        <<"default">> => <<"json">>
+      },
+      #{
+        <<"name">> => <<"retries">>,
+        <<"type">> => <<"int">>,
+        <<"default">> => 3
+      },
+      #{
+        <<"name">> => <<"metadata">>,
+        <<"type">> => #{
+          <<"type">> => <<"record">>,
+          <<"name">> => <<"Metadata">>,
+          <<"fields">> => [
+            #{<<"name">> => <<"source">>, <<"type">> => <<"string">>}
+          ]
+        },
+        <<"default">> => #{<<"source">> => <<"local">>}
+      }
+    ]
+  },
+  Json = iolist_to_binary(avro_json_compat:encode(Schema, [native_utf8])),
+  avro_schema_store:import_schema_json(
+    Json, avro_schema_store:new([map])).
+
+recursive_defaults_store() ->
+  Schema = #{
+    <<"type">> => <<"record">>,
+    <<"name">> => <<"Config">>,
+    <<"fields">> => [
+      #{
+        <<"name">> => <<"settings">>,
+        <<"type">> => #{
+          <<"type">> => <<"record">>,
+          <<"name">> => <<"Settings">>,
+          <<"fields">> => [
+            #{
+              <<"name">> => <<"subsettings0">>,
+              <<"type">> => #{
+                <<"type">> => <<"record">>,
+                <<"name">> => <<"Subsettings0">>,
+                <<"fields">> => [
+                  #{
+                    <<"name">> => <<"x">>,
+                    <<"type">> => <<"int">>,
+                    <<"default">> => 1
+                  }
+                ]
+              },
+              <<"default">> => #{}
+            },
+            #{
+              <<"name">> => <<"subsettings1">>,
+              <<"type">> => #{
+                <<"type">> => <<"record">>,
+                <<"name">> => <<"Subsettings1">>,
+                <<"fields">> => [
+                  #{
+                    <<"name">> => <<"y">>,
+                    <<"type">> => <<"int">>,
+                    <<"default">> => 2
+                  }
+                ]
+              },
+              <<"default">> => #{}
+            }
+          ]
+        },
+        <<"default">> => #{<<"subsettings0">> => #{}}
+      }
+    ]
+  },
+  Json = iolist_to_binary(avro_json_compat:encode(Schema, [native_utf8])),
+  avro_schema_store:import_schema_json(
+    Json, avro_schema_store:new([map])).
 
 %% @private
 define_field(Name, Type) -> avro_record:define_field(Name, Type).
